@@ -17,7 +17,7 @@ langchain-groq>=0.2.1
 
 # Alternatives (décommentez si nécessaire)
 # langchain-anthropic>=0.3.1  # Pour Claude
-# langchain-openai>=0.2.11    # Pour OpenAI
+langchain-openai>=0.2.11    # Pour OpenAI et OpenRouter (requis pour OpenRouter)
 
 # ============================================
 # EMBEDDINGS & RECHERCHE VECTORIELLE
@@ -57,8 +57,10 @@ reportlab>=4.0.0
 # loguru==0.7.2
 
 # Pour la persistance en base de données
-# sqlalchemy==2.0.36
-# psycopg2-binary==2.9.10  # PostgreSQL
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10  # PostgreSQL
+mysql-connector-python==8.3.0  # MySQL
+pymongo==4.10.1  # MongoDB
 
 # ============================================
 # NOTES D'INSTALLATION

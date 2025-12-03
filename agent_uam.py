@@ -96,6 +96,7 @@ class LLMProvider(Enum):
     CLAUDE = "claude"
     LLAMA_OLLAMA = "llama_ollama"
     LLAMA_GROQ = "llama_groq"
+    OPENROUTER = "openrouter"
 
 
 # ==================== BASE DE CONNAISSANCES UAM ====================
@@ -267,7 +268,7 @@ def initialize_llm(provider: LLMProvider, model_name: Optional[str] = None, temp
     Initialise le LLM selon le provider choisi
     
     Args:
-        provider: Provider LLM (OPENAI, CLAUDE, LLAMA_OLLAMA, LLAMA_GROQ)
+        provider: Provider LLM (OPENAI, CLAUDE, LLAMA_OLLAMA, LLAMA_GROQ, OPENROUTER)
         model_name: Nom du modèle (optionnel, utilise les valeurs par défaut)
         temperature: Température pour la génération (0 = déterministe, 1 = créatif)
     
@@ -310,6 +311,42 @@ def initialize_llm(provider: LLMProvider, model_name: Optional[str] = None, temp
             temperature=temperature,
             api_key=api_key  # Passer explicitement la clé API
         )
+    
+    elif provider == LLMProvider.OPENROUTER:
+        from langchain_openai import ChatOpenAI
+        # Vérifier que la clé API est disponible
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "OPENROUTER_API_KEY non définie. "
+                "Définissez-la dans le fichier .env ou comme variable d'environnement.\n"
+                "Exemple: export OPENROUTER_API_KEY='votre_cle' ou créez un fichier .env avec OPENROUTER_API_KEY=votre_cle\n"
+                "Obtenez votre clé sur https://openrouter.ai/"
+            )
+        # OpenRouter utilise une API compatible OpenAI avec une URL de base différente
+        # ChatOpenAI nécessite que api_key soit passé explicitement ET que OPENAI_API_KEY soit définie
+        # On définit temporairement OPENAI_API_KEY pour éviter les erreurs de validation
+        original_openai_key = os.environ.get("OPENAI_API_KEY")
+        os.environ["OPENAI_API_KEY"] = api_key
+        
+        try:
+            llm = ChatOpenAI(
+                model=model_name or "openai/gpt-4o",
+                temperature=temperature,
+                api_key=api_key,  # Passer explicitement
+                base_url="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", "https://github.com/your-repo"),  # Optionnel mais recommandé
+                    "X-Title": os.getenv("OPENROUTER_APP_NAME", "Agent UAM"),  # Optionnel mais recommandé
+                }
+            )
+            return llm
+        finally:
+            # Restaurer la valeur originale
+            if original_openai_key is not None:
+                os.environ["OPENAI_API_KEY"] = original_openai_key
+            else:
+                os.environ.pop("OPENAI_API_KEY", None)
     
     else:
         raise ValueError(f"Provider non supporté: {provider}")
@@ -357,6 +394,41 @@ def initialize_embeddings(provider: LLMProvider):
                 )
             except ImportError:
                 # Dernier recours : utiliser OpenAI embeddings
+                from langchain_openai import OpenAIEmbeddings
+                print("  HuggingFace non disponible, utilisation d'OpenAI Embeddings")
+                return OpenAIEmbeddings()
+    
+    elif provider == LLMProvider.OPENROUTER:
+        # OpenRouter n'a pas d'API embeddings dédiée, utiliser OpenAI embeddings ou HuggingFace
+        # Option 1: Utiliser OpenAI embeddings via OpenRouter (si disponible)
+        try:
+            from langchain_openai import OpenAIEmbeddings
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if api_key:
+                print("  OpenRouter: utilisation d'OpenAI Embeddings via OpenRouter")
+                return OpenAIEmbeddings(
+                    api_key=api_key,
+                    base_url="https://openrouter.ai/api/v1"
+                )
+        except Exception:
+            pass
+        
+        # Option 2: Fallback vers HuggingFace (gratuit et multilingue)
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+            print("  OpenRouter n'a pas d'embeddings natifs, utilisation de HuggingFace")
+            return HuggingFaceEmbeddings(
+                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+            )
+        except ImportError:
+            try:
+                from langchain_community.embeddings import HuggingFaceEmbeddings
+                print("  OpenRouter n'a pas d'embeddings natifs, utilisation de HuggingFace (version community)")
+                return HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+                )
+            except ImportError:
+                # Dernier recours : utiliser OpenAI embeddings standard
                 from langchain_openai import OpenAIEmbeddings
                 print("  HuggingFace non disponible, utilisation d'OpenAI Embeddings")
                 return OpenAIEmbeddings()
@@ -499,6 +571,25 @@ def load_and_index_documents(pdf_directory: str, provider: LLMProvider) -> FAISS
 _vectorstore = None
 _user_memory_file = "user_memory.json"
 
+# Import du module de connexion à la base de données
+try:
+    from database_connector import (
+        is_database_available,
+        search_formations_db,
+        search_students_db,
+        search_schedules_db,
+        search_fees_db,
+        search_news_announcements_db,
+        query_database
+    )
+    _db_available = is_database_available()
+except ImportError:
+    _db_available = False
+    print("⚠️ Module database_connector non disponible")
+except Exception as e:
+    _db_available = False
+    print(f"⚠️ Erreur lors de l'initialisation de la base de données : {e}")
+
 def set_vectorstore(vectorstore: FAISS):
     """Définit le vectorstore global pour les outils"""
     global _vectorstore
@@ -590,9 +681,11 @@ _user_memory = UserMemory()
 def search_uam_knowledge(query: str) -> str:
     """
     Recherche des informations dans la base de connaissances de l'UAM.
+    Comprend automatiquement les abréviations (ex: FAST, FLSH, ENS, etc.).
     
     Args:
-        query: La question ou le terme à rechercher dans les documents UAM
+        query: La question ou le terme à rechercher dans les documents UAM.
+               Peut contenir des abréviations comme FAST, FLSH, ENS, etc.
         
     Returns:
         Le contexte pertinent trouvé dans les documents
@@ -600,13 +693,67 @@ def search_uam_knowledge(query: str) -> str:
     if _vectorstore is None:
         return "Erreur: Base de connaissances non initialisée"
     
-    # Recherche sémantique
-    docs = _vectorstore.similarity_search(query, k=4)
+    # Détecter et remplacer les abréviations par leurs noms complets pour améliorer la recherche
+    query_expanded = query
+    detected_structures = detect_structure_in_text(query)
+    
+    if detected_structures:
+        # Ajouter les noms complets des structures détectées à la requête
+        structure_names = [s["nom_complet"] for s in detected_structures]
+        query_expanded = f"{query} {' '.join(structure_names)}"
+    
+    # Recherche sémantique avec la requête enrichie
+    docs = _vectorstore.similarity_search(query_expanded, k=4)
     
     # Combiner les documents
     context = "\n\n---\n\n".join([doc.page_content for doc in docs])
     
     return context if context else "Aucune information trouvée pour cette requête."
+
+
+@tool
+def detect_greeting(message: str) -> str:
+    """
+    Détecte si le message de l'utilisateur est une salutation ou une formule de politesse.
+    
+    Args:
+        message: Le message de l'utilisateur
+        
+    Returns:
+        "GREETING" si c'est une salutation, "QUESTION" si c'est une question, "BOTH" si les deux
+    """
+    message_lower = message.lower().strip()
+    
+    # Salutations courantes
+    greetings = [
+        "bonjour", "bonsoir", "salut", "bonne journée", "bonne soirée",
+        "bonne nuit", "coucou", "hey", "hi", "hello", "bon matin",
+        "bon après-midi", "à bientôt", "au revoir", "adieu",
+        "merci", "merci beaucoup", "merci bien", "je vous remercie",
+        "s'il vous plaît", "s'il te plaît", "svp", "stp",
+        "excusez-moi", "excuse-moi", "pardon", "désolé", "désolée"
+    ]
+    
+    # Vérifier si le message contient une salutation
+    is_greeting = any(greeting in message_lower for greeting in greetings)
+    
+    # Vérifier si c'est une question (contient des mots-clés de question)
+    question_keywords = ["?", "quoi", "comment", "pourquoi", "quand", "où", "qui", "quel", "quelle", "quels", "quelles"]
+    is_question = any(keyword in message_lower for keyword in question_keywords) or "?" in message
+    
+    # Vérifier si le message contient des mots-clés UAM (pour savoir si c'est une vraie question)
+    uam_keywords = ["uam", "université", "faculté", "école", "institut", "formation", "inscription", 
+                     "admission", "diplôme", "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens"]
+    has_uam_content = any(keyword in message_lower for keyword in uam_keywords)
+    
+    if is_greeting and (is_question or has_uam_content):
+        return "BOTH"
+    elif is_greeting:
+        return "GREETING"
+    elif is_question or has_uam_content:
+        return "QUESTION"
+    else:
+        return "QUESTION"  # Par défaut, traiter comme une question
 
 
 @tool
@@ -648,91 +795,185 @@ def check_question_relevance(question: str) -> str:
 def calculate_fees(level: str, faculty: str = "") -> str:
     """
     Calcule les frais de scolarité selon le niveau et la faculté.
+    Utilise la base de données si disponible pour obtenir les tarifs à jour.
     
     Args:
         level: Niveau d'étude (licence, master, doctorat)
-        faculty: Nom de la faculté (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
         
     Returns:
-        Informations sur les frais de scolarité
+        Informations sur les frais de scolarité (à jour si BD disponible)
     """
-    # Tarifs de base (à adapter selon les documents réels)
-    fees_base = {
-        "licence": {
-            "base": 50000,  # FCFA
-            "description": "Frais de scolarité pour la Licence"
-        },
-        "master": {
-            "base": 75000,  # FCFA
-            "description": "Frais de scolarité pour le Master"
-        },
-        "doctorat": {
-            "base": 100000,  # FCFA
-            "description": "Frais de scolarité pour le Doctorat"
+    results_parts = []
+    
+    # 1. Recherche dans la base de données (si disponible)
+    if _db_available:
+        try:
+            # Détecter l'abréviation de la faculté si nécessaire
+            faculty_abbrev = None
+            if faculty:
+                structure_info = get_structure_info(faculty)
+                if structure_info:
+                    faculty_abbrev = structure_info["abreviation"]
+                else:
+                    faculty_abbrev = faculty.upper()
+            
+            # Obtenir l'année académique actuelle
+            current_year = datetime.now().year
+            
+            db_results = search_fees_db(level=level, faculty=faculty_abbrev, year=current_year)
+            
+            if db_results:
+                results_parts.append("💰 FRAIS DE SCOLARITÉ À JOUR (BASE DE DONNÉES) :")
+                results_parts.append("")
+                for fee in db_results[:5]:  # Limiter à 5 résultats
+                    fee_info = []
+                    if "level" in fee:
+                        fee_info.append(f"Niveau : {fee['level'].capitalize()}")
+                    if "faculty" in fee:
+                        fee_info.append(f"Faculté : {fee['faculty']}")
+                    if "amount" in fee:
+                        fee_info.append(f"Montant : {fee['amount']:,} FCFA")
+                    if "academic_year" in fee:
+                        fee_info.append(f"Année académique : {fee['academic_year']}")
+                    if "description" in fee:
+                        fee_info.append(f"Description : {fee['description']}")
+                    
+                    results_parts.append("\n".join(fee_info))
+                    results_parts.append("---")
+                    results_parts.append("")
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la recherche dans la base de données : {e}")
+    
+    # 2. Tarifs de base (fallback si pas de BD ou pas de résultats)
+    if not results_parts:
+        fees_base = {
+            "licence": {
+                "base": 50000,  # FCFA
+                "description": "Frais de scolarité pour la Licence"
+            },
+            "master": {
+                "base": 75000,  # FCFA
+                "description": "Frais de scolarité pour le Master"
+            },
+            "doctorat": {
+                "base": 100000,  # FCFA
+                "description": "Frais de scolarité pour le Doctorat"
+            }
         }
-    }
+        
+        level_lower = level.lower()
+        
+        if level_lower in fees_base:
+            info = fees_base[level_lower]
+            results_parts.append(f"💰 {info['description']}: {info['base']:,} FCFA par an")
+            if faculty:
+                results_parts.append(f"Faculté: {faculty}")
+            results_parts.append("\n⚠️ Note: Ces tarifs sont indicatifs. Veuillez contacter le service de scolarité pour les tarifs exacts.")
+        else:
+            return f"Niveau '{level}' non reconnu. Niveaux disponibles: licence, master, doctorat"
     
-    level_lower = level.lower()
-    
-    if level_lower in fees_base:
-        info = fees_base[level_lower]
-        result = f"{info['description']}: {info['base']:,} FCFA par an"
-        if faculty:
-            result += f"\nFaculté: {faculty}"
-        result += "\n\nNote: Ces tarifs sont indicatifs. Veuillez contacter le service de scolarité pour les tarifs exacts."
-        return result
-    
-    return f"Niveau '{level}' non reconnu. Niveaux disponibles: licence, master, doctorat"
+    return "\n".join(results_parts)
 
 
 @tool
 def search_formations(faculty: str = "", level: str = "") -> str:
     """
     Recherche les formations disponibles selon la faculté et le niveau.
+    Combine les résultats de la base de données (si disponible) et des documents.
     
     Args:
-        faculty: Nom de la faculté (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
         level: Niveau d'étude (licence, master, doctorat) - optionnel
         
     Returns:
-        Liste des formations disponibles
+        Liste des formations disponibles avec informations à jour
     """
+    results_parts = []
+    
+    # 1. Recherche dans la base de données (si disponible)
+    if _db_available:
+        try:
+            # Détecter l'abréviation de la faculté si nécessaire
+            faculty_abbrev = None
+            if faculty:
+                structure_info = get_structure_info(faculty)
+                if structure_info:
+                    faculty_abbrev = structure_info["abreviation"]
+                else:
+                    faculty_abbrev = faculty.upper()
+            
+            db_results = search_formations_db(faculty=faculty_abbrev, level=level)
+            
+            if db_results:
+                results_parts.append("📊 INFORMATIONS À JOUR DEPUIS LA BASE DE DONNÉES :")
+                results_parts.append("")
+                for formation in db_results[:10]:  # Limiter à 10 résultats
+                    formation_info = []
+                    if "name" in formation:
+                        formation_info.append(f"• {formation['name']}")
+                    if "faculty" in formation:
+                        formation_info.append(f"  Faculté : {formation['faculty']}")
+                    if "level" in formation:
+                        formation_info.append(f"  Niveau : {formation['level']}")
+                    if "description" in formation:
+                        formation_info.append(f"  Description : {formation['description']}")
+                    if "duration_years" in formation:
+                        formation_info.append(f"  Durée : {formation['duration_years']} ans")
+                    
+                    results_parts.append("\n".join(formation_info))
+                    results_parts.append("")
+                
+                results_parts.append("---")
+                results_parts.append("")
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la recherche dans la base de données : {e}")
+    
+    # 2. Recherche dans les documents (base de connaissances)
     if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
+        if not results_parts:
+            return "Erreur: Base de connaissances non initialisée"
+    else:
+        # Construire la requête de recherche
+        query_parts = []
+        if faculty:
+            query_parts.append(f"faculté {faculty}")
+        if level:
+            query_parts.append(f"formation {level}")
+        
+        query = " ".join(query_parts) if query_parts else "formations disponibles"
+        
+        # Recherche dans la base de connaissances
+        docs = _vectorstore.similarity_search(query, k=5)
+        
+        if docs:
+            if results_parts:
+                results_parts.append("📄 INFORMATIONS COMPLÉMENTAIRES DES DOCUMENTS :")
+            else:
+                results_parts.append("📄 FORMATIONS DISPONIBLES :")
+            results_parts.append("")
+            
+            for doc in docs:
+                results_parts.append(doc.page_content[:500])  # Limiter la longueur
+                results_parts.append("---")
     
-    # Construire la requête de recherche
-    query_parts = []
-    if faculty:
-        query_parts.append(f"faculté {faculty}")
-    if level:
-        query_parts.append(f"formation {level}")
-    
-    query = " ".join(query_parts) if query_parts else "formations disponibles"
-    
-    # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
-    
-    if not docs:
+    if not results_parts:
         return f"Aucune formation trouvée pour {faculty if faculty else 'toutes les facultés'}"
     
-    # Combiner les résultats
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:500])  # Limiter la longueur
-    
-    return "\n\n---\n\n".join(results)
+    return "\n\n".join(results_parts)
 
 
 @tool
 def get_faculty_info(faculty_name: str) -> str:
     """
-    Obtient des informations détaillées sur une faculté spécifique.
+    Obtient des informations détaillées sur une faculté, école ou institut spécifique.
+    Recherche automatiquement la définition et la mission de la structure.
     
     Args:
-        faculty_name: Nom ou abréviation de la faculté (ex: "FAST", "Faculté des Sciences")
+        faculty_name: Nom ou abréviation de la structure (ex: "FA", "FAST", "Faculté d'Agronomie", "ENS")
         
     Returns:
-        Informations sur la faculté avec son nom complet et abréviation
+        Informations complètes sur la structure incluant : nom complet, type, définition et mission
     """
     if _vectorstore is None:
         return "Erreur: Base de connaissances non initialisée"
@@ -743,21 +984,64 @@ def get_faculty_info(faculty_name: str) -> str:
     result_parts = []
     
     if structure_info:
-        result_parts.append(f" {structure_info['nom_complet']} ({structure_info['abreviation']})")
+        result_parts.append(f"📋 {structure_info['nom_complet']} ({structure_info['abreviation']})")
         result_parts.append(f"Type: {structure_info['type'].capitalize()}")
         result_parts.append("")
-    
-    # Recherche dans la base de connaissances vectorielle
-    search_query = structure_info['nom_complet'] if structure_info else f"faculté {faculty_name}"
-    docs = _vectorstore.similarity_search(search_query, k=3)
-    
-    if docs:
-        result_parts.append("Informations détaillées:")
-        for doc in docs:
-            result_parts.append(doc.page_content[:800])
-            result_parts.append("---")
-    elif not structure_info:
-        return f"Aucune information trouvée sur '{faculty_name}'. Vérifiez l'orthographe ou utilisez l'abréviation."
+        
+        # Recherche spécifique pour la définition et la mission
+        nom_complet = structure_info['nom_complet']
+        
+        # Recherche 1 : Définition
+        query_definition = f"{nom_complet} définition présentation description"
+        docs_definition = _vectorstore.similarity_search(query_definition, k=2)
+        
+        # Recherche 2 : Mission
+        query_mission = f"{nom_complet} mission objectifs rôles fonctions"
+        docs_mission = _vectorstore.similarity_search(query_mission, k=2)
+        
+        # Recherche 3 : Informations générales
+        query_general = f"{nom_complet} informations générales"
+        docs_general = _vectorstore.similarity_search(query_general, k=3)
+        
+        # Combiner tous les résultats uniques
+        all_docs = {}
+        for doc in docs_definition + docs_mission + docs_general:
+            # Utiliser le contenu comme clé pour éviter les doublons
+            content_key = doc.page_content[:200]  # Premiers 200 caractères comme clé
+            if content_key not in all_docs:
+                all_docs[content_key] = doc.page_content
+        
+        if all_docs:
+            result_parts.append("📖 DÉFINITION ET MISSION :")
+            result_parts.append("")
+            for i, content in enumerate(all_docs.values(), 1):
+                result_parts.append(content[:1000])  # Limiter à 1000 caractères par document
+                if i < len(all_docs):
+                    result_parts.append("---")
+        else:
+            # Si pas de résultats spécifiques, faire une recherche générale
+            search_query = nom_complet
+            docs = _vectorstore.similarity_search(search_query, k=3)
+            
+            if docs:
+                result_parts.append("📖 INFORMATIONS :")
+                result_parts.append("")
+                for doc in docs:
+                    result_parts.append(doc.page_content[:800])
+                    result_parts.append("---")
+    else:
+        # Si la structure n'est pas trouvée dans la base structurée, faire une recherche générale
+        search_query = f"{faculty_name} faculté école institut"
+        docs = _vectorstore.similarity_search(search_query, k=3)
+        
+        if docs:
+            result_parts.append(f"Informations sur '{faculty_name}' :")
+            result_parts.append("")
+            for doc in docs:
+                result_parts.append(doc.page_content[:800])
+                result_parts.append("---")
+        else:
+            return f"Aucune information trouvée sur '{faculty_name}'. Vérifiez l'orthographe ou utilisez l'abréviation."
     
     return "\n\n".join(result_parts)
 
@@ -861,9 +1145,595 @@ def get_user_preferences(user_id: str) -> str:
     return json.dumps(preferences, ensure_ascii=False, indent=2)
 
 
+@tool
+def search_prerequisites(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les prérequis (pré-requis) nécessaires pour une filière ou une faculté.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel, ex: "FAST", "Faculté des Sciences")
+        
+    Returns:
+        Informations sur les prérequis
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"prérequis pré-requis conditions admission {filiere}")
+    if faculty:
+        # Détecter la structure pour obtenir le nom complet
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} prérequis pré-requis conditions admission")
+        else:
+            query_parts.append(f"{faculty} prérequis pré-requis conditions admission")
+    
+    query = " ".join(query_parts) if query_parts else "prérequis pré-requis conditions admission filière"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur les prérequis trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
+    
+    # Combiner les résultats
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_competences_requises(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les connaissances et compétences requises pour une filière.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur les connaissances et compétences requises
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"compétences connaissances requises {filiere}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} compétences connaissances requises")
+        else:
+            query_parts.append(f"{faculty} compétences connaissances requises")
+    
+    query = " ".join(query_parts) if query_parts else "compétences connaissances requises filière"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur les compétences requises trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_cycles_et_duree(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les cycles disponibles et la durée d'études pour une filière.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur les cycles (licence, master, doctorat) et leurs durées
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"cycles durée études licence master doctorat {filiere}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} cycles durée études licence master doctorat")
+        else:
+            query_parts.append(f"{faculty} cycles durée études licence master doctorat")
+    
+    query = " ".join(query_parts) if query_parts else "cycles durée études licence master doctorat"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur les cycles et durées trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_chronogramme(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche le chronogramme annuel d'études (modules, heures de cours) pour une filière.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur le chronogramme, les modules et les heures de cours
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"chronogramme modules heures cours emploi temps programme {filiere}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} chronogramme modules heures cours emploi temps programme")
+        else:
+            query_parts.append(f"{faculty} chronogramme modules heures cours emploi temps programme")
+    
+    query = " ".join(query_parts) if query_parts else "chronogramme modules heures cours emploi temps programme"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur le chronogramme trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_coefficients(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les coefficients des différents modules pour une filière.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur les coefficients des modules
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"coefficients modules {filiere}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} coefficients modules")
+        else:
+            query_parts.append(f"{faculty} coefficients modules")
+    
+    query = " ".join(query_parts) if query_parts else "coefficients modules"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur les coefficients trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_professeurs(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les professeurs assignés aux différents modules et leurs qualifications.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur les professeurs et leurs qualifications
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"professeurs enseignants corps professoral qualifications {filiere}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} professeurs enseignants corps professoral qualifications")
+        else:
+            query_parts.append(f"{faculty} professeurs enseignants corps professoral qualifications")
+    
+    query = " ".join(query_parts) if query_parts else "professeurs enseignants corps professoral qualifications"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur les professeurs trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_debouches(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les débouchés professionnels et les possibilités d'embauche après les études.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur les débouchés professionnels et les possibilités d'embauche
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"débouchés professionnels embauche emploi carrière métiers {filiere}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} débouchés professionnels embauche emploi carrière métiers")
+        else:
+            query_parts.append(f"{faculty} débouchés professionnels embauche emploi carrière métiers")
+    
+    query = " ".join(query_parts) if query_parts else "débouchés professionnels embauche emploi carrière métiers"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur les débouchés trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_reglement_interieur(faculty: str = "") -> str:
+    """
+    Recherche le règlement intérieur d'une faculté ou de l'université.
+    
+    Args:
+        faculty: Nom ou abréviation de la faculté (optionnel, si vide recherche le règlement général)
+        
+    Returns:
+        Informations sur le règlement intérieur
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query = f"{structure_info['nom_complet']} règlement intérieur règles discipline"
+        else:
+            query = f"{faculty} règlement intérieur règles discipline"
+    else:
+        query = "règlement intérieur UAM université règles discipline"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur le règlement intérieur trouvée pour {faculty if faculty else 'l\'UAM'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_organisation_corps_professoral(faculty: str = "") -> str:
+    """
+    Recherche l'organisation du corps professoral d'une faculté ou de l'université.
+    
+    Args:
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur l'organisation du corps professoral
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query = f"{structure_info['nom_complet']} organisation corps professoral structure enseignants"
+        else:
+            query = f"{faculty} organisation corps professoral structure enseignants"
+    else:
+        query = "organisation corps professoral UAM structure enseignants"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur l'organisation du corps professoral trouvée pour {faculty if faculty else 'l\'UAM'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_organisation_corps_estudiantin(faculty: str = "") -> str:
+    """
+    Recherche l'organisation du corps estudiantin (associations étudiantes, clubs, etc.) d'une faculté ou de l'université.
+    
+    Args:
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur l'organisation du corps estudiantin
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query = f"{structure_info['nom_complet']} organisation corps estudiantin associations étudiantes clubs étudiants"
+        else:
+            query = f"{faculty} organisation corps estudiantin associations étudiantes clubs étudiants"
+    else:
+        query = "organisation corps estudiantin UAM associations étudiantes clubs étudiants"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur l'organisation du corps estudiantin trouvée pour {faculty if faculty else 'l\'UAM'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_reclamations() -> str:
+    """
+    Recherche les différents types de réclamations possibles et comment les faire.
+    
+    Returns:
+        Informations sur les réclamations et les procédures pour les faire
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    query = "réclamations réclamation procédure comment faire démarche"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return "Aucune information sur les réclamations trouvée dans la base de connaissances."
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_avantages_universite(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les avantages de suivre une filière à l'université plutôt que dans d'autres écoles et instituts.
+    
+    Args:
+        filiere: Nom de la filière (optionnel)
+        faculty: Nom ou abréviation de la faculté (optionnel)
+        
+    Returns:
+        Informations sur les avantages de l'université
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    
+    # Construire la requête de recherche
+    query_parts = []
+    if filiere:
+        query_parts.append(f"avantages université UAM {filiere} écoles instituts")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(f"{structure_info['nom_complet']} avantages université écoles instituts")
+        else:
+            query_parts.append(f"{faculty} avantages université écoles instituts")
+    
+    query = " ".join(query_parts) if query_parts else "avantages université UAM écoles instituts"
+    
+    # Recherche dans la base de connaissances
+    docs = _vectorstore.similarity_search(query, k=5)
+    
+    if not docs:
+        return f"Aucune information sur les avantages trouvée pour {filiere if filiere else faculty if faculty else 'l\'université'}"
+    
+    results = []
+    for doc in docs:
+        results.append(doc.page_content[:800])
+    
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_latest_news(limit: int = 5, category: str = "") -> str:
+    """
+    Recherche les dernières actualités et annonces de l'UAM depuis la base de données.
+    
+    Args:
+        limit: Nombre maximum d'actualités à retourner (défaut: 5)
+        category: Catégorie d'annonce (optionnel, ex: "admission", "examen", "formation")
+        
+    Returns:
+        Liste des dernières actualités et annonces
+    """
+    if not _db_available:
+        return "⚠️ Base de données non disponible. Les actualités ne peuvent pas être récupérées."
+    
+    try:
+        announcements = search_news_announcements_db(limit=limit, category=category)
+        
+        if not announcements:
+            return "Aucune actualité trouvée."
+        
+        results_parts = []
+        results_parts.append("📢 DERNIÈRES ACTUALITÉS ET ANNONCES UAM :")
+        results_parts.append("")
+        
+        for i, announcement in enumerate(announcements, 1):
+            ann_info = []
+            ann_info.append(f"{i}. {announcement.get('title', 'Sans titre')}")
+            
+            if "published_date" in announcement:
+                ann_info.append(f"   Date : {announcement['published_date']}")
+            
+            if "category" in announcement:
+                ann_info.append(f"   Catégorie : {announcement['category']}")
+            
+            if "content" in announcement:
+                content = announcement['content'][:300]  # Limiter à 300 caractères
+                ann_info.append(f"   {content}...")
+            
+            if "link" in announcement:
+                ann_info.append(f"   Lien : {announcement['link']}")
+            
+            results_parts.append("\n".join(ann_info))
+            results_parts.append("")
+        
+        return "\n".join(results_parts)
+        
+    except Exception as e:
+        return f"Erreur lors de la récupération des actualités : {e}"
+
+
+@tool
+def get_schedules_from_db(faculty: str = "", filiere: str = "", level: str = "") -> str:
+    """
+    Recherche les horaires/emplois du temps depuis la base de données.
+    
+    Args:
+        faculty: Abréviation de la faculté (optionnel)
+        filiere: Nom de la filière (optionnel)
+        level: Niveau d'étude (optionnel)
+        
+    Returns:
+        Informations sur les horaires et emplois du temps
+    """
+    if not _db_available:
+        return "⚠️ Base de données non disponible. Les horaires ne peuvent pas être récupérés depuis la BD."
+    
+    try:
+        # Détecter l'abréviation de la faculté si nécessaire
+        faculty_abbrev = None
+        if faculty:
+            structure_info = get_structure_info(faculty)
+            if structure_info:
+                faculty_abbrev = structure_info["abreviation"]
+            else:
+                faculty_abbrev = faculty.upper()
+        
+        # Utiliser la fonction importée depuis database_connector
+        # Utiliser la fonction importée depuis database_connector (au niveau global)
+        # Note: search_schedules_db est importée au niveau global si disponible
+        try:
+            schedules = search_schedules_db(faculty=faculty_abbrev, filiere=filiere, level=level)
+        except NameError:
+            # Si la fonction n'est pas disponible, retourner un message
+            return "⚠️ Fonction de recherche dans la base de données non disponible."
+        
+        if not schedules:
+            return f"Aucun horaire trouvé pour {faculty if faculty else 'les structures'}."
+        
+        results_parts = []
+        results_parts.append("📅 HORAIRES ET EMPLOIS DU TEMPS (BASE DE DONNÉES) :")
+        results_parts.append("")
+        
+        for schedule in schedules[:20]:  # Limiter à 20 résultats
+            sched_info = []
+            if "filiere_name" in schedule:
+                sched_info.append(f"Filière : {schedule['filiere_name']}")
+            if "day_of_week" in schedule:
+                sched_info.append(f"Jour : {schedule['day_of_week']}")
+            if "start_time" in schedule and "end_time" in schedule:
+                sched_info.append(f"Heure : {schedule['start_time']} - {schedule['end_time']}")
+            if "module_name" in schedule:
+                sched_info.append(f"Module : {schedule['module_name']}")
+            if "room" in schedule:
+                sched_info.append(f"Salle : {schedule['room']}")
+            if "professor" in schedule:
+                sched_info.append(f"Professeur : {schedule['professor']}")
+            
+            results_parts.append("\n".join(sched_info))
+            results_parts.append("---")
+            results_parts.append("")
+        
+        return "\n".join(results_parts)
+        
+    except Exception as e:
+        return f"Erreur lors de la récupération des horaires : {e}"
+
+
 def get_tools():
     """Retourne la liste des outils disponibles pour l'agent"""
-    return [
+    tools = [
+        detect_greeting,
         search_uam_knowledge,
         check_question_relevance,
         calculate_fees,
@@ -872,8 +1742,30 @@ def get_tools():
         get_structure_by_abbreviation,
         list_all_structures,
         save_user_preference,
-        get_user_preferences
+        get_user_preferences,
+        # Nouveaux outils pour répondre aux questions des étudiants
+        search_prerequisites,
+        search_competences_requises,
+        search_cycles_et_duree,
+        search_chronogramme,
+        search_coefficients,
+        search_professeurs,
+        search_debouches,
+        search_reglement_interieur,
+        search_organisation_corps_professoral,
+        search_organisation_corps_estudiantin,
+        search_reclamations,
+        search_avantages_universite
     ]
+    
+    # Ajouter les outils de base de données si disponible
+    if _db_available:
+        tools.extend([
+            search_latest_news,
+            get_schedules_from_db
+        ])
+    
+    return tools
 
 
 # ==================== NŒUDS DU GRAPHE ====================
@@ -882,6 +1774,8 @@ def route_question(state: AgentState) -> Literal["agent", "reject_query"]:
     """
     Route la question selon sa pertinence.
     Version améliorée : pour les questions pertinentes, utilise le pattern agent avec outils automatiques.
+    Gère aussi les salutations pour être accueillant.
+    Détecte les abréviations simples pour fournir automatiquement les informations de base.
     """
     # Utiliser le dernier message
     if not state["messages"]:
@@ -890,10 +1784,36 @@ def route_question(state: AgentState) -> Literal["agent", "reject_query"]:
     last_message = state["messages"][-1]
     question = last_message.content if hasattr(last_message, 'content') else str(last_message)
     
+    # S'assurer que question est une chaîne de caractères
+    if not isinstance(question, str):
+        question = str(question)
+    
+    question_stripped = question.strip().upper()
+    
+    # Détecter si c'est juste une abréviation simple (ex: "FA", "FAST", "ENS")
+    # Liste de toutes les abréviations possibles
+    all_abbreviations = []
+    for category in ["facultes", "instituts", "ecoles"]:
+        all_abbreviations.extend(UAM_STRUCTURES[category].keys())
+    
+    # Vérifier si la question est exactement une abréviation (avec ou sans espaces)
+    is_simple_abbreviation = question_stripped in all_abbreviations
+    
+    # Détecter les salutations
+    greeting_type = detect_greeting.invoke({"message": question})
+    
+    # Si c'est juste une salutation sans question UAM, toujours accepter pour être accueillant
+    if greeting_type == "GREETING" and not is_simple_abbreviation:
+        return "agent"  # L'agent répondra poliment à la salutation
+    
+    # Si c'est une simple abréviation, toujours accepter pour fournir les infos de base
+    if is_simple_abbreviation:
+        return "agent"  # L'agent utilisera get_faculty_info automatiquement
+    
     # Vérifier la pertinence avec l'outil
     relevance = check_question_relevance.invoke({"question": question})
     
-    if "PERTINENT" in relevance:
+    if "PERTINENT" in relevance or greeting_type == "BOTH":
         # Utiliser le pattern agent amélioré avec appel automatique d'outils
         return "agent"
     return "reject_query"
@@ -942,20 +1862,148 @@ def call_model(state: AgentState, llm_with_tools) -> AgentState:
     """
     messages = state["messages"]
     
+    # Détecter les salutations et structures dans le dernier message
+    last_message = messages[-1] if messages else None
+    question = last_message.content if (last_message and hasattr(last_message, 'content')) else ""
+    
+    # S'assurer que question est une chaîne de caractères
+    if not isinstance(question, str):
+        question = str(question)
+    
+    # Détecter les structures mentionnées pour enrichir le contexte
+    detected_structures = detect_structure_in_text(question)
+    structures_context = ""
+    if detected_structures:
+        structures_info = []
+        for struct in detected_structures:
+            structures_info.append(f"- {struct['nom_complet']} ({struct['abreviation']}) - {struct['type'].capitalize()}")
+        structures_context = f"\n\nSTRUCTURES DÉTECTÉES DANS LA QUESTION :\n" + "\n".join(structures_info)
+    
     # Créer un prompt système pour guider le LLM
     system_prompt = """Tu es l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).
 
-CONSIGNES :
-- Réponds de manière claire, précise et professionnelle
-- Utilise l'outil search_uam_knowledge pour rechercher des informations dans la base de connaissances UAM
+TON RÔLE :
+Tu es un assistant virtuel professionnel, accueillant et respectueux, spécialisé dans l'accompagnement des étudiants, 
+candidats et visiteurs de l'UAM. Tu représentes l'université avec courtoisie et professionnalisme.
+
+CONSIGNES DE COMMUNICATION :
+- SOIS TOUJOURS ACCUEILLANT : Commence par saluer poliment l'utilisateur (Bonjour, Bonsoir, etc.)
+- SOIS POLI ET RESPECTUEUX : Utilise "vous" pour vous adresser à l'utilisateur, sauf indication contraire
+- SOIS PROFESSIONNEL : Maintiens un ton formel mais chaleureux, adapté au contexte universitaire
+- SOIS CLAR ET PRÉCIS : Structure tes réponses avec des paragraphes courts et des listes à puces quand c'est pertinent
+- SOIS EMPATHIQUE : Montre de la compréhension et de l'empathie face aux préoccupations des utilisateurs
+
+GESTION DES SALUTATIONS :
+- Si l'utilisateur te salue, réponds poliment avec une salutation appropriée
+- Si c'est une simple salutation sans question, réponds chaleureusement et propose ton aide
+- Si la salutation accompagne une question, salue d'abord puis réponds à la question
+
+COMPRÉHENSION DES ABRÉVIATIONS :
+- Tu comprends automatiquement les abréviations des structures UAM :
+  * FAST = Faculté des Sciences et Techniques
+  * FLSH = Faculté des Lettres et Sciences Humaines
+  * FA = Faculté d'Agronomie
+  * FSEG = Faculté des Sciences Économiques et de Gestion
+  * FSJP = Faculté des Sciences Juridiques et Politiques
+  * FSS = Faculté des Sciences de la Santé
+  * ENS = École Normale Supérieure
+  * ED-SVT = École Doctorale des Sciences de la Vie et de la Terre
+  * ED-LASHS = École Doctorale des Lettres, Arts, Sciences de l'Homme et de la Société
+  * ED-SET = École Doctorale des Sciences Exactes et Techniques
+  * IRSH = Institut de Recherche en Sciences Humaines
+  * IREM = Institut de Recherches pour l'Enseignement des Mathématiques
+  * IRI = Institut des Radio-isotopes
+
+GESTION DES ABRÉVIATIONS SIMPLES :
+- Si l'utilisateur tape juste une abréviation (ex: "FA", "FAST", "ENS"), utilise IMMÉDIATEMENT l'outil get_faculty_info
+- L'outil get_faculty_info fournit automatiquement : le nom complet, la définition et la mission de la structure
+- Présente les informations de manière structurée : nom complet, type, définition, mission
+- Mentionne toujours le nom complet de la structure dans ta réponse
+
+UTILISATION DES OUTILS - GUIDE COMPLET :
+
+OUTILS GÉNÉRAUX :
+- search_uam_knowledge : Recherche générale dans la base de connaissances (utilise-le en premier pour la plupart des questions)
+- detect_greeting : Identifie les salutations pour adapter ta réponse
+- get_faculty_info : Obtient des informations détaillées sur une faculté/école/institut (nom complet, définition, mission)
+  * À UTILISER EN PRIORITÉ quand l'utilisateur tape juste une abréviation (ex: "FA", "FAST", "ENS")
+  * Fournit automatiquement la définition et la mission de la structure
+- get_structure_by_abbreviation : Convertit une abréviation en nom complet (ex: FAST → Faculté des Sciences et Techniques)
+- list_all_structures : Liste toutes les structures de l'UAM
+
+OUTILS BASE DE DONNÉES (INFORMATIONS À JOUR) :
+- search_latest_news : Récupère les dernières actualités et annonces depuis la base de données
+- get_schedules_from_db : Récupère les horaires/emplois du temps depuis la base de données
+- search_formations : Combine automatiquement les résultats de la BD (à jour) et des documents
+- calculate_fees : Utilise la base de données pour obtenir les tarifs les plus récents
+
+OUTILS SPÉCIALISÉS POUR LES QUESTIONS DES ÉTUDIANTS :
+
+1. QUESTIONS SUR LES FILIÈRES :
+   - search_formations : Recherche les filières disponibles (par faculté et/ou niveau)
+   - search_prerequisites : Recherche les prérequis/pré-requis pour une filière
+   - search_competences_requises : Recherche les connaissances et compétences requises
+   - search_cycles_et_duree : Recherche les cycles (licence, master, doctorat) et leurs durées
+   - search_avantages_universite : Recherche les avantages de l'université vs autres écoles
+
+2. QUESTIONS SUR LE PROGRAMME D'ÉTUDES :
+   - search_chronogramme : Recherche le chronogramme annuel (modules, heures de cours, emploi du temps)
+   - search_coefficients : Recherche les coefficients des différents modules
+
+3. QUESTIONS SUR LES ENSEIGNANTS :
+   - search_professeurs : Recherche les professeurs assignés aux modules et leurs qualifications
+   - search_organisation_corps_professoral : Recherche l'organisation du corps professoral
+
+4. QUESTIONS SUR LES DÉBOUCHÉS :
+   - search_debouches : Recherche les débouchés professionnels et possibilités d'embauche
+
+5. QUESTIONS SUR LA VIE ÉTUDIANTE :
+   - search_organisation_corps_estudiantin : Recherche l'organisation du corps estudiantin (associations, clubs)
+   - search_reglement_interieur : Recherche le règlement intérieur
+   - search_reclamations : Recherche les types de réclamations et comment les faire
+
+6. AUTRES OUTILS :
+   - calculate_fees : Calcule les frais de scolarité
+   - save_user_preference / get_user_preferences : Gère les préférences utilisateur
+
+STRATÉGIE D'UTILISATION :
+- **PRIORITÉ 1** : Si l'utilisateur tape juste une abréviation (ex: "FA", "FAST", "ENS"), utilise IMMÉDIATEMENT get_faculty_info
+- **INFORMATIONS À JOUR** : Les outils search_formations et calculate_fees combinent automatiquement les données de la base de données (à jour) et des documents
+- Pour les questions sur les filières : Utilise search_formations (combine BD + documents automatiquement)
+- Pour les questions sur les frais : Utilise calculate_fees (utilise la BD pour les tarifs à jour)
+- Pour les actualités/annonces : Utilise search_latest_news pour les dernières informations
+- Pour les horaires : Utilise get_schedules_from_db pour les emplois du temps à jour
+- Pour les questions sur les prérequis : Utilise search_prerequisites
+- Pour les questions sur les compétences : Utilise search_competences_requises
+- Pour les questions sur les cycles/durées : Utilise search_cycles_et_duree
+- Pour les questions sur le programme : Utilise search_chronogramme et/ou search_coefficients
+- Pour les questions sur les professeurs : Utilise search_professeurs
+- Pour les questions sur les débouchés : Utilise search_debouches
+- Pour les questions sur le règlement : Utilise search_reglement_interieur
+- Pour les questions sur les réclamations : Utilise search_reclamations
+- Pour les questions générales : Utilise search_uam_knowledge en premier
+
+IMPORTANT :
 - Base-toi UNIQUEMENT sur les informations trouvées dans la base de connaissances
 - Si l'information n'est pas disponible, indique-le poliment et propose d'orienter vers le service approprié
-- Structure ta réponse de manière lisible avec des paragraphes courts
-- Utilise un ton accueillant et respectueux
-- Mentionne les sources pertinentes (faculté, institut concerné) quand c'est disponible
-- Pour les démarches administratives, sois très précis sur les étapes et documents requis
+- Utilise plusieurs outils si nécessaire pour donner une réponse complète
 
-IMPORTANT : Utilise toujours l'outil search_uam_knowledge avant de répondre aux questions sur l'UAM pour obtenir les informations les plus récentes et précises."""
+STRUCTURE DES RÉPONSES :
+1. Salutation appropriée (si première interaction ou si l'utilisateur a salué)
+2. Réponse à la question avec informations précises
+3. Mention des sources pertinentes (faculté, institut concerné)
+4. Proposition d'aide supplémentaire si pertinent
+5. Formule de politesse de clôture si approprié
+
+EXEMPLES DE RÉPONSES ACCUEILLANTES :
+- "Bonjour ! Je suis ravi de vous aider concernant [sujet]. [Réponse à la question]..."
+- "Bonsoir ! Concernant votre question sur [sujet], voici les informations que je peux vous fournir..."
+- "Merci pour votre question. Je vais vous fournir les informations sur [sujet]..."
+
+IMPORTANT : 
+- Ne sors JAMAIS du cadre universitaire - tu ne réponds qu'aux questions sur l'UAM
+- Reste professionnel et respectueux en toutes circonstances
+- Utilise toujours les outils pour obtenir des informations précises avant de répondre""" + structures_context
     
     # Ajouter le prompt système au début des messages s'il n'y en a pas déjà
     if not messages or not isinstance(messages[0], SystemMessage):
@@ -981,24 +2029,46 @@ def generate_response(state: AgentState, llm) -> AgentState:
     context = state.get("context", "")
     messages = state["messages"]
     
+    # Détecter les structures dans les messages pour enrichir le contexte
+    question_text = ""
+    for msg in reversed(messages):
+        if hasattr(msg, 'content'):
+            question_text = msg.content
+            break
+    
+    # S'assurer que question_text est une chaîne de caractères
+    if not isinstance(question_text, str):
+        question_text = str(question_text)
+    
+    detected_structures = detect_structure_in_text(question_text)
+    structures_info = ""
+    if detected_structures:
+        structures_list = [f"{s['nom_complet']} ({s['abreviation']})" for s in detected_structures]
+        structures_info = f"\n\nStructures mentionnées : {', '.join(structures_list)}"
+    
     # Créer le prompt avec le contexte
     prompt = ChatPromptTemplate.from_messages([
         ("system", """Tu es l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).
 
-CONSIGNES :
-- Réponds de manière claire, précise et professionnelle
-- Base-toi UNIQUEMENT sur le contexte fourni ci-dessous
-- Si l'information n'est pas dans le contexte, indique-le poliment et propose d'orienter vers le service approprié
-- Structure ta réponse de manière lisible avec des paragraphes courts
-- Utilise un ton accueillant et respectueux
-- Mentionne les sources pertinentes (faculté, institut concerné) quand c'est disponible
-- Pour les démarches administratives, sois très précis sur les étapes et documents requis
+TON RÔLE :
+Tu es un assistant virtuel professionnel, accueillant et respectueux, spécialisé dans l'accompagnement des étudiants, 
+candidats et visiteurs de l'UAM.
+
+CONSIGNES DE COMMUNICATION :
+- SOIS TOUJOURS ACCUEILLANT : Commence par saluer poliment l'utilisateur si c'est approprié
+- SOIS POLI ET RESPECTUEUX : Utilise "vous" pour vous adresser à l'utilisateur
+- SOIS PROFESSIONNEL : Maintiens un ton formel mais chaleureux, adapté au contexte universitaire
+- SOIS CLAR ET PRÉCIS : Structure tes réponses avec des paragraphes courts et des listes à puces
+
+COMPRÉHENSION DES ABRÉVIATIONS :
+- Tu comprends automatiquement les abréviations : FAST, FLSH, FA, FSEG, FSJP, FSS, ENS, ED-SVT, ED-LASHS, ED-SET, IRSH, IREM, IRI
+- Mentionne toujours le nom complet de la structure dans ta réponse
 
 CONTEXTE DISPONIBLE :
-{context}
+{context}{structures_info}
 
-Si le contexte ne contient pas l'information demandée, réponds quelque chose comme :
-"Je n'ai pas trouvé cette information spécifique dans ma base de connaissances. Je vous recommande de contacter [service approprié] pour obtenir une réponse précise."
+Si le contexte ne contient pas l'information demandée, réponds poliment :
+"Je n'ai pas trouvé cette information spécifique dans ma base de connaissances. Je vous recommande de contacter [service approprié] pour obtenir une réponse précise. N'hésitez pas à me poser d'autres questions sur l'UAM !"
 """),
         MessagesPlaceholder(variable_name="messages"),
     ])
@@ -1007,6 +2077,7 @@ Si le contexte ne contient pas l'information demandée, réponds quelque chose c
     chain = prompt | llm | StrOutputParser()
     response = chain.invoke({
         "context": context,
+        "structures_info": structures_info,
         "messages": messages
     })
     
@@ -1019,8 +2090,27 @@ Si le contexte ne contient pas l'information demandée, réponds quelque chose c
 
 
 def reject_query(state: AgentState) -> AgentState:
-    """Rejette poliment les questions hors sujet"""
-    response = """Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+    """Rejette poliment les questions hors sujet avec une réponse accueillante"""
+    # Vérifier si c'est une salutation
+    last_message = state["messages"][-1] if state["messages"] else None
+    question = last_message.content if (last_message and hasattr(last_message, 'content')) else ""
+    greeting_type = detect_greeting.invoke({"message": question})
+    
+    if greeting_type == "GREETING":
+        # Répondre poliment à la salutation même si hors sujet
+        response = """Bonjour ! Je suis l'assistant virtuel de l'Université Abdou Moumouni de Niamey (UAM).
+
+Je suis là pour vous aider avec toutes vos questions concernant l'UAM :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Comment puis-je vous aider aujourd'hui ?"""
+    else:
+        response = """Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
 
 Je peux vous aider avec :
 - 📋 Informations sur les facultés, écoles et instituts
@@ -1030,7 +2120,7 @@ Je peux vous aider avec :
 - ⏰ Horaires et services
 - 📞 Contacts des différents services
 
-Avez-vous une question concernant l'UAM ?"""
+Avez-vous une question concernant l'UAM ? Je serai ravi de vous aider !"""
     
     # Retourner l'état mis à jour - Annotated[Sequence[BaseMessage], add] fusionne automatiquement
     return {
@@ -1149,9 +2239,23 @@ def run_chatbot(pdf_directory: str, provider: LLMProvider, model_name: Optional[
     # Configuration de session avec thread_id unique
     config = {"configurable": {"thread_id": thread_id}}
     
-    # Message système initial
+    # Message système initial accueillant
     system_message = SystemMessage(
-        content="Bonjour ! Je suis l'assistant virtuel de l'Université Abdou Moumouni de Niamey. Comment puis-je vous aider ?"
+        content="""Bonjour et bienvenue ! 👋
+
+Je suis l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM). 
+
+Je suis là pour vous accompagner et répondre à toutes vos questions concernant :
+- 📋 Les facultés, écoles et instituts de l'UAM
+- 🎓 Les formations et filières disponibles
+- 📝 Les conditions d'admission et les pièces d'inscription
+- 🏢 Les démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Les horaires et services
+- 📞 Les contacts des différents services
+
+N'hésitez pas à me poser vos questions ! Je comprends aussi les abréviations comme FAST, FLSH, ENS, etc.
+
+Comment puis-je vous aider aujourd'hui ?"""
     )
     
     # Initialiser l'état avec le message système
@@ -1167,17 +2271,30 @@ def run_chatbot(pdf_directory: str, provider: LLMProvider, model_name: Optional[
     # Mettre à jour l'état initial dans le graphe
     agent.invoke(initial_state, config)
     
-    print("🤖 Assistant: Bonjour ! Je suis l'assistant virtuel de l'Université Abdou Moumouni de Niamey.")
-    print("              Comment puis-je vous aider ?")
+    print("🤖 Assistant: Bonjour et bienvenue ! 👋")
+    print("              Je suis l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).")
+    print()
+    print("              Je peux vous aider avec :")
+    print("              📋 Informations sur les facultés, écoles et instituts")
+    print("              🎓 Formations et filières disponibles")
+    print("              📝 Conditions d'admission et pièces d'inscription")
+    print("              🏢 Démarches administratives")
+    print("              ⏰ Horaires et services")
+    print()
+    print("              💡 Astuce : Je comprends les abréviations comme FAST, FLSH, ENS, etc.")
+    print()
+    print("              Comment puis-je vous aider aujourd'hui ?")
     print()
     
     while True:
         try:
             user_input = input("👤 Vous: ").strip()
             
-            if user_input.lower() in ['quit', 'exit', 'bye', 'au revoir', 'quitter']:
+            if user_input.lower() in ['quit', 'exit', 'bye', 'au revoir', 'quitter', 'à bientôt']:
                 print()
-                print("🤖 Assistant: Au revoir ! N'hésitez pas à revenir si vous avez d'autres questions sur l'UAM.")
+                print("🤖 Assistant: Au revoir et merci de votre visite ! 🙏")
+                print("              N'hésitez pas à revenir si vous avez d'autres questions sur l'UAM.")
+                print("              Bonne continuation dans vos démarches universitaires !")
                 print()
                 break
             
@@ -1216,7 +2333,8 @@ def run_chatbot(pdf_directory: str, provider: LLMProvider, model_name: Optional[
         except KeyboardInterrupt:
             print()
             print()
-            print(" Assistant: Au revoir ! À bientôt.")
+            print("🤖 Assistant: Au revoir et merci de votre visite ! 🙏")
+            print("              Bonne continuation dans vos démarches universitaires !")
             print()
             break
         except Exception as e:
@@ -1265,6 +2383,10 @@ if __name__ == "__main__":
     
     # PROVIDER = LLMProvider.LLAMA_OLLAMA
     # MODEL_NAME = "llama3.2"
+    
+    # PROVIDER = LLMProvider.OPENROUTER
+    # MODEL_NAME = "openai/gpt-4o"  # ou "anthropic/claude-3.7-sonnet", "google/gemini-pro", etc.
+    # Voir https://openrouter.ai/models pour la liste complète des modèles disponibles
     
     # Vérifier que le dossier existe
     if not os.path.exists(PDF_DIRECTORY):

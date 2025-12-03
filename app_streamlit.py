@@ -101,7 +101,8 @@ with st.sidebar:
     
     # Sélection du provider LLM
     provider_options = {
-        "Groq (Llama) - Recommandé": LLMProvider.LLAMA_GROQ,
+        "OpenRouter (Multi-modèles)": LLMProvider.OPENROUTER,
+        "Groq (Llama)": LLMProvider.LLAMA_GROQ,
         "OpenAI (GPT-4o)": LLMProvider.OPENAI,
         "Claude (Anthropic)": LLMProvider.CLAUDE,
         "Ollama (Local)": LLMProvider.LLAMA_OLLAMA
@@ -110,15 +111,79 @@ with st.sidebar:
     selected_provider_name = st.selectbox(
         "Choisir le provider LLM",
         options=list(provider_options.keys()),
-        index=0
+        index=0  # OpenRouter est maintenant le premier (par défaut)
     )
     selected_provider = provider_options[selected_provider_name]
     
-    # Modèle
-    model_name = st.text_input(
-        "Nom du modèle (optionnel)",
-        value="llama-3.3-70b-versatile" if selected_provider == LLMProvider.LLAMA_GROQ else ""
-    )
+    # Sélection du modèle selon le provider
+    model_name = ""
+    
+    if selected_provider == LLMProvider.OPENROUTER:
+        st.markdown("#### 🤖 Modèles OpenRouter disponibles")
+        
+        # Sélecteur de modèles prédéfinis pour OpenRouter
+        openrouter_models = {
+            "GPT-4o (OpenAI)": {
+                "id": "openai/gpt-4o",
+                "description": "Modèle le plus performant d'OpenAI, excellent pour tous les cas d'usage"
+            },
+            "Claude Sonnet 3.7 (Anthropic)": {
+                "id": "anthropic/claude-3.7-sonnet",
+                "description": "Modèle avancé d'Anthropic, excellent pour le raisonnement complexe"
+            },
+            "Gemini Pro (Google)": {
+                "id": "google/gemini-pro",
+                "description": "Modèle performant de Google, bon rapport qualité/prix"
+            },
+            "Llama 3.1 70B (Meta)": {
+                "id": "meta-llama/llama-3.1-70b-instruct",
+                "description": "Modèle open-source performant de Meta, très rapide"
+            }
+        }
+        
+        # Afficher les modèles avec leurs descriptions
+        model_options = list(openrouter_models.keys())
+        selected_model_name = st.selectbox(
+            "Choisir le modèle OpenRouter",
+            options=model_options,
+            index=0,
+            help="Sélectionnez un modèle parmi les options disponibles. Voir https://openrouter.ai/models pour plus de modèles."
+        )
+        
+        # Afficher la description du modèle sélectionné
+        if selected_model_name in openrouter_models:
+            st.info(f"ℹ️ {openrouter_models[selected_model_name]['description']}")
+        
+        model_name = openrouter_models[selected_model_name]["id"]
+        
+        # Option pour entrer un modèle personnalisé
+        st.caption("💡 Vous pouvez aussi entrer un modèle personnalisé ci-dessous")
+        custom_model = st.text_input(
+            "Modèle personnalisé (optionnel)",
+            value="",
+            help="Format: 'provider/model-name' (ex: 'mistralai/mistral-large'). Laissez vide pour utiliser le modèle sélectionné ci-dessus."
+        )
+        
+        # Utiliser le modèle personnalisé s'il est fourni, sinon utiliser le modèle sélectionné
+        if custom_model.strip():
+            model_name = custom_model.strip()
+    else:
+        # Pour les autres providers, utiliser un champ texte
+        default_model = ""
+        if selected_provider == LLMProvider.LLAMA_GROQ:
+            default_model = "llama-3.3-70b-versatile"
+        elif selected_provider == LLMProvider.OPENAI:
+            default_model = "gpt-4o"
+        elif selected_provider == LLMProvider.CLAUDE:
+            default_model = "claude-sonnet-4-20250514"
+        elif selected_provider == LLMProvider.LLAMA_OLLAMA:
+            default_model = "llama3.2"
+        
+        model_name = st.text_input(
+            "Nom du modèle (optionnel)",
+            value=default_model,
+            help="Laissez vide pour utiliser le modèle par défaut du provider."
+        )
     
     # Bouton d'initialisation
     if st.button("🚀 Initialiser l'Agent", type="primary"):
@@ -129,7 +194,12 @@ with st.sidebar:
                 vectorstore = load_and_index_documents(pdf_directory, selected_provider)
                 
                 # Initialiser le LLM
-                llm = initialize_llm(selected_provider, model_name if model_name else None)
+                # Pour OpenRouter, on doit toujours avoir un modèle
+                final_model_name = model_name if model_name else None
+                if selected_provider == LLMProvider.OPENROUTER and not final_model_name:
+                    final_model_name = "openai/gpt-4o"  # Modèle par défaut pour OpenRouter
+                
+                llm = initialize_llm(selected_provider, final_model_name)
                 
                 # Créer le graphe selon le mode
                 if agent_mode == "Multi-Agents (Spécialisés par faculté)":

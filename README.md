@@ -127,6 +127,12 @@ OPENAI_API_KEY=sk-votre_cle_openai
 
 # Ou pour Claude
 ANTHROPIC_API_KEY=sk-ant-votre_cle_anthropic
+
+# Ou pour OpenRouter (accès à plusieurs modèles via une seule API)
+OPENROUTER_API_KEY=sk-or-v1-votre_cle_openrouter
+# Optionnel : pour identifier votre application
+OPENROUTER_APP_URL=https://github.com/votre-repo
+OPENROUTER_APP_NAME=Agent UAM
 ```
 
 **Note** : Vous n'avez besoin que d'une seule clé API selon le provider que vous souhaitez utiliser.
@@ -158,6 +164,10 @@ MODEL_NAME = "llama-3.3-70b-versatile"
 
 # PROVIDER = LLMProvider.LLAMA_OLLAMA
 # MODEL_NAME = "llama3.2"
+
+# PROVIDER = LLMProvider.OPENROUTER
+# MODEL_NAME = "openai/gpt-4o"  # ou "anthropic/claude-3.7-sonnet", "google/gemini-pro", etc.
+# Voir https://openrouter.ai/models pour la liste complète des modèles disponibles
 ```
 
 ## 🚀 Utilisation
@@ -307,6 +317,19 @@ Utilisation de `BaseMessage` et de ses sous-classes (`HumanMessage`, `AIMessage`
 ### Ollama (Local)
 - **Avantages** : Exécution locale, pas besoin de clé API
 - **Configuration** : Installer Ollama localement
+- **Modèle par défaut** : `llama3.2`
+
+### OpenRouter
+- **Avantages** : Accès à 300+ modèles via une seule API, meilleurs prix, haute disponibilité, compatible OpenAI
+- **Configuration** : `OPENROUTER_API_KEY` dans `.env`
+- **Modèle par défaut** : `openai/gpt-4o`
+- **Modèles disponibles** : Voir [https://openrouter.ai/models](https://openrouter.ai/models)
+- **Exemples de modèles** :
+  - `openai/gpt-4o` - GPT-4o d'OpenAI
+  - `anthropic/claude-3.7-sonnet` - Claude Sonnet 3.7
+  - `google/gemini-pro` - Gemini Pro de Google
+  - `meta-llama/llama-3.1-70b-instruct` - Llama 3.1 70B
+  - Et bien d'autres...
 - **Modèle par défaut** : `llama3.2`
 
 ## 🔍 Dépannage
