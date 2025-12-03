@@ -1,0 +1,76 @@
+# Agent Conversationnel UAM - Dépendances
+# Installation : pip install -r requirements.txt
+
+# ============================================
+# CORE - LangChain & LangGraph (Versions 2025 - v1.0+)
+# ============================================
+langchain>=1.0.0
+langchain-community>=0.3.13  # Compatible avec LangChain 1.0+
+langchain-core>=1.0.0
+langgraph>=1.0.0
+
+# ============================================
+# LLM PROVIDERS (Compatibles avec LangChain 1.0+)
+# ============================================
+# Groq (Llama) - Recommandé
+langchain-groq>=0.2.1
+
+# Alternatives (décommentez si nécessaire)
+# langchain-anthropic>=0.3.1  # Pour Claude
+# langchain-openai>=0.2.11    # Pour OpenAI
+
+# ============================================
+# EMBEDDINGS & RECHERCHE VECTORIELLE
+# ============================================
+sentence-transformers==3.3.1
+faiss-cpu==1.9.0
+langchain-huggingface>=0.0.1  # Pour HuggingFaceEmbeddings (recommandé)
+
+# Alternative GPU (plus rapide, nécessite CUDA)
+# faiss-gpu==1.9.0
+
+# ============================================
+# TRAITEMENT DE DOCUMENTS
+# ============================================
+pypdf==5.1.0
+python-dotenv==1.0.1
+
+# Support formats additionnels (optionnel)
+# Décommentez selon vos besoins :
+# unstructured==0.16.9          # Pour Markdown (.md)
+# docx2txt==0.8                 # Pour Word (.docx)
+# python-docx==1.1.2            # Alternative pour Word
+
+# ============================================
+# DÉPENDANCES OPTIONNELLES
+# ============================================
+# Pour l'interface web Streamlit
+streamlit>=1.39.0
+
+# Pour l'export PDF
+reportlab>=4.0.0
+
+# Alternative interface web
+# gradio==5.5.0
+
+# Pour les logs et le monitoring
+# loguru==0.7.2
+
+# Pour la persistance en base de données
+# sqlalchemy==2.0.36
+# psycopg2-binary==2.9.10  # PostgreSQL
+
+# ============================================
+# NOTES D'INSTALLATION
+# ============================================
+# Installation basique :
+#   pip install -r requirements.txt
+#
+# Installation avec GPU (FAISS GPU) :
+#   pip install faiss-gpu
+#
+# Installation complète (avec interface web) :
+#   pip install -r requirements.txt streamlit gradio
+#
+# Pour Windows, si problèmes avec faiss-cpu :
+#   conda install -c pytorch faiss-cpu
