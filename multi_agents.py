@@ -1,9 +1,3 @@
-"""
-Système Multi-Agents avec agents spécialisés par structure
-(facultés, écoles, instituts)
-Basé sur LangGraph 1.0+
-"""
-
 from typing import Annotated, TypedDict, Literal, Sequence, Dict, Any, Union
 from operator import add
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, SystemMessage
@@ -33,19 +27,19 @@ def get_faculties_dict():
 def get_all_structures_dict():
     """Retourne un dictionnaire de toutes les structures (facultés, écoles, instituts)"""
     all_structures = {}
-    
+
     # Ajouter les facultés
     for abbrev, info in UAM_STRUCTURES["facultes"].items():
         all_structures[abbrev] = info["nom_complet"]
-    
+
     # Ajouter les écoles
     for abbrev, info in UAM_STRUCTURES["ecoles"].items():
         all_structures[abbrev] = info["nom_complet"]
-    
+
     # Ajouter les instituts
     for abbrev, info in UAM_STRUCTURES["instituts"].items():
         all_structures[abbrev] = info["nom_complet"]
-    
+
     return all_structures
 
 
@@ -58,11 +52,11 @@ def get_structure_code_from_agent_name(agent_name: str) -> str:
     """Convertit un nom d'agent en code de structure (ex: 'ed_svt_agent' -> 'ED-SVT', 'ens_agent' -> 'ENS')"""
     # Enlever le suffixe "_agent"
     code = agent_name.replace("_agent", "").upper()
-    
+
     # Restaurer les tirets pour les codes qui en ont (ED-SVT, ED-LASHS, ED-SET)
     if code.startswith("ED_"):
         code = code.replace("_", "-")
-    
+
     return code
 
 
@@ -87,20 +81,20 @@ def route_to_faculty_agent(state: MultiAgentState) -> str:
     """
     question = state["question"]
     question_lower = question.lower()
-    
+
     # Détecter les structures mentionnées dans la question
     detected_structures = detect_structure_in_text(question)
-    
+
     if detected_structures:
         # Utiliser la première structure détectée
         structure = detected_structures[0]
         abbrev = structure["abreviation"]
-        
+
         # Générer le nom d'agent dynamiquement
         agent_name = get_agent_name(abbrev)
         state["faculty"] = abbrev
         return agent_name
-    
+
     # Détection par mots-clés (fallback)
     faculty_keywords = {
         "fast_agent": ["sciences", "techniques", "mathématiques", "physique", "chimie", "biologie", "géologie", "informatique"],
@@ -117,7 +111,7 @@ def route_to_faculty_agent(state: MultiAgentState) -> str:
         "irem_agent": ["institut recherche enseignement mathématiques", "irem", "enseignement mathématiques"],
         "iri_agent": ["institut radio-isotopes", "iri", "radio-isotopes"]
     }
-    
+
     for agent_name, keywords in faculty_keywords.items():
         for keyword in keywords:
             if keyword in question_lower:
@@ -125,7 +119,7 @@ def route_to_faculty_agent(state: MultiAgentState) -> str:
                 structure_code = get_structure_code_from_agent_name(agent_name)
                 state["faculty"] = structure_code
                 return agent_name
-    
+
     # Si aucune structure spécifique détectée, utiliser l'agent général
     return "general_agent"
 
@@ -133,7 +127,7 @@ def route_to_faculty_agent(state: MultiAgentState) -> str:
 def create_faculty_agent(structure_code: str, structure_full_name: str, llm):
     """
     Crée un agent spécialisé pour une structure (faculté, école ou institut)
-    
+
     Args:
         structure_code: Code de la structure (ex: "FAST", "ENS", "IRSH")
         structure_full_name: Nom complet de la structure
@@ -142,14 +136,14 @@ def create_faculty_agent(structure_code: str, structure_full_name: str, llm):
     def structure_agent_node(state: MultiAgentState) -> MultiAgentState:
         """Nœud de l'agent spécialisé"""
         question = state["question"]
-        
+
         # Recherche spécifique pour cette structure
         query = f"{structure_full_name} {question}"
         context = search_uam_knowledge.invoke({"query": query})
-        
+
         # Créer un prompt spécialisé
         from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-        
+
         # Déterminer le type de structure pour adapter le prompt
         structure_type = "structure"
         if structure_code in UAM_STRUCTURES["facultes"]:
@@ -158,7 +152,7 @@ def create_faculty_agent(structure_code: str, structure_full_name: str, llm):
             structure_type = "école"
         elif structure_code in UAM_STRUCTURES["instituts"]:
             structure_type = "institut"
-        
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", f"""Tu es un assistant spécialisé de la {structure_full_name} ({structure_type}) de l'Université Abdou Moumouni de Niamey.
 
@@ -177,7 +171,7 @@ CONTEXTE DISPONIBLE :
 {{context}}"""),
             MessagesPlaceholder(variable_name="messages"),
         ])
-        
+
         # Générer la réponse
         from langchain_core.output_parsers import StrOutputParser
         chain = prompt | llm | StrOutputParser()
@@ -185,7 +179,7 @@ CONTEXTE DISPONIBLE :
             "context": context,
             "messages": state["messages"]
         })
-        
+
         return {
             **state,
             "context": context,
@@ -193,7 +187,7 @@ CONTEXTE DISPONIBLE :
             "agent_used": structure_code,
             "messages": [AIMessage(content=response)]
         }
-    
+
     return structure_agent_node
 
 
@@ -202,13 +196,13 @@ def create_general_agent(llm):
     def general_agent_node(state: MultiAgentState) -> MultiAgentState:
         """Nœud de l'agent général"""
         question = state["question"]
-        
+
         # Recherche générale
         context = search_uam_knowledge.invoke({"query": question})
-        
+
         from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
         from langchain_core.output_parsers import StrOutputParser
-        
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", """Tu es l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).
 
@@ -224,13 +218,13 @@ CONTEXTE DISPONIBLE :
 {context}"""),
             MessagesPlaceholder(variable_name="messages"),
         ])
-        
+
         chain = prompt | llm | StrOutputParser()
         response = chain.invoke({
             "context": context,
             "messages": state["messages"]
         })
-        
+
         return {
             **state,
             "context": context,
@@ -238,7 +232,7 @@ CONTEXTE DISPONIBLE :
             "agent_used": "GENERAL",
             "messages": [AIMessage(content=response)]
         }
-    
+
     return general_agent_node
 
 
@@ -246,62 +240,62 @@ def create_multi_agent_graph(vectorstore, llm):
     """
     Crée le graphe multi-agents avec agents spécialisés par structure
     (facultés, écoles, instituts)
-    
+
     Args:
         vectorstore: Index FAISS pour la recherche
         llm: LLM principal
-    
+
     Returns:
         Application LangGraph compilée
     """
     # Initialiser le vectorstore
     set_vectorstore(vectorstore)
-    
+
     # Créer le graphe
     workflow = StateGraph(MultiAgentState)
-    
+
     # Créer les agents spécialisés pour toutes les structures
     agent_mapping = {}  # Pour stocker le mapping agent_name -> agent_name
-    
+
     # Créer les agents pour les facultés
     for faculty_code, faculty_name in UAM_STRUCTURES["facultes"].items():
         agent_name = get_agent_name(faculty_code)
         agent_node = create_faculty_agent(faculty_code, faculty_name["nom_complet"], llm)
         workflow.add_node(agent_name, agent_node)
         agent_mapping[agent_name] = agent_name
-    
+
     # Créer les agents pour les écoles
     for ecole_code, ecole_info in UAM_STRUCTURES["ecoles"].items():
         agent_name = get_agent_name(ecole_code)
         agent_node = create_faculty_agent(ecole_code, ecole_info["nom_complet"], llm)
         workflow.add_node(agent_name, agent_node)
         agent_mapping[agent_name] = agent_name
-    
+
     # Créer les agents pour les instituts
     for institut_code, institut_info in UAM_STRUCTURES["instituts"].items():
         agent_name = get_agent_name(institut_code)
         agent_node = create_faculty_agent(institut_code, institut_info["nom_complet"], llm)
         workflow.add_node(agent_name, agent_node)
         agent_mapping[agent_name] = agent_name
-    
+
     # Créer l'agent général
     general_agent_node = create_general_agent(llm)
     workflow.add_node("general_agent", general_agent_node)
     agent_mapping["general_agent"] = "general_agent"
-    
+
     # Définir le point d'entrée avec routage
     workflow.set_conditional_entry_point(
         route_to_faculty_agent,
         agent_mapping
     )
-    
+
     # Tous les agents terminent à END
     for agent_name in agent_mapping.keys():
         workflow.add_edge(agent_name, END)
-    
+
     # Compiler avec mémoire
     memory = MemorySaver()
     app = workflow.compile(checkpointer=memory)
-    
+
     return app
 
