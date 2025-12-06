@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from langchain_core.tools import tool
 from langchain_community.vectorstores import FAISS
+from langsmith import traceable
 from uam_structures import (
     get_structure_info,
     detect_structure_in_text,
@@ -37,6 +38,7 @@ except Exception as e:
     print(f" Erreur lors de l'initialisation de la base de données : {e}")
 
 
+@traceable
 def set_vectorstore(vectorstore: FAISS):
     """Définit le vectorstore global pour les outils"""
     global _vectorstore
@@ -199,23 +201,30 @@ def calculate_fees(level: str, faculty: str = "") -> str:
             db_results = search_fees_db(level=level, faculty=faculty_abbrev, year=current_year)
             
             if db_results:
-                results_parts.append("💰 FRAIS DE SCOLARITÉ À JOUR (BASE DE DONNÉES) :")
+                results_parts.append("💰 FRAIS DE SCOLARITÉ (BASE DE DONNÉES) :")
                 results_parts.append("")
-                for fee in db_results[:5]:  # Limiter à 5 résultats
+                for fee in db_results[:10]:  # Limiter à 10 résultats
                     fee_info = []
                     if "level" in fee:
-                        fee_info.append(f"Niveau : {fee['level'].capitalize()}")
-                    if "faculty" in fee:
-                        fee_info.append(f"Faculté : {fee['faculty']}")
-                    if "amount" in fee:
-                        fee_info.append(f"Montant : {fee['amount']:,} FCFA")
-                    if "academic_year" in fee:
-                        fee_info.append(f"Année académique : {fee['academic_year']}")
-                    if "description" in fee:
-                        fee_info.append(f"Description : {fee['description']}")
+                        fee_info.append(f"📋 {fee['level']}")
+                    if "type_inscription" in fee:
+                        fee_info.append(f"   Type : {fee['type_inscription']}")
+                    total_frais = 0
+                    if "frais_inscription" in fee and fee["frais_inscription"]:
+                        total_frais += fee["frais_inscription"]
+                        fee_info.append(f"   Frais d'inscription : {fee['frais_inscription']:,} FCFA")
+                    if "frais_scolarite" in fee and fee["frais_scolarite"]:
+                        total_frais += fee["frais_scolarite"]
+                        fee_info.append(f"   Frais de scolarité : {fee['frais_scolarite']:,} FCFA")
+                    if "frais_labo" in fee and fee["frais_labo"]:
+                        total_frais += fee["frais_labo"]
+                        fee_info.append(f"   Frais de laboratoire : {fee['frais_labo']:,} FCFA")
+                    if total_frais > 0:
+                        fee_info.append(f"   💵 TOTAL : {total_frais:,} FCFA")
+                    if "periode" in fee:
+                        fee_info.append(f"   Période : {fee['periode']}")
                     
                     results_parts.append("\n".join(fee_info))
-                    results_parts.append("---")
                     results_parts.append("")
         except Exception as e:
             print(f"⚠️ Erreur lors de la recherche dans la base de données : {e}")
@@ -281,20 +290,22 @@ def search_formations(faculty: str = "", level: str = "") -> str:
             db_results = search_formations_db(faculty=faculty_abbrev, level=level)
             
             if db_results:
-                results_parts.append("📊 INFORMATIONS À JOUR DEPUIS LA BASE DE DONNÉES :")
+                results_parts.append("📊 FORMATIONS DISPONIBLES (BASE DE DONNÉES) :")
                 results_parts.append("")
-                for formation in db_results[:10]:  # Limiter à 10 résultats
+                for formation in db_results[:15]:  # Limiter à 15 résultats
                     formation_info = []
                     if "name" in formation:
-                        formation_info.append(f"• {formation['name']}")
-                    if "faculty" in formation:
-                        formation_info.append(f"  Faculté : {formation['faculty']}")
+                        formation_info.append(f"🎓 {formation['name']}")
+                    if "structure_nom" in formation:
+                        formation_info.append(f"   Structure : {formation['structure_nom']}")
                     if "level" in formation:
-                        formation_info.append(f"  Niveau : {formation['level']}")
-                    if "description" in formation:
-                        formation_info.append(f"  Description : {formation['description']}")
-                    if "duration_years" in formation:
-                        formation_info.append(f"  Durée : {formation['duration_years']} ans")
+                        formation_info.append(f"   Niveau : {formation['level']}")
+                    if "conditions_acces" in formation and formation["conditions_acces"]:
+                        formation_info.append(f"   Conditions d'accès : {formation['conditions_acces']}")
+                    if "pieces_requises" in formation and formation["pieces_requises"]:
+                        formation_info.append(f"   Pièces requises : {formation['pieces_requises']}")
+                    if "objectifs" in formation and formation["objectifs"]:
+                        formation_info.append(f"   Objectifs : {formation['objectifs']}")
                     
                     results_parts.append("\n".join(formation_info))
                     results_parts.append("")
@@ -1077,26 +1088,23 @@ def get_schedules_from_db(faculty: str = "", filiere: str = "", level: str = "")
             return f"Aucun horaire trouvé pour {faculty if faculty else 'les structures'}."
         
         results_parts = []
-        results_parts.append(" HORAIRES ET EMPLOIS DU TEMPS (BASE DE DONNÉES) :")
+        results_parts.append("⏰ HORAIRES DES SERVICES UAM (BASE DE DONNÉES) :")
         results_parts.append("")
         
         for schedule in schedules[:20]:  # Limiter à 20 résultats
             sched_info = []
-            if "filiere_name" in schedule:
-                sched_info.append(f"Filière : {schedule['filiere_name']}")
-            if "day_of_week" in schedule:
-                sched_info.append(f"Jour : {schedule['day_of_week']}")
-            if "start_time" in schedule and "end_time" in schedule:
-                sched_info.append(f"Heure : {schedule['start_time']} - {schedule['end_time']}")
-            if "module_name" in schedule:
-                sched_info.append(f"Module : {schedule['module_name']}")
-            if "room" in schedule:
-                sched_info.append(f"Salle : {schedule['room']}")
-            if "professor" in schedule:
-                sched_info.append(f"Professeur : {schedule['professor']}")
+            if "service" in schedule:
+                sched_info.append(f"📍 {schedule['service']}")
+            if "jours" in schedule:
+                sched_info.append(f"   Jours : {schedule['jours']}")
+            if "heures_ouverture" in schedule and "heures_fermeture" in schedule:
+                sched_info.append(f"   Horaires : {schedule['heures_ouverture']} - {schedule['heures_fermeture']}")
+            elif "start_time" in schedule and "end_time" in schedule:
+                sched_info.append(f"   Horaires : {schedule['start_time']} - {schedule['end_time']}")
+            if "notes" in schedule and schedule["notes"]:
+                sched_info.append(f"   Notes : {schedule['notes']}")
             
             results_parts.append("\n".join(sched_info))
-            results_parts.append("---")
             results_parts.append("")
         
         return "\n".join(results_parts)
@@ -1105,6 +1113,7 @@ def get_schedules_from_db(faculty: str = "", filiere: str = "", level: str = "")
         return f"Erreur lors de la récupération des horaires : {e}"
 
 
+@traceable
 def get_tools():
     """Retourne la liste des outils disponibles pour l'agent"""
     tools = [

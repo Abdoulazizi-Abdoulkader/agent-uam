@@ -3,6 +3,7 @@ Interface utilisateur pour le chatbot UAM
 """
 import uuid
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langsmith import traceable
 from config import LLMProvider
 from llm_utils import initialize_llm
 from document_loader import load_and_index_documents
@@ -10,6 +11,7 @@ from agent_graph import create_agent_graph
 from typing import Optional
 
 # ==================== INTERFACE UTILISATEUR ====================
+@traceable
 def run_chatbot(pdf_directory: str, provider: LLMProvider, model_name: Optional[str] = None):
     """
     Lance le chatbot interactif

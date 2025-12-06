@@ -3,9 +3,11 @@ Utilitaires pour l'initialisation des LLM et embeddings
 """
 import os
 from typing import Optional
+from langsmith import traceable
 from config import LLMProvider
 
 
+@traceable
 def initialize_llm(provider: LLMProvider, model_name: Optional[str] = None, temperature: float = 0.3):
     """
     Initialise le LLM selon le provider choisi
@@ -95,6 +97,7 @@ def initialize_llm(provider: LLMProvider, model_name: Optional[str] = None, temp
         raise ValueError(f"Provider non supporté: {provider}")
 
 
+@traceable
 def initialize_embeddings(provider: LLMProvider):
     """
     Initialise les embeddings selon le provider

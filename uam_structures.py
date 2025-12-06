@@ -24,6 +24,10 @@ UAM_STRUCTURES = {
             "nom_complet": "Faculté des Sciences Économiques et de Gestion",
             "variantes": ["Faculté des sciences économiques et de gestion", "Faculté des Sciences Économiques et de Gestion", "FSEG", "sciences économiques et de gestion", "sciences économiques gestion"]
         },
+        "FSEJ": {
+            "nom_complet": "Faculté des Sciences Économiques et Juridiques",
+            "variantes": ["Faculté des sciences économiques et juridiques", "Faculté des Sciences Économiques et Juridiques", "FSEJ", "sciences économiques et juridiques", "droit et économie", "juridique et économique"]
+        },
         "FSJP": {
             "nom_complet": "Faculté des Sciences Juridiques et Politiques",
             "variantes": ["Faculté des sciences juridiques et politiques","Faculté des Sciences Juridiques et Politiques", "FSJP", "sciences juridiques et politiques", "droit", "juridique"]

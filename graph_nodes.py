@@ -5,12 +5,14 @@ from typing import Literal
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
+from langsmith import traceable
 from uam_structures import UAM_STRUCTURES, detect_structure_in_text
 from tools import detect_greeting, check_question_relevance, search_uam_knowledge
 from agent_state import AgentState
 
 # ==================== NŒUDS DU GRAPHE ====================
 
+@traceable
 def route_question(state: AgentState) -> Literal["agent", "reject_query"]:
     """
     Route la question selon sa pertinence.
@@ -60,6 +62,7 @@ def route_question(state: AgentState) -> Literal["agent", "reject_query"]:
     return "reject_query"
 
 
+@traceable
 def search_knowledge(state: AgentState) -> AgentState:
     """Recherche le contexte dans la base de connaissances"""
     if not state["messages"]:
@@ -80,6 +83,7 @@ def search_knowledge(state: AgentState) -> AgentState:
     }
 
 
+@traceable
 def should_continue(state: AgentState) -> Literal["tools", "end"]:
     """
     Détermine si l'agent doit appeler des outils ou terminer la conversation.
@@ -96,6 +100,7 @@ def should_continue(state: AgentState) -> Literal["tools", "end"]:
     return "end"
 
 
+@traceable(run_type="llm")
 def call_model(state: AgentState, llm_with_tools) -> AgentState:
     """
     Appelle le LLM avec les outils bindés pour générer une réponse ou appeler des outils.
@@ -261,6 +266,7 @@ IMPORTANT :
     }
 
 
+@traceable(run_type="llm")
 def generate_response(state: AgentState, llm) -> AgentState:
     """
     Génère une réponse basée sur le contexte.
@@ -330,6 +336,7 @@ Si le contexte ne contient pas l'information demandée, réponds poliment :
     }
 
 
+@traceable
 def reject_query(state: AgentState) -> AgentState:
     """Rejette poliment les questions hors sujet avec une réponse accueillante"""
     # Vérifier si c'est une salutation

@@ -56,6 +56,9 @@ reportlab>=4.0.0
 # Pour les logs et le monitoring
 # loguru==0.7.2
 
+# Pour le tracing avec LangSmith
+langsmith>=0.1.0
+
 # Pour la persistance en base de données
 sqlalchemy==2.0.36
 psycopg2-binary==2.9.10  # PostgreSQL

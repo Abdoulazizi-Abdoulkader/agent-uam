@@ -6,10 +6,12 @@ from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
 from langchain_community.vectorstores import FAISS
+from langsmith import traceable
 from config import LLMProvider
 from llm_utils import initialize_embeddings
 
 
+@traceable
 def load_and_index_documents(pdf_directory: str, provider: LLMProvider) -> FAISS:
     """
     Charge les documents (PDF, TXT, DOCX, MD) et crée un index vectoriel

@@ -218,19 +218,34 @@ def search_formations_db(faculty: Optional[str] = None, level: Optional[str] = N
             "limit": 100
         })
     else:
-        # SQL
-        query = "SELECT * FROM formations WHERE 1=1"
+        # SQL - Nouveau schéma avec jointure sur structures
+        query = """
+            SELECT 
+                f.id,
+                f.nom as name,
+                f.niveau as level,
+                f.conditions_acces,
+                f.pieces_requises,
+                f.objectifs,
+                s.nom as structure_nom,
+                s.type as structure_type
+            FROM formations f
+            JOIN structures s ON f.structure_id = s.id
+            WHERE 1=1
+        """
         params = {}
         
         if faculty:
-            query += " AND faculty_abbreviation = :faculty"
-            params["faculty"] = faculty.upper()
+            # Rechercher par nom ou abréviation de la structure
+            query += " AND (s.nom LIKE :faculty_pattern OR s.nom LIKE :faculty_pattern2)"
+            params["faculty_pattern"] = f"%{faculty}%"
+            params["faculty_pattern2"] = f"%{faculty.upper()}%"
         
         if level:
-            query += " AND level = :level"
-            params["level"] = level.lower()
+            query += " AND LOWER(f.niveau) = LOWER(:level)"
+            params["level"] = level
         
-        query += " ORDER BY faculty_abbreviation, name"
+        query += " ORDER BY s.nom, f.niveau, f.nom"
         
         return query_database(query, params)
 
@@ -318,25 +333,36 @@ def search_schedules_db(faculty: Optional[str] = None,
             "limit": 100
         })
     else:
-        # SQL
-        query = "SELECT * FROM schedules WHERE 1=1"
+        # SQL - Nouveau schéma avec table horaires
+        query = "SELECT * FROM horaires WHERE 1=1"
         params = {}
         
         if faculty:
-            query += " AND faculty_abbreviation = :faculty"
-            params["faculty"] = faculty.upper()
+            # Rechercher dans le champ service qui peut contenir le nom de la faculté
+            query += " AND (LOWER(service) LIKE :faculty_pattern OR LOWER(notes) LIKE :faculty_pattern2)"
+            params["faculty_pattern"] = f"%{faculty.lower()}%"
+            params["faculty_pattern2"] = f"%{faculty.lower()}%"
         
-        if filiere:
-            query += " AND filiere_name = :filiere"
-            params["filiere"] = filiere
+        query += " ORDER BY service, heures_ouverture"
         
-        if level:
-            query += " AND level = :level"
-            params["level"] = level.lower()
+        results = query_database(query, params)
         
-        query += " ORDER BY day_of_week, start_time"
+        # Transformer les résultats pour compatibilité
+        transformed_results = []
+        for row in results:
+            transformed = {
+                "service": row.get("service", ""),
+                "jours": row.get("jours", ""),
+                "heures_ouverture": row.get("heures_ouverture", ""),
+                "heures_fermeture": row.get("heures_fermeture", ""),
+                "notes": row.get("notes", ""),
+                "start_time": row.get("heures_ouverture", ""),
+                "end_time": row.get("heures_fermeture", ""),
+                "day_of_week": row.get("jours", "")
+            }
+            transformed_results.append(transformed)
         
-        return query_database(query, params)
+        return transformed_results
 
 
 def search_fees_db(level: Optional[str] = None, 
@@ -370,25 +396,40 @@ def search_fees_db(level: Optional[str] = None,
             "limit": 50
         })
     else:
-        # SQL
-        query = "SELECT * FROM fees WHERE 1=1"
+        # SQL - Nouveau schéma avec table scolarite
+        query = "SELECT * FROM scolarite WHERE 1=1"
         params = {}
         
         if level:
-            query += " AND level = :level"
-            params["level"] = level.lower()
+            # Rechercher dans le champ niveau qui peut contenir "Licence", "Master", etc.
+            query += " AND (LOWER(niveau) LIKE :level_pattern OR LOWER(niveau) LIKE :level_pattern2)"
+            params["level_pattern"] = f"%{level.lower()}%"
+            params["level_pattern2"] = f"%{level.lower()}%"
         
         if faculty:
-            query += " AND faculty_abbreviation = :faculty"
-            params["faculty"] = faculty.upper()
+            # Rechercher dans le champ niveau qui peut contenir le nom de la faculté
+            query += " AND (LOWER(niveau) LIKE :faculty_pattern)"
+            params["faculty_pattern"] = f"%{faculty.lower()}%"
         
-        if year:
-            query += " AND academic_year = :year"
-            params["year"] = year
+        query += " ORDER BY niveau, type_inscription"
         
-        query += " ORDER BY academic_year DESC, level, faculty_abbreviation"
+        results = query_database(query, params)
         
-        return query_database(query, params)
+        # Transformer les résultats pour compatibilité
+        transformed_results = []
+        for row in results:
+            transformed = {
+                "level": row.get("niveau", ""),
+                "type_inscription": row.get("type_inscription", ""),
+                "frais_inscription": row.get("frais_inscription", 0),
+                "frais_scolarite": row.get("frais_scolarite", 0),
+                "frais_labo": row.get("frais_labo", 0),
+                "periode": row.get("periode", ""),
+                "amount": row.get("frais_inscription", 0) + row.get("frais_scolarite", 0) + row.get("frais_labo", 0)
+            }
+            transformed_results.append(transformed)
+        
+        return transformed_results
 
 
 def search_news_announcements_db(limit: int = 10, 

@@ -44,6 +44,16 @@ user_memory.json
 exports/
 *.log
 
+# Base de données (peut être régénérée)
+*.db
+*.sqlite
+*.sqlite3
+
+# Fichiers temporaires
+Info.txt
+*.tmp
+*.bak
+
 # FAISS index (peut être régénéré)
 *.index
 *.faiss

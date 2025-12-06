@@ -4,6 +4,7 @@ Construction du graphe LangGraph pour l'agent conversationnel UAM
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_community.vectorstores import FAISS
+from langsmith import traceable
 from agent_state import AgentState
 from tools import get_tools, set_vectorstore
 from graph_nodes import route_question, should_continue, call_model, generate_response, reject_query, search_knowledge
@@ -72,6 +73,7 @@ except ImportError:
             return self.invoke(state)
 
 # ==================== CONSTRUCTION DU GRAPHE ====================
+@traceable
 def create_agent_graph(vectorstore: FAISS, llm):
     """
     Crée le graphe LangGraph pour l'agent conversationnel avec les dernières fonctionnalités.
