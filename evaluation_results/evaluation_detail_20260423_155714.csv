@@ -1,0 +1,313 @@
+question,category,expected_relevant,actual_relevant,correct_classification,keyword_recall,response,ground_truth,elapsed_ms,response_length_words,error
+Quelles sont les facultés de l'UAM ?,structures,True,False,False,,"L'Université Abdou Moumouni de Niamey (UAM) comprend plusieurs structures réparties en trois catégories principales :
+
+**Facultés :**
+- Faculté des Sciences et Techniques (FAST)
+- Faculté des Lettres et Sciences Humaines (FLSH)
+- Faculté d'Agronomie (FA)
+- Faculté des Sciences Économiques et de Gestion (FSEG)
+- Faculté des Sciences Économiques et Juridiques (FSEJ)
+- Faculté des Sciences Juridiques et Politiques (FSJP)
+- Faculté des Sciences de la Santé (FSS)
+
+**Instituts de Recherche :**
+- Insti","L'UAM comprend plusieurs facultés : FAST (Sciences et Techniques), FLSH (Lettres et Sciences Humaines), FA (Agronomie), FSEG (Sciences Économiques et de Gestion), FSJP (Sciences Juridiques et Politiques), FSS (Sciences de la Santé).",9804,151,
+Quelle est la mission de la FAST ?,structures,True,False,False,,"Bonjour !
+
+Je vous informe que la Faculté des Sciences et Techniques (FAST) de l'Université Abdou Moumouni est l'une des principales structures académiques de l'UAM. D'après les informations disponibles, la FAST s'inscrit dans le système LMD (Licence-Master-Doctorat) et couvre le domaine des Sciences et Technologies.
+
+Bien que je n'aie pas trouvé une déclaration explicite de sa mission spécifique dans les documents consultés, la FAST se consacre principalement à :
+
+1. La formation des étudiants ","La Faculté des Sciences et Techniques (FAST) a pour mission la formation et la recherche dans les domaines des sciences exactes, des mathématiques, de l'informatique et des techniques.",10836,181,
+Qu'est-ce que la FLSH ?,structures,True,False,False,,"Bonjour ! Je vous remercie pour votre question sur la FLSH.
+
+La FLSH est la **Faculté des Lettres et Sciences Humaines** de l'Université Abdou Moumouni de Niamey.
+
+D'après les informations disponibles, cette faculté collabore étroitement avec l'Institut de Recherches en Sciences Humaines (IRSH) et l'École Normale Supérieure (ENS) pour assurer la formation et l'encadrement des étudiants dans les domaines des sciences humaines et sociales.
+
+Les chercheurs de la FLSH participent activement à la for","La FLSH est la Faculté des Lettres et Sciences Humaines. Elle forme dans les domaines des langues, lettres, histoire, géographie et sciences humaines.",9600,108,
+Quelle est la différence entre la FA et la FSEG ?,structures,True,False,False,,,"La FA (Faculté d'Agronomie) forme dans les sciences agricoles et rurales, tandis que la FSEG (Faculté des Sciences Économiques et de Gestion) forme dans l'économie, la gestion et le commerce.",12739,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Qu'est-ce que l'ENS à l'UAM ?,structures,True,False,False,,"Bonjour !
+
+L'École Normale Supérieure (ENS) est une institution importante au sein de l'Université Abdou Moumouni de Niamey. Voici les informations principales concernant cette école :
+
+**Présentation de l'ENS :**
+L'École Normale Supérieure est la principale école de formation professionnelle supérieure des formateurs et des cadres d'accompagnement et d'animation pédagogiques des différents ministères en charge de l'éducation nationale au Niger. Sa création remonte à 1971, année de la fondation ","L'ENS est l'École Normale Supérieure, une école de l'UAM qui forme les enseignants et cadres de l'éducation nationale.",12069,223,
+Quelles sont les écoles doctorales de l'UAM ?,structures,True,False,False,,"L'Université Abdou Moumouni de Niamey (UAM) dispose de trois écoles doctorales :
+
+1. **ED-SVT** - École Doctorale des Sciences de la Vie et de la Terre
+   • Domaines : sciences biologiques, sciences de la terre, environnement
+
+2. **ED-LASHS** - École Doctorale des Lettres, Arts, Sciences de l'Homme et de la Société
+   • Domaines : lettres, sciences humaines, arts, sciences sociales
+
+3. **ED-SET** - École Doctorale des Sciences Exactes et Techniques
+   • Domaines : sciences chimiques, sciences de","L'UAM dispose de trois écoles doctorales : ED-SVT (Sciences de la Vie et de la Terre), ED-LASHS (Lettres, Arts, Sciences de l'Homme et de la Société), ED-SET (Sciences Exactes et Techniques).",9960,191,
+Qu'est-ce que l'IRSH ?,structures,True,False,False,,"Bonjour ! Je vous remercie pour votre question sur l'IRSH.
+
+L'IRSH est l'Institut de Recherche en Sciences Humaines, l'un des instituts de recherche rattachés à l'Université Abdou Moumouni de Niamey.
+
+Voici les informations principales concernant cet institut :
+
+**Type d'établissement :** Institut de recherche
+
+**Activités principales :**
+- Recherche dans les domaines des sciences humaines et sociales
+- Participation à la formation des étudiants en collaboration avec la FLSH (Faculté des Lettres",L'IRSH est l'Institut de Recherche en Sciences Humaines. C'est un centre de recherche de l'UAM dédié aux études en sciences sociales et humaines.,8983,162,
+Quels instituts fait partie de l'UAM ?,structures,True,False,False,,"L'Université Abdou Moumouni de Niamey compte trois instituts de recherche :
+
+1. **Institut de Recherche en Sciences Humaines (IRSH)** : Dédié à la recherche dans les domaines des sciences humaines et sociales.
+
+2. **Institut de Recherches pour l'Enseignement des Mathématiques (IREM)** : Spécialisé dans la recherche sur l'enseignement des mathématiques et le développement de méthodes pédagogiques dans ce domaine.
+
+3. **Institut des Radio-isotopes (IRI)** : Axé sur la recherche impliquant l'utilis","L'UAM comprend notamment l'IRSH (Institut de Recherche en Sciences Humaines), l'IREM (Institut de Recherches pour l'Enseignement des Mathématiques) et l'IRI (Institut des Radio-isotopes).",9586,110,
+Comment s'inscrire à l'UAM pour la première fois ?,admissions,True,False,False,,,"Pour s'inscrire à l'UAM en première année, il faut déposer un dossier comprenant les diplômes requis (baccalauréat ou équivalent), des photos d'identité, une copie de la CNI, et payer les frais d'inscription au service de la scolarité.",18204,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Quelles sont les pièces à fournir pour s'inscrire ?,admissions,True,False,False,,"Voici les pièces à fournir pour s'inscrire à l'Université Abdou Moumouni de Niamey :
+
+**Documents requis pour l'inscription :**
+
+1. Une demande manuscrite signée adressée au Recteur de l'UAM (précisant trois filières d'études par ordre de préférence)
+2. Un extrait d'acte de naissance ou un jugement supplétif tenant lieu (ou une fiche individuelle d'état civil)
+3. Un certificat de nationalité
+4. Une copie légalisée du diplôme requis ou du titre admis en équivalence (baccalauréat pour les nouveaux","Les pièces requises sont généralement : acte de naissance, copie du baccalauréat, relevés de notes, photos d'identité, certificat de résidence et reçu de paiement des frais d'inscription.",9464,193,
+Quelles sont les conditions d'admission en Licence à l'UAM ?,admissions,True,False,False,,"Bonjour ! Je suis ravi de pouvoir vous renseigner sur les conditions d'admission en Licence à l'Université Abdou Moumouni de Niamey.
+
+## Conditions d'admission en Licence (L1) à l'UAM
+
+Pour être admis en première année de Licence à l'UAM, vous devez :
+
+- Être titulaire du Baccalauréat de l'enseignement du second degré ou posséder un titre équivalent
+- Pour certaines filières sélectives, réussir le concours d'entrée spécifique
+- Certaines filières peuvent exiger des mentions minimales au Baccalau","Pour accéder à la Licence, il faut être titulaire du baccalauréat ou d'un diplôme équivalent reconnu par le Niger. Certaines filières peuvent exiger des mentions ou des séries spécifiques.",9244,188,
+Comment s'inscrire en Master à l'UAM ?,admissions,True,False,False,,,"L'admission en Master nécessite d'être titulaire d'une Licence ou d'un BAC+3 équivalent. Un dossier de candidature est déposé au département concerné, parfois accompagné d'un entretien ou d'un test.",11485,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Quelles sont les dates d'inscription à l'UAM ?,admissions,True,False,False,,"D'après les informations disponibles, voici les détails concernant les dates d'inscription à l'Université Abdou Moumouni de Niamey (UAM) :
+
+### Périodes d'inscription
+
+1. **Inscription académique/administrative** :
+   - Période générale : Septembre-Octobre (début de l'année académique)
+   - Cette inscription est obligatoire pour tous les étudiants (nouveaux et anciens)
+   - Elle doit être renouvelée chaque année
+
+2. **Inscription pédagogique** :
+   - Période : Au début de chaque semestre (septem",Les inscriptions à l'UAM se déroulent généralement en octobre-novembre pour le premier semestre. Les dates exactes sont publiées sur les panneaux d'affichage et le site de l'université.,9622,169,
+Peut-on faire une réinscription tardive à l'UAM ?,admissions,True,False,False,,"Bonjour,
+
+Concernant votre question sur les réinscriptions tardives à l'Université Abdou Moumouni de Niamey, je n'ai pas trouvé d'informations spécifiques et détaillées sur ce sujet dans la base de connaissances.
+
+Cependant, d'après les règlements généraux de l'université, voici ce que je peux vous indiquer :
+
+1. Les inscriptions et réinscriptions suivent généralement un calendrier académique précis
+2. Toute absence aux examens doit être justifiée, et les certificats et attestations doivent être","Oui, des dérogations pour réinscription tardive peuvent être accordées dans des cas exceptionnels. Il faut en faire la demande auprès du service de la scolarité avec un justificatif.",11792,175,
+Comment transférer son dossier d'une autre université vers l'UAM ?,admissions,True,False,False,,,"Pour un transfert, il faut soumettre une demande officielle avec le dossier académique complet, les relevés de notes, et la lettre de départ de l'université d'origine au service des admissions de l'UAM.",14062,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Comment obtenir une équivalence de diplôme étranger à l'UAM ?,admissions,True,False,False,,"Voici les informations concernant l'obtention d'une équivalence de diplôme étranger à l'Université Abdou Moumouni de Niamey :
+
+## Procédure d'équivalence de diplôme étranger
+
+Pour obtenir une équivalence de votre diplôme étranger à l'UAM, vous devez constituer un dossier comprenant :
+
+1. Une demande manuscrite adressée au Recteur de l'UAM
+2. Une copie légalisée de votre diplôme
+3. Les relevés de notes obtenus au cours de votre formation
+4. La traduction en français des documents si ceux-ci sont ",Les diplômes étrangers doivent être reconnus par le Ministère de l'Enseignement Supérieur du Niger. Il faut soumettre les documents officiels au service des équivalences de l'UAM.,11980,235,
+Quelles filières sont disponibles à la FAST ?,formations,True,False,False,,,"La FAST propose des formations en mathématiques, physique, chimie, informatique, sciences de la Terre, biologie, et plusieurs spécialités d'ingénierie selon les niveaux Licence, Master et Doctorat.",11183,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Quelles formations sont offertes à la FSEG ?,formations,True,False,False,,,"La FSEG offre des formations en économie, gestion des entreprises, comptabilité, finance, commerce international et statistiques, du niveau Licence au Doctorat.",11366,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Quelles sont les durées des cycles à l'UAM ?,formations,True,False,False,,"À l'Université Abdou Moumouni de Niamey (UAM), les études sont organisées selon le système LMD (Licence-Master-Doctorat) qui s'articule autour de trois cycles principaux :
+
+1. **Premier cycle - Licence (Bac+3)**
+   - Durée : 3 ans (6 semestres)
+   - Options : 
+     * Licence à option professionnelle (débouchant sur un master professionnel)
+     * Licence à option recherche (débouchant sur un master recherche)
+
+2. **Deuxième cycle - Master (Bac+5)**
+   - Durée : 2 ans (4 semestres)
+   - Options :","Le système LMD de l'UAM est organisé en : Licence (3 ans / 6 semestres), Master (2 ans / 4 semestres), Doctorat (3 ans minimum). Total BAC+8 pour un Doctorat.",12098,164,
+Quelles sont les filières disponibles à la FLSH ?,formations,True,False,False,,,"La FLSH propose des formations en langues (français, anglais, arabe), lettres modernes, histoire, géographie, philosophie et sciences de l'éducation.",14355,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Y a-t-il des formations en informatique à l'UAM ?,formations,True,False,False,,"Merci pour votre question concernant les formations en informatique à l'Université Abdou Moumouni de Niamey.
+
+Oui, l'UAM propose plusieurs formations en informatique. D'après les informations disponibles dans notre base de connaissances :
+
+### Formations en informatique à l'UAM :
+
+1. **Licence fondamentale en Informatique**
+   - Proposée par la Faculté des Sciences et Techniques (FAST)
+   - Fait partie du domaine Sciences et Technologies
+   - Durée : 3 ans (système LMD - Licence-Master-Doctorat)","Oui, la FAST propose des formations en informatique (Licence et Master). Des spécialités comme le génie logiciel, les réseaux et systèmes peuvent être disponibles.",16830,244,
+Quels sont les débouchés après une Licence à la FSEG ?,formations,True,False,False,,,"Après une Licence à la FSEG, les diplômés peuvent travailler dans les banques, les entreprises, l'administration publique, ou poursuivre en Master pour se spécialiser.",11868,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+L'UAM propose-t-elle des formations à distance ?,formations,True,False,False,,"Bonjour ! Je vous remercie pour votre question sur les formations à distance à l'Université Abdou Moumouni.
+
+D'après les informations disponibles, l'UAM propose effectivement des formations à distance, mais de façon limitée et en partenariat avec d'autres institutions :
+
+1. **Formations Ouvertes et À Distance (FOAD)** :
+   - L'université propose des formations diplômantes à distance de niveau licence et master
+   - Ces diplômes sont délivrés par des universités partenaires
+   - Ces formations so","L'UAM explore des modalités d'enseignement hybride, mais les formations restent principalement en présentiel. Renseignez-vous auprès de votre faculté pour les modalités actuelles.",10645,234,
+Combien coûtent les frais d'inscription à l'UAM ?,frais,True,False,False,,,Les frais de scolarité à l'UAM varient selon le niveau et la filière. Ils sont généralement modérés pour favoriser l'accès à l'éducation. Renseignez-vous au service de la scolarité pour les montants exacts de l'année en cours.,10230,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Y a-t-il des bourses disponibles pour les étudiants de l'UAM ?,frais,True,False,False,,"Voici les informations concernant les bourses disponibles pour les étudiants de l'UAM :
+
+### Bourses nationales et aides financières
+
+1. **Bourses nationales** : Des bourses sont accordées par l'État nigérien à certains étudiants selon des critères spécifiques.
+
+2. **Bourses pour étudiants de l'espace UEMOA** : Les étudiants ressortissants de l'espace UEMOA peuvent bénéficier des œuvres universitaires s'ils justifient d'une bourse de leur État ou de coopération.
+
+3. **Accès aux résidences univer","Oui, l'UAM et l'État nigérien proposent des bourses d'études pour les étudiants méritants. Des bourses internationales (coopération bilatérale, OIF, etc.) sont aussi accessibles via le service des bourses.",10855,207,
+Comment obtenir une bourse d'études à l'UAM ?,frais,True,False,False,,"Merci pour votre question concernant les bourses d'études à l'UAM. Voici les informations que je peux vous fournir :
+
+## Bourses d'études à l'UAM
+
+### Types de bourses disponibles
+- Bourses nationales octroyées par l'État nigérien
+- Bourses de coopération (partenariats internationaux)
+- Bourses pour les étudiants de l'espace UEMOA
+
+### Priorités pour les bourses et logements
+Les bourses et l'accès aux résidences universitaires sont prioritairement accordés :
+- Aux étudiants provenant de l'intéri","Pour obtenir une bourse, il faut déposer un dossier au service des bourses de l'UAM avec les justificatifs académiques et sociaux requis. Les critères incluent les résultats académiques et la situation sociale.",11487,235,
+Les frais de scolarité sont-ils les mêmes dans toutes les facultés ?,frais,True,False,False,,,Les frais peuvent varier légèrement selon la faculté et le niveau d'études. Contactez le service de la scolarité de votre faculté pour connaître les montants précis.,10565,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Existe-t-il des aides financières pour les étudiants en difficulté ?,frais,True,False,False,,"D'après mes recherches, voici les informations concernant les aides financières disponibles pour les étudiants en difficulté à l'UAM :
+
+### Bourses et aides financières
+
+1. **Bourses d'État et de coopération** :
+   - Les étudiants peuvent bénéficier de bourses accordées par l'État nigérien
+   - Des bourses de coopération sont également disponibles pour certains étudiants
+
+2. **Accès aux œuvres universitaires** :
+   - Les étudiants ressortissants de l'espace UEMOA justifiant d'une bourse de leur ",L'UAM dispose de mécanismes d'aide sociale pour les étudiants en difficulté. Des organismes comme le CROUS peuvent offrir des aides complémentaires. Renseignez-vous auprès de l'administration.,12702,280,
+Comment obtenir un diplôme ou une attestation de scolarité ?,services,True,False,False,,,"Pour obtenir un diplôme ou une attestation, il faut se rendre au service de la scolarité avec une demande écrite, les reçus de paiement et une pièce d'identité. Les délais varient selon le document demandé.",20598,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Comment obtenir un relevé de notes à l'UAM ?,services,True,False,False,,,"Le relevé de notes s'obtient au secrétariat de votre département ou au service de la scolarité, sur présentation de votre carte d'étudiant et d'une demande écrite.",17817,0,"Recursion limit of 7 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+For troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT"
+Comment obtenir la carte d'étudiant de l'UAM ?,services,True,False,False,,"Voici les informations concernant l'obtention de la carte d'étudiant à l'Université Abdou Moumouni de Niamey :
+
+## Procédure d'obtention de la carte d'étudiant
+
+D'après les informations disponibles, pour obtenir votre carte d'étudiant à l'UAM, vous devez suivre ces étapes :
+
+1. **Effectuer votre inscription administrative** à l'université (c'est une étape préalable obligatoire)
+2. **Fournir les documents requis** pour l'inscription, notamment :
+   - Un extrait d'acte de naissance ou document aut",La carte d'étudiant est délivrée après finalisation de l'inscription au service de la scolarité. Elle est généralement remise dans les semaines suivant l'inscription.,9329,175,
+Où se trouve la bibliothèque centrale de l'UAM ?,services,True,False,False,,"Bonjour ! 
+
+D'après les informations que j'ai trouvées, la Bibliothèque Universitaire Centrale (BUC) de l'UAM est située sur le site de l'Université Abdou Moumouni, rive gauche.
+
+Voici quelques informations complémentaires sur la BUC :
+
+- Adresse postale : BP. 10 896 / 237 – Niamey
+- Téléphone : (227) 20 74 12 73
+- Fax : (227) 20 31 38 62
+
+La bibliothèque est ouverte tous les jours ouvrables de 8h à 12h et de 16h à 21h.
+
+Services offerts par la bibliothèque :
+- Accès aux bases de données bibliog",La bibliothèque universitaire de l'UAM est accessible aux étudiants et chercheurs. Renseignez-vous auprès de l'administration pour les horaires et conditions d'accès.,11701,163,
+Y a-t-il un hébergement pour les étudiants à l'UAM ?,services,True,False,False,,"D'après les informations disponibles, voici ce que je peux vous dire sur l'hébergement étudiant à l'UAM :
+
+L'Université Abdou Moumouni dispose d'un Centre National des Œuvres Universitaires (CNOU) qui est chargé de la gestion des résidences universitaires. Ce centre a pour mission :
+
+- D'assurer la mise en œuvre de la politique nationale en matière des œuvres universitaires
+- De coordonner et contrôler les résidences et restaurants universitaires
+- De promouvoir une utilisation rationnelle des r",L'UAM dispose de cités universitaires pour les étudiants. Les places sont limitées et attribuées selon des critères de priorité. Faites une demande au service social de l'université.,9965,178,
+Comment faire une réclamation à l'UAM ?,services,True,False,False,,"Voici les informations concernant les procédures de réclamation à l'Université Abdou Moumouni de Niamey :
+
+## Types de réclamations possibles
+
+À l'UAM, vous pouvez faire différents types de réclamations concernant :
+- Les inscriptions et réinscriptions
+- Les résultats d'examens
+- Les problèmes administratifs
+- Les demandes d'annulation d'inscription
+- Les demandes de réinscription après interruption
+
+## Procédure à suivre
+
+1. **Identifiez le service concerné** : Votre réclamation doit être adres","Pour toute réclamation, adressez-vous d'abord au secrétariat de votre département, puis à l'administration de la faculté si nécessaire. Une réclamation écrite et motivée est recommandée.",11436,254,
+Y a-t-il une restauration universitaire à l'UAM ?,services,True,False,False,,"Bonjour ! Je suis ravi de vous aider concernant la restauration universitaire à l'UAM.
+
+Oui, il existe bien un service de restauration universitaire à l'Université Abdou Moumouni de Niamey. Voici les informations disponibles :
+
+- Le service de restauration est géré par le Centre National des Œuvres Universitaires (CNOU)
+- Il assure trois repas journaliers aux étudiants régulièrement inscrits à l'université :
+  * Petit déjeuner
+  * Déjeuner
+  * Dîner
+
+Ce service est décrit comme ""l'un des service",L'UAM dispose d'un restaurant universitaire proposant des repas subventionnés aux étudiants sur présentation de la carte d'étudiant.,8627,116,
+Qui est le président de la République française ?,hors_sujet,False,False,True,,"Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+
+Je peux vous aider avec :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Avez-vous une question concernant l'UAM ? Je serai ravi de ",Je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM). Je ne peux pas répondre à cette question.,88,80,
+Quel est le résultat du match de football hier soir ?,hors_sujet,False,False,True,,"Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+
+Je peux vous aider avec :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Avez-vous une question concernant l'UAM ? Je serai ravi de ",Je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM). Je ne peux pas répondre à cette question.,65,80,
+Comment préparer un plat de riz ?,hors_sujet,False,False,True,,"Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+
+Je peux vous aider avec :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Avez-vous une question concernant l'UAM ? Je serai ravi de ",Je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM). Je ne peux pas répondre à cette question.,46,80,
+Quel est le prix du pétrole aujourd'hui ?,hors_sujet,False,False,True,,"Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+
+Je peux vous aider avec :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Avez-vous une question concernant l'UAM ? Je serai ravi de ",Je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM). Je ne peux pas répondre à cette question.,43,80,
+Peux-tu m'écrire un poème sur l'amour ?,hors_sujet,False,False,True,,"Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+
+Je peux vous aider avec :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Avez-vous une question concernant l'UAM ? Je serai ravi de ",Je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM). Je ne peux pas répondre à cette question.,38,80,
+Quels sont les meilleurs smartphones en 2025 ?,hors_sujet,False,False,True,,"Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+
+Je peux vous aider avec :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Avez-vous une question concernant l'UAM ? Je serai ravi de ",Je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM). Je ne peux pas répondre à cette question.,34,80,

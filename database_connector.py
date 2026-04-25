@@ -4,9 +4,13 @@ Permet d'interroger une base de données pour obtenir des informations à jour
 """
 
 import os
+import re
+import threading
 from typing import Optional, Dict, List, Any, Union
 from datetime import datetime
 import json
+from app_config import get_config
+from logger_config import get_logger
 
 # Charger les variables d'environnement
 try:
@@ -15,9 +19,12 @@ try:
 except ImportError:
     pass
 
-# Variable globale pour la connexion
+logger = get_logger(__name__)
+
+# Variable globale pour la connexion (protégée par un verrou)
 _db_connection = None
 _db_type = None
+_db_lock = threading.Lock()
 
 
 class DatabaseType:
@@ -40,8 +47,9 @@ def get_db_connection():
     if _db_connection is not None:
         return _db_connection
     
-    # Détecter le type de base de données depuis les variables d'environnement
-    db_type = os.getenv("UAM_DB_TYPE", "").lower()
+    config = get_config()
+    # Détecter le type de base de données depuis la configuration
+    db_type = (config.database.db_type or "").lower()
     
     if not db_type:
         # Pas de base de données configurée
@@ -53,65 +61,92 @@ def get_db_connection():
             from psycopg2.extras import RealDictCursor
             
             _db_connection = psycopg2.connect(
-                host=os.getenv("UAM_DB_HOST", "localhost"),
-                port=os.getenv("UAM_DB_PORT", "5432"),
-                database=os.getenv("UAM_DB_NAME", "uam_db"),
-                user=os.getenv("UAM_DB_USER", "postgres"),
-                password=os.getenv("UAM_DB_PASSWORD", ""),
+                host=config.database.db_host,
+                port=config.database.db_port,
+                database=config.database.db_name,
+                user=config.database.db_user,
+                password=config.database.db_password,
                 cursor_factory=RealDictCursor
             )
             _db_type = DatabaseType.POSTGRESQL
-            print("✅ Connexion PostgreSQL établie")
+            logger.info("Connexion PostgreSQL établie")
             
         elif db_type == DatabaseType.MYSQL:
             import mysql.connector
             from mysql.connector import Error
             
             _db_connection = mysql.connector.connect(
-                host=os.getenv("UAM_DB_HOST", "localhost"),
-                port=int(os.getenv("UAM_DB_PORT", "3306")),
-                database=os.getenv("UAM_DB_NAME", "uam_db"),
-                user=os.getenv("UAM_DB_USER", "root"),
-                password=os.getenv("UAM_DB_PASSWORD", "")
+                host=config.database.db_host,
+                port=int(config.database.db_port or "3306"),
+                database=config.database.db_name,
+                user=config.database.db_user or "root",
+                password=config.database.db_password
             )
             _db_type = DatabaseType.MYSQL
-            print("✅ Connexion MySQL établie")
+            logger.info("Connexion MySQL établie")
             
         elif db_type == DatabaseType.SQLITE:
             import sqlite3
             
-            db_path = os.getenv("UAM_DB_PATH", "./uam_database.db")
+            db_path = config.database.db_path
             _db_connection = sqlite3.connect(db_path, check_same_thread=False)
             _db_connection.row_factory = sqlite3.Row  # Pour obtenir des dictionnaires
             _db_type = DatabaseType.SQLITE
-            print(f"✅ Connexion SQLite établie : {db_path}")
+            logger.info(f"Connexion SQLite établie : {db_path}")
             
         elif db_type == DatabaseType.MONGODB:
             from pymongo import MongoClient
             
-            connection_string = os.getenv("UAM_DB_CONNECTION_STRING", 
-                                         "mongodb://localhost:27017/")
+            connection_string = config.database.connection_string or "mongodb://localhost:27017/"
             client = MongoClient(connection_string)
-            db_name = os.getenv("UAM_DB_NAME", "uam_db")
+            db_name = config.database.db_name
             _db_connection = client[db_name]
             _db_type = DatabaseType.MONGODB
-            print("✅ Connexion MongoDB établie")
+            logger.info("Connexion MongoDB établie")
             
         else:
-            print(f"⚠️ Type de base de données non supporté : {db_type}")
+            logger.warning(f"Type de base de données non supporté : {db_type}")
             return None
-            
+
     except ImportError as e:
-        print(f"⚠️ Bibliothèque de base de données non installée : {e}")
-        print("   Installez-la avec : pip install psycopg2-binary (PostgreSQL)")
-        print("                      pip install mysql-connector-python (MySQL)")
-        print("                      pip install pymongo (MongoDB)")
+        logger.warning(
+            f"Bibliothèque de base de données non installée : {e}. "
+            "Installez psycopg2-binary (PostgreSQL), mysql-connector-python (MySQL) ou pymongo (MongoDB)."
+        )
         return None
     except Exception as e:
-        print(f"❌ Erreur de connexion à la base de données : {e}")
+        logger.error(f"Erreur de connexion à la base de données : {e}", exc_info=True)
         return None
     
     return _db_connection
+
+
+def _prepare_query(query: str, params: Optional[Dict[str, Any]]):
+    """
+    Adapte les placeholders SQL selon le type de base de données.
+    - SQLite: :name
+    - PostgreSQL: %(name)s
+    - MySQL: %s (ordre d'apparition)
+    """
+    if not params:
+        return query, params
+
+    if _db_type == DatabaseType.POSTGRESQL:
+        query_prepared = re.sub(r":([a-zA-Z_][a-zA-Z0-9_]*)", r"%(\1)s", query)
+        return query_prepared, params
+
+    if _db_type == DatabaseType.MYSQL:
+        ordered_keys: List[str] = []
+
+        def _replace(match):
+            ordered_keys.append(match.group(1))
+            return "%s"
+
+        query_prepared = re.sub(r":([a-zA-Z_][a-zA-Z0-9_]*)", _replace, query)
+        values = [params[key] for key in ordered_keys]
+        return query_prepared, values
+
+    return query, params
 
 
 def query_database(query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
@@ -136,10 +171,11 @@ def query_database(query: str, params: Optional[Dict[str, Any]] = None) -> List[
     try:
         if _db_type == DatabaseType.POSTGRESQL:
             cursor = _db_connection.cursor()
-            if params:
-                cursor.execute(query, params)
+            prepared_query, prepared_params = _prepare_query(query, params)
+            if prepared_params:
+                cursor.execute(prepared_query, prepared_params)
             else:
-                cursor.execute(query)
+                cursor.execute(prepared_query)
             results = cursor.fetchall()
             cursor.close()
             # Convertir les RealDictRow en dictionnaires
@@ -147,20 +183,22 @@ def query_database(query: str, params: Optional[Dict[str, Any]] = None) -> List[
             
         elif _db_type == DatabaseType.MYSQL:
             cursor = _db_connection.cursor(dictionary=True)
-            if params:
-                cursor.execute(query, params)
+            prepared_query, prepared_params = _prepare_query(query, params)
+            if prepared_params:
+                cursor.execute(prepared_query, prepared_params)
             else:
-                cursor.execute(query)
+                cursor.execute(prepared_query)
             results = cursor.fetchall()
             cursor.close()
             return results
             
         elif _db_type == DatabaseType.SQLITE:
             cursor = _db_connection.cursor()
-            if params:
-                cursor.execute(query, params)
+            prepared_query, prepared_params = _prepare_query(query, params)
+            if prepared_params:
+                cursor.execute(prepared_query, prepared_params)
             else:
-                cursor.execute(query)
+                cursor.execute(prepared_query)
             results = cursor.fetchall()
             cursor.close()
             # Convertir les Row en dictionnaires
@@ -184,11 +222,11 @@ def query_database(query: str, params: Optional[Dict[str, Any]] = None) -> List[
                 
                 return results
             else:
-                print("⚠️ Pour MongoDB, la requête doit être un dictionnaire")
+                logger.warning("Pour MongoDB, la requête doit être un dictionnaire")
                 return []
                 
     except Exception as e:
-        print(f"❌ Erreur lors de l'exécution de la requête : {e}")
+        logger.error(f"Erreur lors de l'exécution de la requête : {e}", exc_info=True)
         return []
 
 
@@ -465,9 +503,9 @@ def search_news_announcements_db(limit: int = 10,
             query += " AND category = :category"
             params["category"] = category
         
-        query += " ORDER BY published_date DESC LIMIT :limit"
-        params["limit"] = limit
-        
+        # LIMIT ne supporte pas les paramètres nommés en SQLite — on formate l'entier directement
+        query += f" ORDER BY published_date DESC LIMIT {int(limit)}"
+
         return query_database(query, params)
 
 
@@ -501,7 +539,7 @@ def close_db_connection():
             
             _db_connection = None
             _db_type = None
-            print("✅ Connexion à la base de données fermée")
+            logger.info("Connexion à la base de données fermée")
         except Exception as e:
-            print(f"⚠️ Erreur lors de la fermeture de la connexion : {e}")
+            logger.warning(f"Erreur lors de la fermeture de la connexion : {e}")
 

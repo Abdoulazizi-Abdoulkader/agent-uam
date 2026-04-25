@@ -1,0 +1,12 @@
+SECTION,MÉTRIQUE,VALEUR,INTERPRÉTATION
+Classification,Précision,0.0000,> 0.80 = bon
+Classification,Rappel,0.0000,> 0.80 = bon
+Classification,F1-Score,0.0000,> 0.80 = bon
+Classification,Exactitude,0.1463,> 0.85 = bon
+ROUGE,ROUGE-1,0.2386,> 0.40 = acceptable
+ROUGE,ROUGE-2,0.1416,> 0.20 = acceptable
+ROUGE,ROUGE-L,0.2024,> 0.35 = acceptable
+Performance,Temps moyen (ms),8583.8,< 5000 ms = bon
+Performance,Temps P90 (ms),12098,< 10000 ms = bon
+Performance,Taux d'erreur,0.2927,< 0.05 = bon
+Performance,Longueur moy. (mots),166.1,50-300 mots = idéal

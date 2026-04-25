@@ -5,68 +5,7 @@ try:
 except ImportError:
     pass  # python-dotenv n'est pas installé, utiliser les variables d'environnement système
 
-# Import ToolNode avec fallback si non disponible
-try:
-    from langgraph.prebuilt import ToolNode
-except ImportError:
-    # Créer une implémentation alternative de ToolNode
-    from langchain_core.messages import ToolMessage
-
-    class ToolNode:
-        """Implémentation alternative de ToolNode pour exécuter les outils"""
-        def __init__(self, tools):
-            # Créer un dictionnaire des outils par nom
-            self.tools = {}
-            for tool in tools:
-                if hasattr(tool, 'name'):
-                    self.tools[tool.name] = tool
-                elif hasattr(tool, '__name__'):
-                    self.tools[tool.__name__] = tool
-
-        def invoke(self, state):
-            """Exécute les appels d'outils depuis les messages"""
-            messages = state.get("messages", [])
-            if not messages:
-                return {"messages": []}
-
-            last_message = messages[-1]
-            tool_messages = []
-
-            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                for tool_call in last_message.tool_calls:
-                    # Gérer différents formats de tool_call
-                    if isinstance(tool_call, dict):
-                        tool_name = tool_call.get("name", "")
-                        tool_args = tool_call.get("args", {})
-                        tool_call_id = tool_call.get("id", "")
-                    else:
-                        # Format objet
-                        tool_name = getattr(tool_call, "name", "")
-                        tool_args = getattr(tool_call, "args", {})
-                        tool_call_id = getattr(tool_call, "id", "")
-
-                    if tool_name in self.tools:
-                        try:
-                            result = self.tools[tool_name].invoke(tool_args)
-                            tool_messages.append(
-                                ToolMessage(
-                                    content=str(result),
-                                    tool_call_id=tool_call_id
-                                )
-                            )
-                        except Exception as e:
-                            tool_messages.append(
-                                ToolMessage(
-                                    content=f"Erreur lors de l'exécution de {tool_name}: {e}",
-                                    tool_call_id=tool_call_id
-                                )
-                            )
-
-            return {"messages": tool_messages}
-
-        def __call__(self, state):
-            """Permet d'utiliser ToolNode comme une fonction"""
-            return self.invoke(state)
+from tool_node import ToolNode
 
 # Imports depuis les modules refactorisés
 from config import LLMProvider
@@ -85,9 +24,26 @@ from tools import (
     get_tools,
     search_uam_knowledge,
     detect_greeting,
+    detect_user_profile,
+    detect_frustration_or_confusion,
+    get_agent_capabilities,
     check_question_relevance,
     calculate_fees,
     search_formations,
+    search_admission_requirements,
+    search_required_documents,
+    search_registration_procedure,
+    search_registration_calendar,
+    search_student_card,
+    search_transfer_equivalence,
+    search_housing_and_services,
+    search_scholarships,
+    search_contacts_services,
+    search_international_equivalence,
+    search_late_reenrollment,
+    search_internship_info,
+    search_double_degree,
+    generate_registration_checklist,
     get_faculty_info,
     get_structure_by_abbreviation,
     list_all_structures,
@@ -105,20 +61,23 @@ from tools import (
     search_organisation_corps_estudiantin,
     search_reclamations,
     search_avantages_universite,
+    search_external_student_master,
+    search_phd_admission,
+    search_foreign_student_procedures,
+    search_recognition_prior_learning,
+    search_master_thesis_supervision,
+    search_academic_partnership,
     search_latest_news,
-    get_schedules_from_db
+    get_schedules_from_db,
 )
-# Importer _vectorstore depuis tools pour compatibilité avec multi_agents.py
-# Créer une référence initiale qui sera mise à jour par set_vectorstore
-import tools
-_vectorstore = tools._vectorstore
 from graph_nodes import (
     route_question,
     search_knowledge,
     should_continue,
     call_model,
     generate_response,
-    reject_query
+    reject_query,
+    handle_special_case,
 )
 from agent_graph import create_agent_graph
 from chatbot import run_chatbot
@@ -149,35 +108,73 @@ __all__ = [
     # État
     "AgentState",
     
-    # Outils
+    # Outils de détection conversationnelle
+    "detect_greeting",
+    "detect_user_profile",
+    "detect_frustration_or_confusion",
+    "get_agent_capabilities",
+    "check_question_relevance",
+
+    # Outils principaux
     "set_vectorstore",
-    "_vectorstore",
     "get_tools",
     "search_uam_knowledge",
-    "detect_greeting",
-    "check_question_relevance",
-    "calculate_fees",
-    "search_formations",
     "get_faculty_info",
     "get_structure_by_abbreviation",
     "list_all_structures",
-    "save_user_preference",
-    "get_user_preferences",
+
+    # Formations et filières
+    "search_formations",
     "search_prerequisites",
     "search_competences_requises",
     "search_cycles_et_duree",
     "search_chronogramme",
     "search_coefficients",
-    "search_professeurs",
     "search_debouches",
-    "search_reglement_interieur",
+    "search_avantages_universite",
+
+    # Inscription / admission
+    "calculate_fees",
+    "search_admission_requirements",
+    "search_required_documents",
+    "search_registration_procedure",
+    "search_registration_calendar",
+    "search_student_card",
+    "search_transfer_equivalence",
+    "search_international_equivalence",
+    "search_late_reenrollment",
+    "search_internship_info",
+    "search_double_degree",
+    "generate_registration_checklist",
+
+    # Étudiants externes / étrangers / master / doctorat
+    "search_external_student_master",
+    "search_phd_admission",
+    "search_foreign_student_procedures",
+    "search_recognition_prior_learning",
+    "search_master_thesis_supervision",
+    "search_academic_partnership",
+
+    # Services et contacts
+    "search_housing_and_services",
+    "search_scholarships",
+    "search_contacts_services",
+    "search_reclamations",
+
+    # Corps universitaire
+    "search_professeurs",
     "search_organisation_corps_professoral",
     "search_organisation_corps_estudiantin",
-    "search_reclamations",
-    "search_avantages_universite",
+    "search_reglement_interieur",
+
+    # Mémoire utilisateur
+    "save_user_preference",
+    "get_user_preferences",
+
+    # Base de données
     "search_latest_news",
     "get_schedules_from_db",
-    
+
     # Nœuds du graphe
     "route_question",
     "search_knowledge",
@@ -185,6 +182,7 @@ __all__ = [
     "call_model",
     "generate_response",
     "reject_query",
+    "handle_special_case",
     
     # Graphe
     "create_agent_graph",
@@ -197,24 +195,15 @@ __all__ = [
 if __name__ == "__main__":
     import os
     from pathlib import Path
-    
-    # Charger les variables d'environnement depuis .env
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-        print(" Variables d'environnement chargées depuis .env")
-    except ImportError:
-        print("  python-dotenv non installé. Utilisez: pip install python-dotenv")
-        print("   Ou définissez GROQ_API_KEY manuellement")
-    
+
+    # .env déjà chargé au début du module — pas besoin de recharger ici
     print()
     
     # CONFIGURATION
     PDF_DIRECTORY = "./documents_uam"
-    
-    # Configuration pour Groq (Llama) - RECOMMANDÉ
-    PROVIDER = LLMProvider.LLAMA_GROQ
-    MODEL_NAME = "llama-3.3-70b-versatile"
+
+    PROVIDER = LLMProvider.OPENROUTER
+    MODEL_NAME = os.getenv("UAM_LLM_MODEL", "openai/gpt-4o-mini")
     
     # Vérifier que le dossier existe
     if not os.path.exists(PDF_DIRECTORY):

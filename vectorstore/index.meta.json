@@ -1,0 +1,7 @@
+{
+  "fingerprint": "77a3cab72914f9513631e388d63aebfac3e89e3ca3aa151d62ef73e1f6774dde",
+  "file_count": 11,
+  "provider": "openrouter",
+  "embedding": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "updated_at": "2026-04-23T12:34:23.490110"
+}

@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Script de configuration rapide pour l'Agent UAM avec Groq
-# Pour Windows, utilisez Git Bash ou WSL
+# Script de configuration rapide pour l'Agent UAM avec OpenRouter
 
 echo "🎓 Configuration de l'Agent Conversationnel UAM"
 echo "================================================"
@@ -80,20 +79,29 @@ fi
 
 # Créer le fichier .env si nécessaire
 if [ ! -f ".env" ]; then
-    echo -e "${YELLOW}  Configuration de la clé API Groq...${NC}"
+    echo -e "${YELLOW}  Configuration de la clé API OpenRouter...${NC}"
     echo ""
     echo "  Pour obtenir votre clé gratuite :"
-    echo "  1. Allez sur https://console.groq.com/"
-    echo "  2. Créez un compte (gratuit)"
-    echo "  3. Générez une API Key"
+    echo "  1. Allez sur https://openrouter.ai/"
+    echo "  2. Créez un compte"
+    echo "  3. Générez une API Key (section Keys)"
     echo ""
-    read -p "  Entrez votre clé Groq (gsk_...): " GROQ_KEY
-    
-    if [ -n "$GROQ_KEY" ]; then
-        echo "GROQ_API_KEY=$GROQ_KEY" > .env
+    read -p "  Entrez votre clé OpenRouter (sk-or-v1-...): " OR_KEY
+
+    if [ -n "$OR_KEY" ]; then
+        cat > .env <<EOF
+OPENROUTER_API_KEY=$OR_KEY
+UAM_LLM_PROVIDER=openrouter
+UAM_LLM_MODEL=openai/gpt-4o-mini
+EOF
         echo -e "${GREEN}  ✓ Clé API sauvegardée dans .env${NC}"
     else
         echo -e "${YELLOW}  ⚠️  Pas de clé fournie. Créez manuellement le fichier .env${NC}"
+        cat > .env <<EOF
+OPENROUTER_API_KEY=
+UAM_LLM_PROVIDER=openrouter
+UAM_LLM_MODEL=openai/gpt-4o-mini
+EOF
     fi
 else
     echo -e "${GREEN}✓ Fichier .env existe${NC}"
@@ -105,11 +113,11 @@ echo -e "${YELLOW}Étape 6/6 : Vérification de la configuration...${NC}"
 
 CHECKS_PASSED=true
 
-# Vérifier le fichier .env
-if [ -f ".env" ] && grep -q "GROQ_API_KEY" .env; then
-    echo -e "${GREEN}✓ Clé API Groq configurée${NC}"
+# Vérifier la clé OpenRouter dans .env
+if [ -f ".env" ] && grep -q "OPENROUTER_API_KEY=sk-" .env; then
+    echo -e "${GREEN}✓ Clé API OpenRouter configurée${NC}"
 else
-    echo -e "${RED}✗ Clé API manquante dans .env${NC}"
+    echo -e "${RED}✗ Clé API OpenRouter manquante ou invalide dans .env${NC}"
     CHECKS_PASSED=false
 fi
 
@@ -141,7 +149,7 @@ if [ "$CHECKS_PASSED" = true ]; then
     echo "  2. Mode console : python agent_uam.py"
     echo "  3. Mode interface web : streamlit run app_streamlit.py"
     echo ""
-    
+
     # Proposer de lancer directement
     read -p "Voulez-vous lancer l'agent maintenant ? (o/N) " -n 1 -r
     echo
@@ -167,8 +175,11 @@ else
     echo -e "${YELLOW}⚠️  Configuration incomplète${NC}"
     echo ""
     echo "Actions nécessaires :"
-    [ ! -f ".env" ] && echo "  - Créez le fichier .env avec votre GROQ_API_KEY"
+    if ! grep -q "OPENROUTER_API_KEY=sk-" .env 2>/dev/null; then
+        echo "  - Ajoutez OPENROUTER_API_KEY=sk-or-v1-... dans le fichier .env"
+        echo "    (obtenez une clé sur https://openrouter.ai/)"
+    fi
     [ $PDF_COUNT -eq 0 ] && echo "  - Ajoutez des PDFs dans documents_uam/"
-    [ ! -f "agent_uam.py" ] && echo "  - Créez le fichier agent_uam.py avec le code fourni"
+    [ ! -f "agent_uam.py" ] && echo "  - Fichier agent_uam.py manquant"
     echo ""
 fi

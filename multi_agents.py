@@ -7,7 +7,6 @@ from langchain_core.tools import tool
 from agent_uam import (
     search_uam_knowledge,
     get_faculty_info,
-    _vectorstore,
     set_vectorstore,
     UAM_STRUCTURES,
     get_structure_info,

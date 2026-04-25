@@ -7,59 +7,103 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langsmith import traceable
 from uam_structures import UAM_STRUCTURES, detect_structure_in_text
-from tools import detect_greeting, check_question_relevance, search_uam_knowledge
+from tools import (
+    detect_greeting,
+    check_question_relevance,
+    search_uam_knowledge,
+    detect_user_profile,
+    detect_frustration_or_confusion,
+)
 from agent_state import AgentState
+from logger_config import get_logger
+from utils import validate_question, format_error_message
+from app_config import get_config
+from prompts import build_tool_system_prompt, build_context_system_prompt
+
+# Logger pour ce module
+logger = get_logger(__name__)
 
 # ==================== NŒUDS DU GRAPHE ====================
 
 @traceable
-def route_question(state: AgentState) -> Literal["agent", "reject_query"]:
+def route_question(state: AgentState) -> Literal["agent", "reject_query", "handle_special_case"]:
     """
-    Route la question selon sa pertinence.
-    Version améliorée : pour les questions pertinentes, utilise le pattern agent avec outils automatiques.
-    Gère aussi les salutations pour être accueillant.
-    Détecte les abréviations simples pour fournir automatiquement les informations de base.
+    Route la question selon sa nature et son contenu.
+    Gère les cas suivants :
+      - Salutations d'ouverture et fermetures de conversation
+      - Remerciements
+      - Frustration / confusion de l'utilisateur
+      - Questions hors sujet
+      - Abréviations de structures UAM
+      - Étudiants externes / étrangers / candidats master / doctorat
+      - Questions UAM standards → agent avec outils
     """
-    # Utiliser le dernier message
-    if not state["messages"]:
+    try:
+        if not state["messages"]:
+            logger.warning("Aucun message dans l'état pour le routage")
+            return "reject_query"
+
+        last_message = state["messages"][-1]
+        question = last_message.content if hasattr(last_message, "content") else str(last_message)
+        if not isinstance(question, str):
+            question = str(question)
+
+        # Validation souple
+        is_valid, error_msg = validate_question(question)
+        if not is_valid:
+            logger.warning(f"Question invalide: {error_msg}")
+
+        question_stripped = question.strip().upper()
+        logger.debug(f"Routage de la question: {question[:100]}...")
+
+        # ── 1. Abréviations de structures (ex: "FA", "FAST", "ENS") ──────────
+        all_abbreviations = []
+        for category in ["facultes", "instituts", "ecoles"]:
+            all_abbreviations.extend(UAM_STRUCTURES[category].keys())
+        if question_stripped in all_abbreviations:
+            logger.debug("Question routée vers l'agent (abréviation de structure)")
+            return "agent"
+
+        # ── 2. Nature conversationnelle du message ────────────────────────────
+        greeting_type = detect_greeting.invoke({"message": question})
+
+        if greeting_type == "FAREWELL":
+            logger.debug("Fin de conversation détectée → handle_special_case")
+            return "handle_special_case"
+
+        if greeting_type == "THANKS":
+            logger.debug("Remerciement détecté → handle_special_case")
+            return "handle_special_case"
+
+        if greeting_type == "GREETING":
+            logger.debug("Salutation simple → agent")
+            return "agent"
+
+        # ── 3. Frustration / confusion ────────────────────────────────────────
+        sentiment = detect_frustration_or_confusion.invoke({"message": question})
+        if sentiment in ("FRUSTRATION", "CONFUSION", "REPETITION"):
+            logger.debug(f"Sentiment négatif détecté ({sentiment}) → handle_special_case")
+            return "handle_special_case"
+
+        # ── 4. Profil utilisateur spécial ─────────────────────────────────────
+        profile = detect_user_profile.invoke({"message": question})
+        special_profiles = ("CANDIDAT_MASTER", "CANDIDAT_DOCTORAT", "ETUDIANT_ETRANGER")
+        if profile in special_profiles:
+            logger.debug(f"Profil spécial détecté ({profile}) → agent avec contexte enrichi")
+            return "agent"
+
+        # ── 5. Pertinence UAM ─────────────────────────────────────────────────
+        relevance = check_question_relevance.invoke({"question": question})
+        if relevance == "PERTINENT" or greeting_type == "BOTH":
+            logger.debug("Question pertinente routée vers l'agent")
+            return "agent"
+
+        logger.debug("Question hors sujet → reject_query")
         return "reject_query"
-    
-    last_message = state["messages"][-1]
-    question = last_message.content if hasattr(last_message, 'content') else str(last_message)
-    
-    # S'assurer que question est une chaîne de caractères
-    if not isinstance(question, str):
-        question = str(question)
-    
-    question_stripped = question.strip().upper()
-    
-    # Détecter si c'est juste une abréviation simple (ex: "FA", "FAST", "ENS")
-    # Liste de toutes les abréviations possibles
-    all_abbreviations = []
-    for category in ["facultes", "instituts", "ecoles"]:
-        all_abbreviations.extend(UAM_STRUCTURES[category].keys())
-    
-    # Vérifier si la question est exactement une abréviation (avec ou sans espaces)
-    is_simple_abbreviation = question_stripped in all_abbreviations
-    
-    # Détecter les salutations
-    greeting_type = detect_greeting.invoke({"message": question})
-    
-    # Si c'est juste une salutation sans question UAM, toujours accepter pour être accueillant
-    if greeting_type == "GREETING" and not is_simple_abbreviation:
-        return "agent"  # L'agent répondra poliment à la salutation
-    
-    # Si c'est une simple abréviation, toujours accepter pour fournir les infos de base
-    if is_simple_abbreviation:
-        return "agent"  # L'agent utilisera get_faculty_info automatiquement
-    
-    # Vérifier la pertinence avec l'outil
-    relevance = check_question_relevance.invoke({"question": question})
-    
-    if "PERTINENT" in relevance or greeting_type == "BOTH":
-        # Utiliser le pattern agent amélioré avec appel automatique d'outils
+
+    except Exception as e:
+        logger.error(f"Erreur lors du routage de la question: {e}", exc_info=True)
         return "agent"
-    return "reject_query"
 
 
 @traceable
@@ -92,6 +136,12 @@ def should_continue(state: AgentState) -> Literal["tools", "end"]:
     messages = state["messages"]
     last_message = messages[-1]
     
+    config = get_config()
+    tool_iterations = state.get("tool_iterations", 0)
+    if tool_iterations >= config.max_tool_iterations:
+        logger.warning("Limite d'appels d'outils atteinte, arrêt du cycle.")
+        return "end"
+
     # Si le dernier message contient des appels d'outils, exécuter les outils
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
@@ -120,136 +170,59 @@ def call_model(state: AgentState, llm_with_tools) -> AgentState:
     detected_structures = detect_structure_in_text(question)
     structures_context = ""
     if detected_structures:
-        structures_info = []
-        for struct in detected_structures:
-            structures_info.append(f"- {struct['nom_complet']} ({struct['abreviation']}) - {struct['type'].capitalize()}")
-        structures_context = f"\n\nSTRUCTURES DÉTECTÉES DANS LA QUESTION :\n" + "\n".join(structures_info)
-    
-    # Créer un prompt système pour guider le LLM
-    system_prompt = """Tu es l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).
+        structures_info = [
+            f"- {s['nom_complet']} ({s['abreviation']}) - {s['type'].capitalize()}"
+            for s in detected_structures
+        ]
+        structures_context = "\n\nSTRUCTURES DÉTECTÉES DANS LA QUESTION :\n" + "\n".join(structures_info)
 
-TON RÔLE :
-Tu es un assistant virtuel professionnel, accueillant et respectueux, spécialisé dans l'accompagnement des étudiants, 
-candidats et visiteurs de l'UAM. Tu représentes l'université avec courtoisie et professionnalisme.
+    # Détecter le profil utilisateur pour adapter le prompt
+    profile = detect_user_profile.invoke({"message": question})
+    profile_context = ""
+    profile_hints = {
+        "CANDIDAT_MASTER": (
+            "\n\nPROFIL DÉTECTÉ : Candidat souhaitant intégrer un Master à l'UAM (venant d'un autre établissement).\n"
+            "→ Utilise search_external_student_master pour les conditions d'admission spécifiques.\n"
+            "→ Utilise search_required_documents pour le dossier à fournir.\n"
+            "→ Utilise search_international_equivalence si le candidat vient de l'étranger."
+        ),
+        "CANDIDAT_DOCTORAT": (
+            "\n\nPROFIL DÉTECTÉ : Candidat souhaitant faire une thèse / doctorat à l'UAM.\n"
+            "→ Utilise search_phd_admission pour les conditions d'admission en doctorat.\n"
+            "→ Utilise search_master_thesis_supervision pour trouver un directeur de thèse.\n"
+            "→ Mentionne les trois écoles doctorales (ED-SVT, ED-LASHS, ED-SET)."
+        ),
+        "ETUDIANT_ETRANGER": (
+            "\n\nPROFIL DÉTECTÉ : Étudiant étranger (hors Niger) souhaitant étudier à l'UAM.\n"
+            "→ Utilise search_foreign_student_procedures pour les démarches spécifiques.\n"
+            "→ Utilise search_international_equivalence pour la reconnaissance du diplôme.\n"
+            "→ Utilise search_housing_and_services pour le logement."
+        ),
+        "ETUDIANT_EXTERNE": (
+            "\n\nPROFIL DÉTECTÉ : Étudiant venant d'une autre université nigérienne.\n"
+            "→ Utilise search_transfer_equivalence pour le transfert/équivalence de crédits.\n"
+            "→ Utilise search_admission_requirements pour les conditions d'accès."
+        ),
+        "BACHELIER": (
+            "\n\nPROFIL DÉTECTÉ : Nouveau bachelier souhaitant s'inscrire à l'UAM.\n"
+            "→ Utilise search_formations pour les filières disponibles.\n"
+            "→ Utilise search_required_documents pour les pièces d'inscription.\n"
+            "→ Utilise generate_registration_checklist avec profile='nouveau'."
+        ),
+        "PROFESSIONNEL": (
+            "\n\nPROFIL DÉTECTÉ : Professionnel souhaitant reprendre des études (VAE/VAP).\n"
+            "→ Utilise search_recognition_prior_learning pour la validation des acquis.\n"
+            "→ Adapte la réponse à la formation continue."
+        ),
+        "PARENT": (
+            "\n\nPROFIL DÉTECTÉ : Parent s'informant pour son enfant.\n"
+            "→ Fournis des informations claires et rassurantes.\n"
+            "→ Oriente vers les contacts officiels pour les démarches formelles."
+        ),
+    }
+    profile_context = profile_hints.get(profile, "")
 
-CONSIGNES DE COMMUNICATION :
-- SOIS TOUJOURS ACCUEILLANT : Commence par saluer poliment l'utilisateur (Bonjour, Bonsoir, etc.)
-- SOIS POLI ET RESPECTUEUX : Utilise "vous" pour vous adresser à l'utilisateur, sauf indication contraire
-- SOIS PROFESSIONNEL : Maintiens un ton formel mais chaleureux, adapté au contexte universitaire
-- SOIS CLAR ET PRÉCIS : Structure tes réponses avec des paragraphes courts et des listes à puces quand c'est pertinent
-- SOIS EMPATHIQUE : Montre de la compréhension et de l'empathie face aux préoccupations des utilisateurs
-
-GESTION DES SALUTATIONS :
-- Si l'utilisateur te salue, réponds poliment avec une salutation appropriée
-- Si c'est une simple salutation sans question, réponds chaleureusement et propose ton aide
-- Si la salutation accompagne une question, salue d'abord puis réponds à la question
-
-COMPRÉHENSION DES ABRÉVIATIONS :
-- Tu comprends automatiquement les abréviations des structures UAM :
-  * FAST = Faculté des Sciences et Techniques
-  * FLSH = Faculté des Lettres et Sciences Humaines
-  * FA = Faculté d'Agronomie
-  * FSEG = Faculté des Sciences Économiques et de Gestion
-  * FSJP = Faculté des Sciences Juridiques et Politiques
-  * FSS = Faculté des Sciences de la Santé
-  * ENS = École Normale Supérieure
-  * ED-SVT = École Doctorale des Sciences de la Vie et de la Terre
-  * ED-LASHS = École Doctorale des Lettres, Arts, Sciences de l'Homme et de la Société
-  * ED-SET = École Doctorale des Sciences Exactes et Techniques
-  * IRSH = Institut de Recherche en Sciences Humaines
-  * IREM = Institut de Recherches pour l'Enseignement des Mathématiques
-  * IRI = Institut des Radio-isotopes
-
-GESTION DES ABRÉVIATIONS SIMPLES :
-- Si l'utilisateur tape juste une abréviation (ex: "FA", "FAST", "ENS"), utilise IMMÉDIATEMENT l'outil get_faculty_info
-- L'outil get_faculty_info fournit automatiquement : le nom complet, la définition et la mission de la structure
-- Présente les informations de manière structurée : nom complet, type, définition, mission
-- Mentionne toujours le nom complet de la structure dans ta réponse
-
-UTILISATION DES OUTILS - GUIDE COMPLET :
-
-OUTILS GÉNÉRAUX :
-- search_uam_knowledge : Recherche générale dans la base de connaissances (utilise-le en premier pour la plupart des questions)
-- detect_greeting : Identifie les salutations pour adapter ta réponse
-- get_faculty_info : Obtient des informations détaillées sur une faculté/école/institut (nom complet, définition, mission)
-  * À UTILISER EN PRIORITÉ quand l'utilisateur tape juste une abréviation (ex: "FA", "FAST", "ENS")
-  * Fournit automatiquement la définition et la mission de la structure
-- get_structure_by_abbreviation : Convertit une abréviation en nom complet (ex: FAST → Faculté des Sciences et Techniques)
-- list_all_structures : Liste toutes les structures de l'UAM
-
-OUTILS BASE DE DONNÉES (INFORMATIONS À JOUR) :
-- search_latest_news : Récupère les dernières actualités et annonces depuis la base de données
-- get_schedules_from_db : Récupère les horaires/emplois du temps depuis la base de données
-- search_formations : Combine automatiquement les résultats de la BD (à jour) et des documents
-- calculate_fees : Utilise la base de données pour obtenir les tarifs les plus récents
-
-OUTILS SPÉCIALISÉS POUR LES QUESTIONS DES ÉTUDIANTS :
-
-1. QUESTIONS SUR LES FILIÈRES :
-   - search_formations : Recherche les filières disponibles (par faculté et/ou niveau)
-   - search_prerequisites : Recherche les prérequis/pré-requis pour une filière
-   - search_competences_requises : Recherche les connaissances et compétences requises
-   - search_cycles_et_duree : Recherche les cycles (licence, master, doctorat) et leurs durées
-   - search_avantages_universite : Recherche les avantages de l'université vs autres écoles
-
-2. QUESTIONS SUR LE PROGRAMME D'ÉTUDES :
-   - search_chronogramme : Recherche le chronogramme annuel (modules, heures de cours, emploi du temps)
-   - search_coefficients : Recherche les coefficients des différents modules
-
-3. QUESTIONS SUR LES ENSEIGNANTS :
-   - search_professeurs : Recherche les professeurs assignés aux modules et leurs qualifications
-   - search_organisation_corps_professoral : Recherche l'organisation du corps professoral
-
-4. QUESTIONS SUR LES DÉBOUCHÉS :
-   - search_debouches : Recherche les débouchés professionnels et possibilités d'embauche
-
-5. QUESTIONS SUR LA VIE ÉTUDIANTE :
-   - search_organisation_corps_estudiantin : Recherche l'organisation du corps estudiantin (associations, clubs)
-   - search_reglement_interieur : Recherche le règlement intérieur
-   - search_reclamations : Recherche les types de réclamations et comment les faire
-
-6. AUTRES OUTILS :
-   - calculate_fees : Calcule les frais de scolarité
-   - save_user_preference / get_user_preferences : Gère les préférences utilisateur
-
-STRATÉGIE D'UTILISATION :
-- **PRIORITÉ 1** : Si l'utilisateur tape juste une abréviation (ex: "FA", "FAST", "ENS"), utilise IMMÉDIATEMENT get_faculty_info
-- **INFORMATIONS À JOUR** : Les outils search_formations et calculate_fees combinent automatiquement les données de la base de données (à jour) et des documents
-- Pour les questions sur les filières : Utilise search_formations (combine BD + documents automatiquement)
-- Pour les questions sur les frais : Utilise calculate_fees (utilise la BD pour les tarifs à jour)
-- Pour les actualités/annonces : Utilise search_latest_news pour les dernières informations
-- Pour les horaires : Utilise get_schedules_from_db pour les emplois du temps à jour
-- Pour les questions sur les prérequis : Utilise search_prerequisites
-- Pour les questions sur les compétences : Utilise search_competences_requises
-- Pour les questions sur les cycles/durées : Utilise search_cycles_et_duree
-- Pour les questions sur le programme : Utilise search_chronogramme et/ou search_coefficients
-- Pour les questions sur les professeurs : Utilise search_professeurs
-- Pour les questions sur les débouchés : Utilise search_debouches
-- Pour les questions sur le règlement : Utilise search_reglement_interieur
-- Pour les questions sur les réclamations : Utilise search_reclamations
-- Pour les questions générales : Utilise search_uam_knowledge en premier
-
-IMPORTANT :
-- Base-toi UNIQUEMENT sur les informations trouvées dans la base de connaissances
-- Si l'information n'est pas disponible, indique-le poliment et propose d'orienter vers le service approprié
-- Utilise plusieurs outils si nécessaire pour donner une réponse complète
-
-STRUCTURE DES RÉPONSES :
-1. Salutation appropriée (si première interaction ou si l'utilisateur a salué)
-2. Réponse à la question avec informations précises
-3. Mention des sources pertinentes (faculté, institut concerné)
-4. Proposition d'aide supplémentaire si pertinent
-5. Formule de politesse de clôture si approprié
-
-EXEMPLES DE RÉPONSES ACCUEILLANTES :
-- "Bonjour ! Je suis ravi de vous aider concernant [sujet]. [Réponse à la question]..."
-- "Bonsoir ! Concernant votre question sur [sujet], voici les informations que je peux vous fournir..."
-- "Merci pour votre question. Je vais vous fournir les informations sur [sujet]..."
-
-IMPORTANT : 
-- Ne sors JAMAIS du cadre universitaire - tu ne réponds qu'aux questions sur l'UAM
-- Reste professionnel et respectueux en toutes circonstances
-- Utilise toujours les outils pour obtenir des informations précises avant de répondre""" + structures_context
+    system_prompt = build_tool_system_prompt(structures_context + profile_context)
     
     # Ajouter le prompt système au début des messages s'il n'y en a pas déjà
     if not messages or not isinstance(messages[0], SystemMessage):
@@ -262,6 +235,7 @@ IMPORTANT :
     
     return {
         **state,
+        "is_relevant": True,
         "messages": [response]
     }
 
@@ -295,28 +269,7 @@ def generate_response(state: AgentState, llm) -> AgentState:
     
     # Créer le prompt avec le contexte
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """Tu es l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).
-
-TON RÔLE :
-Tu es un assistant virtuel professionnel, accueillant et respectueux, spécialisé dans l'accompagnement des étudiants, 
-candidats et visiteurs de l'UAM.
-
-CONSIGNES DE COMMUNICATION :
-- SOIS TOUJOURS ACCUEILLANT : Commence par saluer poliment l'utilisateur si c'est approprié
-- SOIS POLI ET RESPECTUEUX : Utilise "vous" pour vous adresser à l'utilisateur
-- SOIS PROFESSIONNEL : Maintiens un ton formel mais chaleureux, adapté au contexte universitaire
-- SOIS CLAR ET PRÉCIS : Structure tes réponses avec des paragraphes courts et des listes à puces
-
-COMPRÉHENSION DES ABRÉVIATIONS :
-- Tu comprends automatiquement les abréviations : FAST, FLSH, FA, FSEG, FSJP, FSS, ENS, ED-SVT, ED-LASHS, ED-SET, IRSH, IREM, IRI
-- Mentionne toujours le nom complet de la structure dans ta réponse
-
-CONTEXTE DISPONIBLE :
-{context}{structures_info}
-
-Si le contexte ne contient pas l'information demandée, réponds poliment :
-"Je n'ai pas trouvé cette information spécifique dans ma base de connaissances. Je vous recommande de contacter [service approprié] pour obtenir une réponse précise. N'hésitez pas à me poser d'autres questions sur l'UAM !"
-"""),
+        ("system", build_context_system_prompt(context, structures_info)),
         MessagesPlaceholder(variable_name="messages"),
     ])
     
@@ -333,6 +286,91 @@ Si le contexte ne contient pas l'information demandée, réponds poliment :
         **state,
         "response": response,
         "messages": [AIMessage(content=response)]  # Sera automatiquement ajouté à la liste existante
+    }
+
+
+@traceable
+def handle_special_case(state: AgentState) -> AgentState:
+    """
+    Gère les cas conversationnels exceptionnels sans passer par le LLM coûteux :
+      - Fins de conversation (FAREWELL)
+      - Remerciements (THANKS)
+      - Frustration utilisateur (FRUSTRATION)
+      - Confusion / demande de clarification (CONFUSION)
+      - Répétition de question (REPETITION)
+    """
+    last_message = state["messages"][-1] if state["messages"] else None
+    question = ""
+    if last_message and hasattr(last_message, "content"):
+        question = last_message.content if isinstance(last_message.content, str) else str(last_message.content)
+
+    greeting_type = detect_greeting.invoke({"message": question})
+    sentiment = detect_frustration_or_confusion.invoke({"message": question})
+
+    # ── Fin de conversation ───────────────────────────────────────────────────
+    if greeting_type == "FAREWELL":
+        response = (
+            "Merci pour votre visite ! C'était un plaisir de vous accompagner.\n\n"
+            "N'hésitez pas à revenir si vous avez d'autres questions sur l'UAM. "
+            "Bonne continuation et à bientôt ! 🎓"
+        )
+
+    # ── Remerciement ─────────────────────────────────────────────────────────
+    elif greeting_type == "THANKS":
+        response = (
+            "Avec plaisir ! Je suis toujours disponible pour vous aider.\n\n"
+            "Si vous avez d'autres questions sur l'UAM — formations, inscription, "
+            "procédures ou services — n'hésitez pas à me les poser. 😊"
+        )
+
+    # ── Frustration ───────────────────────────────────────────────────────────
+    elif sentiment == "FRUSTRATION":
+        response = (
+            "Je suis sincèrement désolé si mes réponses ne vous ont pas satisfait. "
+            "Je comprends votre frustration et je vais faire de mon mieux pour mieux vous aider.\n\n"
+            "Pourriez-vous reformuler votre question de façon plus précise ? "
+            "Par exemple, en précisant :\n"
+            "• La faculté ou la filière concernée\n"
+            "• Votre situation (nouvel étudiant, réinscription, étudiant externe…)\n"
+            "• Ce que vous cherchez exactement\n\n"
+            "Si le problème persiste, je vous recommande de contacter directement "
+            "le service de scolarité de la faculté concernée pour une réponse officielle."
+        )
+
+    # ── Confusion ─────────────────────────────────────────────────────────────
+    elif sentiment == "CONFUSION":
+        response = (
+            "Je comprends, permettez-moi de clarifier les choses.\n\n"
+            "Je suis l'assistant virtuel de l'UAM, spécialisé dans :\n"
+            "• Les informations sur les formations et filières\n"
+            "• Les procédures d'inscription et d'admission\n"
+            "• Les démarches administratives\n"
+            "• Les services aux étudiants\n\n"
+            "Pourriez-vous me poser votre question de manière plus précise ? "
+            "Je ferai de mon mieux pour vous apporter une réponse claire."
+        )
+
+    # ── Répétition ────────────────────────────────────────────────────────────
+    elif sentiment == "REPETITION":
+        response = (
+            "Je vois que vous avez déjà posé cette question. Laissez-moi essayer "
+            "de vous apporter une réponse plus complète ou sous un angle différent.\n\n"
+            "Pourriez-vous préciser ce qui n'était pas clair dans ma précédente réponse ? "
+            "Cela m'aidera à mieux cibler l'information dont vous avez besoin."
+        )
+
+    else:
+        # Cas par défaut (ne devrait pas arriver normalement)
+        response = (
+            "Je suis là pour vous aider. Pouvez-vous préciser votre demande "
+            "concernant l'Université Abdou Moumouni de Niamey ?"
+        )
+
+    return {
+        **state,
+        "response": response,
+        "is_relevant": True,
+        "messages": [AIMessage(content=response)],
     }
 
 

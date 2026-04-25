@@ -3,10 +3,13 @@ Outils (Tools) pour l'agent conversationnel UAM
 Tous les outils disponibles pour la recherche et l'interaction
 """
 import json
+import re
+import threading
 from datetime import datetime
 from langchain_core.tools import tool
 from langchain_community.vectorstores import FAISS
 from langsmith import traceable
+from app_config import get_config
 from uam_structures import (
     get_structure_info,
     detect_structure_in_text,
@@ -14,9 +17,15 @@ from uam_structures import (
     list_all_structures_internal
 )
 from memory import _user_memory
+from logger_config import get_logger
+from utils import sanitize_input, retry_on_failure, safe_get
 
-# Variables globales
+# Logger pour ce module
+logger = get_logger(__name__)
+
+# Vectorstore global avec protection thread-safe
 _vectorstore = None
+_vectorstore_lock = threading.Lock()
 
 # Import du module de connexion à la base de données
 try:
@@ -32,30 +41,25 @@ try:
     _db_available = is_database_available()
 except ImportError:
     _db_available = False
-    print(" Module database_connector non disponible")
+    logger.warning("Module database_connector non disponible")
 except Exception as e:
     _db_available = False
-    print(f" Erreur lors de l'initialisation de la base de données : {e}")
+    logger.error(f"Erreur lors de l'initialisation de la base de données : {e}")
 
 
 @traceable
 def set_vectorstore(vectorstore: FAISS):
-    """Définit le vectorstore global pour les outils"""
+    """Définit le vectorstore global pour les outils (thread-safe)"""
     global _vectorstore
-    _vectorstore = vectorstore
-    # Mettre à jour aussi agent_uam._vectorstore si le module est importé
-    try:
-        import agent_uam
-        if hasattr(agent_uam, '_vectorstore'):
-            agent_uam._vectorstore = vectorstore
-    except (ImportError, AttributeError):
-        pass  # Le module n'est pas encore importé ou n'a pas l'attribut
+    with _vectorstore_lock:
+        _vectorstore = vectorstore
 
 
 # ==================== OUTILS (TOOLS) ====================
 
 
 @tool
+@retry_on_failure(max_retries=2, delay=0.5, exceptions=(Exception,))
 def search_uam_knowledge(query: str) -> str:
     """
     Recherche des informations dans la base de connaissances de l'UAM.
@@ -68,103 +72,200 @@ def search_uam_knowledge(query: str) -> str:
     Returns:
         Le contexte pertinent trouvé dans les documents
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Détecter et remplacer les abréviations par leurs noms complets pour améliorer la recherche
-    query_expanded = query
-    detected_structures = detect_structure_in_text(query)
-    
-    if detected_structures:
-        # Ajouter les noms complets des structures détectées à la requête
-        structure_names = [s["nom_complet"] for s in detected_structures]
-        query_expanded = f"{query} {' '.join(structure_names)}"
-    
-    # Recherche sémantique avec la requête enrichie
-    docs = _vectorstore.similarity_search(query_expanded, k=4)
-    
-    # Combiner les documents
-    context = "\n\n---\n\n".join([doc.page_content for doc in docs])
-    
-    return context if context else "Aucune information trouvée pour cette requête."
+    try:
+        # Valider et nettoyer l'entrée
+        config = get_config()
+        max_length = min(500, config.max_input_length)
+        query = sanitize_input(query, max_length=max_length)
+        
+        if _vectorstore is None:
+            logger.error("Base de connaissances non initialisée")
+            return "Erreur: Base de connaissances non initialisée"
+        
+        logger.debug(f"Recherche dans la base de connaissances: {query[:100]}...")
+        
+        # Détecter et remplacer les abréviations par leurs noms complets pour améliorer la recherche
+        query_expanded = query
+        detected_structures = detect_structure_in_text(query)
+        
+        if detected_structures:
+            # Ajouter les noms complets des structures détectées à la requête
+            structure_names = [s["nom_complet"] for s in detected_structures]
+            query_expanded = f"{query} {' '.join(structure_names)}"
+            logger.debug(f"Structures détectées: {[s['abreviation'] for s in detected_structures]}")
+        
+        # Recherche sémantique avec la requête enrichie
+        docs = _vectorstore.similarity_search(
+            query_expanded,
+            k=config.vectorstore.similarity_search_k
+        )
+        
+        if not docs:
+            logger.warning(f"Aucun document trouvé pour la requête: {query[:100]}")
+            return "Aucune information trouvée pour cette requête."
+        
+        # Combiner les documents
+        context = "\n\n---\n\n".join([doc.page_content for doc in docs])
+        
+        logger.debug(f"Trouvé {len(docs)} document(s) pertinents")
+        return context
+        
+    except ValueError as e:
+        logger.error(f"Erreur de validation dans search_uam_knowledge: {e}")
+        return f"Erreur: {str(e)}"
+    except Exception as e:
+        logger.error(f"Erreur inattendue dans search_uam_knowledge: {e}", exc_info=True)
+        return "Une erreur s'est produite lors de la recherche. Veuillez réessayer."
 
 
 @tool
 def detect_greeting(message: str) -> str:
     """
-    Détecte si le message de l'utilisateur est une salutation ou une formule de politesse.
-    
+    Détecte la nature du message : salutation, fin de conversation, remerciement ou question.
+
     Args:
         message: Le message de l'utilisateur
-        
+
     Returns:
-        "GREETING" si c'est une salutation, "QUESTION" si c'est une question, "BOTH" si les deux
+        "GREETING"  – salutation d'ouverture sans question UAM
+        "FAREWELL"  – fin de conversation (au revoir, à bientôt, bonne journée…)
+        "THANKS"    – remerciement seul
+        "BOTH"      – salutation + question UAM
+        "QUESTION"  – question ou demande d'information
     """
     message_lower = message.lower().strip()
-    
-    # Salutations courantes
-    greetings = [
-        "bonjour", "bonsoir", "salut", "bonne journée", "bonne soirée",
-        "bonne nuit", "coucou", "hey", "hi", "hello", "bon matin",
-        "bon après-midi", "à bientôt", "au revoir", "adieu",
-        "merci", "merci beaucoup", "merci bien", "je vous remercie",
-        "s'il vous plaît", "s'il te plaît", "svp", "stp",
-        "excusez-moi", "excuse-moi", "pardon", "désolé", "désolée"
+
+    # --- Fins de conversation ---
+    farewell_patterns = [
+        r"\bau revoir\b", r"\b[aà] bient[oô]t\b", r"\b[aà] plus\b",
+        r"\b[aà] plus tard\b", r"\bbonne journ[eé]e\b", r"\bbonne soir[eé]e\b",
+        r"\bbonne nuit\b", r"\bbon apr[eè]s[-\s]?midi\b", r"\bbonne continuation\b",
+        r"\bbye\b", r"\bgoodbye\b", r"\bciao\b", r"\badieu\b",
+        r"\btermin[eé]\b", r"\bc['']est tout\b", r"\bc['']est bon\b",
+        r"\bje pars\b", r"\bje m'en vais\b",
     ]
-    
-    # Vérifier si le message contient une salutation
-    is_greeting = any(greeting in message_lower for greeting in greetings)
-    
-    # Vérifier si c'est une question (contient des mots-clés de question)
-    question_keywords = ["?", "quoi", "comment", "pourquoi", "quand", "où", "qui", "quel", "quelle", "quels", "quelles"]
-    is_question = any(keyword in message_lower for keyword in question_keywords) or "?" in message
-    
-    # Vérifier si le message contient des mots-clés UAM (pour savoir si c'est une vraie question)
-    uam_keywords = ["uam", "université", "faculté", "école", "institut", "formation", "inscription", "admission", "diplôme", "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens"]
-    has_uam_content = any(keyword in message_lower for keyword in uam_keywords)
-    
+    is_farewell = any(re.search(p, message_lower) for p in farewell_patterns)
+
+    # --- Remerciements ---
+    thanks_patterns = [
+        r"\bmerci\b", r"\bmerci beaucoup\b", r"\bmerci bien\b",
+        r"\bje vous remercie\b", r"\bje te remercie\b",
+        r"\bc['']est parfait\b", r"\bc['']est g[eé]nial\b",
+        r"\btr[eè]s bien\b", r"\bparfait\b", r"\bnickel\b",
+        r"\bsuper\b", r"\bexcellent\b", r"\bbravo\b",
+        r"\bthank[s]?\b",
+    ]
+    is_thanks = any(re.search(p, message_lower) for p in thanks_patterns)
+
+    # --- Salutations d'ouverture ---
+    greeting_patterns = [
+        r"\bbonjour\b", r"\bbonsoir\b", r"\bsalut\b", r"\bcoucou\b",
+        r"\bhey\b", r"\bhi\b", r"\bhello\b", r"\byo\b",
+        r"\bbon matin\b",
+        r"\bs'il vous pla[iî]t\b", r"\bs'il te pla[iî]t\b",
+        r"\bsvp\b", r"\bstp\b",
+        r"\bexcusez[-\s]?moi\b", r"\bexcuse[-\s]?moi\b", r"\bpardon\b",
+        r"\bd[eé]sol[eé]e?\b",
+        r"\bcomment allez[-\s]?vous\b", r"\bcomment vas[-\s]?tu\b",
+        r"\b[cç]a va\b", r"\bcv\b", r"\bcc\b",
+    ]
+    is_greeting = any(re.search(p, message_lower) for p in greeting_patterns)
+
+    # --- Question / contenu UAM ---
+    question_keywords = [
+        "?", "quoi", "comment", "pourquoi", "quand", "où",
+        "qui", "quel", "quelle", "quels", "quelles", "combien",
+        "est-ce que", "est-ce qu", "puis-je", "peut-on",
+    ]
+    uam_keywords = [
+        "uam", "université", "faculté", "école", "institut", "formation",
+        "inscription", "réinscription", "admission", "diplôme",
+        "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens",
+        "master", "licence", "doctorat", "thèse", "bourse", "étudiant",
+    ]
+    is_question = any(kw in message_lower for kw in question_keywords) or "?" in message
+    has_uam_content = any(kw in message_lower for kw in uam_keywords)
+
+    # --- Priorité : fin de conv > remerciement > salutation ---
+    if is_farewell and not (is_question or has_uam_content):
+        return "FAREWELL"
+    if is_thanks and not (is_question or has_uam_content):
+        return "THANKS"
     if is_greeting and (is_question or has_uam_content):
         return "BOTH"
-    elif is_greeting:
+    if is_greeting:
         return "GREETING"
-    elif is_question or has_uam_content:
-        return "QUESTION"
-    else:
-        return "QUESTION"  # Par défaut, traiter comme une question
+    return "QUESTION"
 
 
 @tool
 def check_question_relevance(question: str) -> str:
     """
     Vérifie si une question concerne l'Université Abdou Moumouni de Niamey.
-    
+    Couvre aussi les cas des étudiants externes, étrangers et les questions sur
+    les masters/doctorats pour candidats venant d'autres établissements.
+
     Args:
         question: La question de l'utilisateur
-        
+
     Returns:
-        "PERTINENT" si la question concerne l'UAM, "HORS_SUJET" sinon
+        "PERTINENT"   – question relative à l'UAM
+        "HORS_SUJET"  – question sans rapport avec l'UAM
     """
+    question_lower = question.lower()
+
+    # Mots-clés directs UAM
     keywords_uam = [
         "uam", "université", "abdou moumouni", "niamey", "niger",
         "faculté", "école", "institut", "formation", "filière",
         "inscription", "admission", "diplôme", "attestation", "relevé",
-        "scolarité", "étudiant", "licence", "master", "doctorat",
-        "cours", "horaire", "service", "recteur", "doyen"
+        "scolarité", "étudiant", "licence", "master", "doctorat", "thèse",
+        "cours", "horaire", "service", "recteur", "doyen",
+        "réinscription", "préinscription", "dossier", "pièces",
+        "calendrier", "date limite", "transfert", "équivalence",
+        "carte étudiant", "bourse", "logement", "cité universitaire",
+        "orientation", "restauration", "bibliothèque",
+        "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens",
+        "ed-svt", "ed-lashs", "ed-set", "irsh", "irem", "iri",
     ]
-    
-    question_lower = question.lower()
-    
-    # Vérifier si la question contient des mots-clés UAM
-    for keyword in keywords_uam:
-        if keyword in question_lower:
+    for kw in keywords_uam:
+        if kw in question_lower:
             return "PERTINENT"
-    
-    # Questions générales sur l'éducation peuvent être pertinentes
-    education_keywords = ["comment s'inscrire", "quelles formations", "quel diplôme"]
-    for keyword in education_keywords:
-        if keyword in question_lower:
+
+    # Questions d'étudiants externes / étrangers voulant rejoindre l'UAM
+    external_patterns = [
+        r"venir [aà] l[''']uam", r"int[eé]gr[eé]e? l[''']uam",
+        r"venir [eé]tudier", r"[eé]tudier [aà] niamey",
+        r"faire (un|mon|ma) master", r"faire (un|mon|ma) th[eè]se",
+        r"faire (un|mon|ma) doctorat",
+        r"candidature (externe|internationale)",
+        r"[eé]tudiant[e]? [eé]tranger", r"[eé]tudiant[e]? international",
+        r"venant d[''']une autre universit[eé]",
+        r"universi[t]?[eé] [eé]trang[eè]re",
+        r"reconnaiss?ance (de|du|des) dipl[ôo]me",
+        r"[eé]quivalence (de|du|des) dipl[ôo]me",
+        r"visa [eé]tudiant", r"titre de s[eé]jour",
+        r"d[eé]p[oô]t de candidature", r"soumission de dossier",
+        r"accord de partenariat", r"convention inter[-\s]?universit",
+        r"cotutelle", r"co-?direction (de|de la) th[eè]se",
+        r"directeur de (m[eé]moire|th[eè]se|recherche)",
+        r"laboratoire de recherche",
+        r"capacit[eé] d[''']accueil",
+    ]
+    for pattern in external_patterns:
+        if re.search(pattern, question_lower):
             return "PERTINENT"
-    
+
+    # Questions générales d'éducation pouvant concerner l'UAM
+    education_phrases = [
+        "comment s'inscrire", "quelles formations", "quel diplôme",
+        "pièces à fournir", "conditions d'admission", "frais d'inscription",
+        "comment candidater", "dépôt de dossier",
+    ]
+    for phrase in education_phrases:
+        if phrase in question_lower:
+            return "PERTINENT"
+
     return "HORS_SUJET"
 
 
@@ -227,8 +328,8 @@ def calculate_fees(level: str, faculty: str = "") -> str:
                     results_parts.append("\n".join(fee_info))
                     results_parts.append("")
         except Exception as e:
-            print(f"⚠️ Erreur lors de la recherche dans la base de données : {e}")
-    
+            logger.warning(f"Erreur lors de la recherche des frais en base de données : {e}")
+
     # 2. Tarifs de base (fallback si pas de BD ou pas de résultats)
     if not results_parts:
         fees_base = {
@@ -313,8 +414,8 @@ def search_formations(faculty: str = "", level: str = "") -> str:
                 results_parts.append("---")
                 results_parts.append("")
         except Exception as e:
-            print(f" Erreur lors de la recherche dans la base de données : {e}")
-    
+            logger.warning(f"Erreur lors de la recherche des formations en base de données : {e}")
+
     # 2. Recherche dans les documents (base de connaissances)
     if _vectorstore is None:
         if not results_parts:
@@ -347,6 +448,293 @@ def search_formations(faculty: str = "", level: str = "") -> str:
         return f"Aucune formation trouvée pour {faculty if faculty else 'toutes les facultés'}"
     
     return "\n\n".join(results_parts)
+
+
+@tool
+def search_admission_requirements(level: str = "", faculty: str = "", filiere: str = "") -> str:
+    """
+    Recherche les conditions d'admission et d'accès (par niveau, faculté ou filière).
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = ["conditions d'admission", "conditions d'accès", "critères", "admissibilité"]
+    if level:
+        query_parts.append(f"niveau {level}")
+    if filiere:
+        query_parts.append(f"filière {filiere}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(structure_info["nom_complet"])
+        else:
+            query_parts.append(faculty)
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur les conditions d'admission trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_required_documents(process: str = "inscription", level: str = "", faculty: str = "") -> str:
+    """
+    Recherche les pièces à fournir et documents requis (inscription/réinscription).
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = [
+        "pièces à fournir", "documents requis", "dossier",
+        f"{process} université"
+    ]
+    if level:
+        query_parts.append(f"niveau {level}")
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query_parts.append(structure_info["nom_complet"])
+        else:
+            query_parts.append(faculty)
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur les pièces à fournir trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_registration_procedure(process: str = "inscription") -> str:
+    """
+    Recherche la procédure/les étapes d'inscription ou de réinscription.
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = f"procédure étapes {process} université UAM"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur la procédure d'inscription trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_registration_calendar(year: str = "") -> str:
+    """
+    Recherche le calendrier académique et les dates d'inscription.
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "calendrier académique dates d'inscription date limite"
+    if year:
+        query = f"{query} {year}"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur le calendrier d'inscription trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_student_card() -> str:
+    """
+    Recherche les informations sur la carte d'étudiant (obtention, retrait, remplacement).
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "carte étudiant badge étudiant obtention retrait remplacement"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur la carte d'étudiant trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_transfer_equivalence(topic: str = "transfert") -> str:
+    """
+    Recherche les démarches de transfert, équivalence ou changement de filière.
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = f"démarches {topic} équivalence changement de filière reprise d'études"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur le transfert/équivalence trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_housing_and_services(service: str = "") -> str:
+    """
+    Recherche les informations sur la vie étudiante (logement, restauration, transport, bibliothèque).
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "logement cité universitaire restauration transport bibliothèque service social"
+    if service:
+        query = f"{query} {service}"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur la vie étudiante trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_scholarships() -> str:
+    """
+    Recherche les informations sur les bourses et aides financières.
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "bourse bourses aide financière allocation étudiant"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur les bourses trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_contacts_services(service: str = "") -> str:
+    """
+    Recherche les contacts des services (scolarité, secrétariat, admissions, etc.).
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "contacts téléphone email adresse service scolarité secrétariat admissions"
+    if service:
+        query = f"{query} {service}"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information de contact trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_international_equivalence(level: str = "", country: str = "") -> str:
+    """
+    Recherche les procédures d'équivalence internationale et reconnaissance des diplômes étrangers.
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "équivalence internationale reconnaissance diplômes étrangers admission"
+    if level:
+        query = f"{query} niveau {level}"
+    if country:
+        query = f"{query} pays {country}"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur l'équivalence internationale trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_late_reenrollment(reason: str = "") -> str:
+    """
+    Recherche les règles et démarches pour une réinscription tardive.
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "réinscription tardive pénalités délais dérogation"
+    if reason:
+        query = f"{query} motif {reason}"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur la réinscription tardive trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_internship_info(filiere: str = "", level: str = "") -> str:
+    """
+    Recherche les informations sur les stages (conditions, durée, procédure).
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "stage stages conditions durée convention procédure"
+    if filiere:
+        query = f"{query} filière {filiere}"
+    if level:
+        query = f"{query} niveau {level}"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur les stages trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_double_degree(filiere: str = "", faculty: str = "") -> str:
+    """
+    Recherche les informations sur les doubles diplômes ou parcours bi-diplômants.
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query = "double diplôme double diplome bi-diplômant parcours double cursus"
+    if filiere:
+        query = f"{query} filière {filiere}"
+    if faculty:
+        structure_info = get_structure_info(faculty)
+        if structure_info:
+            query = f"{query} {structure_info['nom_complet']}"
+        else:
+            query = f"{query} {faculty}"
+    docs = _vectorstore.similarity_search(query, k=5)
+    if not docs:
+        return "Aucune information sur les doubles diplômes trouvée."
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def generate_registration_checklist(
+    profile: str = "nouveau",
+    level: str = "",
+    faculty: str = "",
+    is_international: bool = False
+) -> str:
+    """
+    Génère une checklist guidée pour l'inscription/réinscription selon le profil.
+    """
+    profile_lower = (profile or "nouveau").strip().lower()
+    checklist = []
+
+    if profile_lower in ["nouveau", "nouvel étudiant", "nouvelle etudiante"]:
+        checklist.append("Checklist - Nouvel étudiant")
+        checklist.append("1. Vérifier les conditions d'admission de la filière")
+        checklist.append("2. Préparer les pièces requises (acte de naissance, relevés, etc.)")
+        checklist.append("3. Déposer le dossier ou suivre la procédure indiquée")
+        checklist.append("4. Payer les frais d'inscription/scolarité")
+        checklist.append("5. Récupérer la carte d'étudiant")
+    elif profile_lower in ["ancien", "réinscription", "reinscription", "ancien étudiant"]:
+        checklist.append("Checklist - Réinscription")
+        checklist.append("1. Consulter le calendrier de réinscription")
+        checklist.append("2. Mettre à jour les pièces si nécessaire")
+        checklist.append("3. Régler les frais de réinscription")
+        checklist.append("4. Vérifier la confirmation d'inscription")
+    else:
+        checklist.append("Checklist - Inscription")
+        checklist.append("1. Vérifier les conditions d'accès")
+        checklist.append("2. Préparer les pièces requises")
+        checklist.append("3. Suivre la procédure d'inscription")
+
+    if level:
+        checklist.append(f" Niveau ciblé : {level}")
+    if faculty:
+        checklist.append(f" Structure : {faculty}")
+    if is_international:
+        checklist.append(" Ajouter : documents d'équivalence et traduction certifiée si requis")
+
+    checklist.append(" Besoin de détails ? Demandez les pièces ou la procédure exacte.")
+    return "\n".join(checklist)
 
 
 @tool
@@ -459,42 +847,15 @@ def get_structure_by_abbreviation(abbreviation: str) -> str:
         return f"Abréviation '{abbreviation}' non trouvée.\n\nStructures disponibles:\n\n" + "\n\n".join(all_structures)
 
 
-def _list_all_structures_internal() -> str:
-    """
-    Fonction interne pour lister toutes les structures (utilisée par l'outil)
-    """
-    result = []
-    
-    result.append(" STRUCTURES DE L'UNIVERSITÉ ABDOU MOUMOUNI DE NIAMEY\n")
-    result.append("=" * 60)
-    
-    # Facultés
-    result.append("\n FACULTÉS:")
-    for abbrev, info in UAM_STRUCTURES["facultes"].items():
-        result.append(f"  • {info['nom_complet']} ({abbrev})")
-    
-    # Instituts
-    result.append("\n INSTITUTS DE RECHERCHE:")
-    for abbrev, info in UAM_STRUCTURES["instituts"].items():
-        result.append(f"  • {info['nom_complet']} ({abbrev})")
-    
-    # Écoles
-    result.append("\n ÉCOLES:")
-    for abbrev, info in UAM_STRUCTURES["ecoles"].items():
-        result.append(f"  • {info['nom_complet']} ({abbrev})")
-    
-    return "\n".join(result)
-
-
 @tool
 def list_all_structures() -> str:
     """
     Liste toutes les facultés, écoles et instituts de l'UAM avec leurs abréviations.
-    
+
     Returns:
         Liste complète des structures de l'UAM
     """
-    return _list_all_structures_internal()
+    return list_all_structures_internal()
 
 
 @tool
@@ -1113,34 +1474,610 @@ def get_schedules_from_db(faculty: str = "", filiere: str = "", level: str = "")
         return f"Erreur lors de la récupération des horaires : {e}"
 
 
+@tool
+def detect_user_profile(message: str) -> str:
+    """
+    Détecte le profil de l'utilisateur à partir de son message pour personnaliser la réponse.
+
+    Args:
+        message: Le message de l'utilisateur
+
+    Returns:
+        Un des profils : ETUDIANT_UAM | BACHELIER | ETUDIANT_EXTERNE | ETUDIANT_ETRANGER |
+                         CANDIDAT_MASTER | CANDIDAT_DOCTORAT | PARENT | PROFESSIONNEL | INCONNU
+    """
+    msg = message.lower()
+
+    # Candidat doctorat / thèse
+    doctorat_patterns = [
+        r"\bth[eè]se\b", r"\bdoctorat\b", r"\bphd\b",
+        r"\bdirecteur de th[eè]se\b", r"\bcotutelle\b",
+        r"\b[eé]cole doctorale\b", r"\bed[-\s]?(svt|lashs|set)\b",
+        r"\bsoutenance\b",
+    ]
+    if any(re.search(p, msg) for p in doctorat_patterns):
+        return "CANDIDAT_DOCTORAT"
+
+    # Candidat master venant d'ailleurs
+    master_external_patterns = [
+        r"faire (un|mon|ma) master",
+        r"(venir|int[eé]grer|rejoindre|candidater).{0,30}master",
+        r"master.{0,30}(venant|externe|[eé]tranger|autre universit[eé])",
+        r"(licence|bac\+3|l3|bac 3).{0,30}master",
+    ]
+    if any(re.search(p, msg) for p in master_external_patterns):
+        return "CANDIDAT_MASTER"
+
+    # Étudiant étranger (hors Niger)
+    etranger_patterns = [
+        r"[eé]tudiant.{0,15}[eé]tranger", r"[eé]tudiant.{0,15}international",
+        r"je viens (de|du|d['''])", r"je suis (de|du|d['''])",
+        r"pays.{0,20}[eé]tranger", r"[eé]trang[eè]re?",
+        r"visa [eé]tudiant", r"titre de s[eé]jour",
+        r"ambassade", r"consulat",
+    ]
+    if any(re.search(p, msg) for p in etranger_patterns):
+        return "ETUDIANT_ETRANGER"
+
+    # Étudiant venant d'une autre université nigérienne
+    externe_patterns = [
+        r"autre universit[eé]", r"universit[eé] (de|d['''])\w+",
+        r"(venant|venu|transf[eé]r[eé]).{0,20}(universit[eé]|[eé]tablissement|[eé]cole)",
+        r"transfert (depuis|de|d['''])",
+        r"[eé]quivalence (de|du|des) (dipl[ôo]me|cr[eé]dit)",
+    ]
+    if any(re.search(p, msg) for p in externe_patterns):
+        return "ETUDIANT_EXTERNE"
+
+    # Bachelier / nouveau lycéen
+    bachelier_patterns = [
+        r"\bbac\b", r"\bbaccalaur[eé]at\b", r"\bterminale\b",
+        r"\blyc[eé]e\b", r"\bnouvel[le]? [eé]tudiant\b",
+        r"\bpremi[eè]re.{0,10}(ann[eé]e|inscription|fois)\b",
+        r"\bfutur [eé]tudiant\b", r"je veux (m[''']inscrire|int[eé]grer)",
+    ]
+    if any(re.search(p, msg) for p in bachelier_patterns):
+        return "BACHELIER"
+
+    # Parent
+    parent_patterns = [
+        r"\bmon (fils|enfant|fille|kid)\b", r"\bma fille\b",
+        r"\bpour mon enfant\b", r"\bparent\b",
+    ]
+    if any(re.search(p, msg) for p in parent_patterns):
+        return "PARENT"
+
+    # Professionnel (formation continue, VAE)
+    pro_patterns = [
+        r"\bformation continue\b", r"\bvae\b", r"\bvap\b",
+        r"\bvalidation des acquis\b", r"\breprise d[''']études\b",
+        r"\bsalarié\b", r"\bnouveaux horizons\b",
+    ]
+    if any(re.search(p, msg) for p in pro_patterns):
+        return "PROFESSIONNEL"
+
+    # Étudiant UAM actuel (réinscription, carte étudiant, notes…)
+    uam_student_patterns = [
+        r"\br[eé]inscription\b", r"\bma carte [eé]tudiant\b",
+        r"\bmes notes\b", r"\bmon (relevé|attestation|diplôme)\b",
+        r"\bje suis [eé]tudiant(e)? [aà] l[''']uam\b",
+        r"\bje suis inscrit\b",
+    ]
+    if any(re.search(p, msg) for p in uam_student_patterns):
+        return "ETUDIANT_UAM"
+
+    return "INCONNU"
+
+
+@tool
+def detect_frustration_or_confusion(message: str) -> str:
+    """
+    Détecte si l'utilisateur est frustré, confus, répète une question ou est insatisfait.
+
+    Args:
+        message: Le message de l'utilisateur
+
+    Returns:
+        "FRUSTRATION" | "CONFUSION" | "REPETITION" | "NORMAL"
+    """
+    msg = message.lower()
+
+    frustration_patterns = [
+        r"\bça ne marche pas\b", r"\bnul\b", r"\binutile\b",
+        r"\baucune aide\b", r"\bpas utile\b", r"\bc[''']est nul\b",
+        r"\bc[''']est mauvais\b", r"\bmauvais (assistant|agent|bot)\b",
+        r"\btu ne comprends? pas\b", r"\btu comprends? rien\b",
+        r"\btu sers? [aà] rien\b", r"\bje suis d[eé][cç]u\b",
+        r"\bje suis frustr[eé]\b", r"\bc[''']est inacceptable\b",
+        r"\blaisse tomber\b", r"\bc[''']est peine perdue\b",
+        r"\bpas de r[eé]ponse\b", r"\b(tr[eè]s|vraiment) d[eé][cç]evant\b",
+    ]
+    if any(re.search(p, msg) for p in frustration_patterns):
+        return "FRUSTRATION"
+
+    confusion_patterns = [
+        r"\bje ne comprends? pas\b", r"\bje n[''']y comprends? rien\b",
+        r"\bc[''']est confus\b", r"\bpeux.tu (expliquer|clarifier|r[eé]p[eé]ter)\b",
+        r"\bpeux.vous (expliquer|clarifier|r[eé]p[eé]ter)\b",
+        r"\bje suis perdu\b", r"\bje suis perdue\b",
+        r"\bque veux.tu dire\b", r"\bque voulez.vous dire\b",
+        r"\bc[''']est quoi exactement\b", r"\bje ne sais pas (quoi|comment)\b",
+        r"\btu parles? de quoi\b",
+    ]
+    if any(re.search(p, msg) for p in confusion_patterns):
+        return "CONFUSION"
+
+    repetition_patterns = [
+        r"\bj[''']ai (d[eé]j[aà]|encore) demand[eé]\b",
+        r"\btu as d[eé]j[aà] dit\b", r"\btu l[''']as d[eé]j[aà] dit\b",
+        r"\btu r[eé]p[eè]tes?\b", r"\bm[eê]me r[eé]ponse\b",
+        r"\btoujours (la m[eê]me|pareil)\b",
+        r"\bcomme (avant|tout [aà] l[''']heure|pr[eé]c[eé]demment)\b",
+        r"\bque j[''']ai dit\b", r"\bj[''']ai dit que\b",
+    ]
+    if any(re.search(p, msg) for p in repetition_patterns):
+        return "REPETITION"
+
+    return "NORMAL"
+
+
+@tool
+def get_agent_capabilities() -> str:
+    """
+    Retourne la liste des domaines couverts par l'assistant UAM.
+    À utiliser quand l'utilisateur demande ce que l'agent peut faire, ses limites ou ses fonctions.
+
+    Returns:
+        Description structurée des capacités de l'assistant
+    """
+    return """Je suis l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).
+
+DOMAINES OÙ JE PEUX VOUS AIDER :
+
+🎓 FORMATIONS & FILIÈRES
+- Formations disponibles par faculté et par niveau (Licence, Master, Doctorat)
+- Cycles d'études et durées
+- Prérequis et conditions d'accès
+- Compétences requises
+
+📝 INSCRIPTION & ADMISSION
+- Procédures d'inscription et de réinscription
+- Pièces à fournir selon votre profil
+- Calendrier académique et dates limites
+- Frais de scolarité
+- Carte d'étudiant
+
+🌍 ÉTUDIANTS VENANT D'AUTRES ÉTABLISSEMENTS
+- Transfert et équivalence de crédits (étudiants d'autres universités nigériennes)
+- Reconnaissance de diplômes étrangers
+- Procédures spécifiques aux étudiants internationaux
+- Visa étudiant et titre de séjour
+
+🔬 MASTER & DOCTORAT
+- Conditions d'admission en Master (candidats externes et internes)
+- Admission en Doctorat / Thèse
+- Écoles doctorales (ED-SVT, ED-LASHS, ED-SET)
+- Recherche de directeur de mémoire / thèse
+- Partenariats et cotutelles internationales
+
+🏛️ STRUCTURES DE L'UAM
+- Présentation des 7 facultés, 3 instituts et 4 écoles
+- Organisation administrative
+- Contacts et services
+
+🌟 VIE ÉTUDIANTE & SERVICES
+- Logement et cités universitaires
+- Restauration, bibliothèque, transport
+- Bourses et aides financières
+- Associations étudiantes
+
+LIMITES :
+- Je ne peux pas accéder à vos données personnelles (notes, inscription individuelle)
+- Pour des démarches officielles, je vous oriente vers le service compétent
+- Certaines informations peuvent nécessiter confirmation auprès de la scolarité"""
+
+
+@tool
+def search_external_student_master(
+    origin_country: str = "",
+    origin_university: str = "",
+    filiere: str = "",
+    faculty: str = ""
+) -> str:
+    """
+    Recherche les informations pour les étudiants venant d'autres universités (nigériennes
+    ou étrangères) souhaitant s'inscrire en Master à l'UAM.
+    Couvre : conditions d'admission, reconnaissance des crédits, dossier à fournir, délais.
+
+    Args:
+        origin_country: Pays d'origine de l'étudiant (optionnel)
+        origin_university: Université ou établissement d'origine (optionnel)
+        filiere: Filière de master souhaitée (optionnel)
+        faculty: Faculté cible à l'UAM (optionnel)
+
+    Returns:
+        Informations détaillées sur l'admission en Master pour candidats externes
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = [
+        "admission master candidat externe",
+        "conditions accès master",
+        "dossier inscription master",
+        "équivalence crédits master",
+        "transfert master",
+    ]
+    if filiere:
+        query_parts.append(f"master {filiere}")
+    if faculty:
+        info = get_structure_info(faculty)
+        query_parts.append(info["nom_complet"] if info else faculty)
+    if origin_country and origin_country.lower() not in ("niger", "nigérien", "nigérienne"):
+        query_parts.append("étudiant étranger international admission")
+    if origin_university:
+        query_parts.append(f"université {origin_university} équivalence")
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=5)
+
+    intro = []
+    if origin_country:
+        intro.append(f"Pays d'origine : {origin_country}")
+    if origin_university:
+        intro.append(f"Établissement d'origine : {origin_university}")
+    if filiere:
+        intro.append(f"Master visé : {filiere}")
+
+    if not docs:
+        header = "\n".join(intro) + "\n\n" if intro else ""
+        return (
+            header
+            + "Aucune information spécifique trouvée dans la base de connaissances.\n\n"
+            + "Conseil : Contactez directement le service des admissions ou la scolarité "
+            + "de la faculté concernée pour connaître les modalités exactes d'admission en Master "
+            + "pour les candidats venant d'autres établissements."
+        )
+
+    results = ["\n".join(intro)] if intro else []
+    results += [doc.page_content[:900] for doc in docs]
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_phd_admission(
+    specialty: str = "",
+    faculty: str = "",
+    doctoral_school: str = ""
+) -> str:
+    """
+    Recherche les conditions et procédures d'admission en Doctorat / Thèse à l'UAM.
+    Inclut les informations sur les Écoles Doctorales (ED-SVT, ED-LASHS, ED-SET),
+    la recherche d'un directeur, le dépôt de candidature et les délais.
+
+    Args:
+        specialty: Spécialité ou domaine de recherche visé (optionnel)
+        faculty: Faculté ou structure d'accueil (optionnel)
+        doctoral_school: École doctorale cible (optionnel, ex: "ED-SVT", "ED-SET")
+
+    Returns:
+        Informations sur l'admission en Doctorat à l'UAM
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = [
+        "admission doctorat thèse",
+        "conditions inscription doctorat",
+        "école doctorale",
+        "directeur de thèse",
+        "dépôt dossier doctorat",
+    ]
+    if specialty:
+        query_parts.append(f"doctorat {specialty}")
+    if doctoral_school:
+        info = get_structure_info(doctoral_school)
+        query_parts.append(info["nom_complet"] if info else doctoral_school)
+    if faculty:
+        info = get_structure_info(faculty)
+        query_parts.append(info["nom_complet"] if info else faculty)
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=5)
+
+    # Informations structurées sur les écoles doctorales UAM
+    doctoral_schools_info = (
+        "\n📚 ÉCOLES DOCTORALES DE L'UAM :\n"
+        "• ED-SVT  – École Doctorale des Sciences de la Vie et de la Terre\n"
+        "• ED-LASHS – École Doctorale des Lettres, Arts, Sciences de l'Homme et de la Société\n"
+        "• ED-SET  – École Doctorale des Sciences Exactes et Techniques\n"
+    )
+
+    if not docs:
+        return (
+            doctoral_schools_info
+            + "\nAucune information complémentaire trouvée dans la base de connaissances.\n\n"
+            + "Conseil : Contactez directement l'école doctorale ou la direction de la recherche "
+            + "de l'UAM pour connaître les conditions d'admission en Doctorat."
+        )
+
+    results = [doctoral_schools_info] + [doc.page_content[:900] for doc in docs]
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_foreign_student_procedures(
+    country: str = "",
+    level: str = ""
+) -> str:
+    """
+    Recherche les procédures spécifiques pour les étudiants étrangers souhaitant
+    étudier à l'UAM : visa étudiant, titre de séjour, logement dédié, frais spécifiques,
+    reconnaissance de diplômes, procédures d'inscription.
+
+    Args:
+        country: Pays d'origine de l'étudiant (optionnel)
+        level: Niveau d'études visé (licence, master, doctorat) – optionnel
+
+    Returns:
+        Informations sur les démarches pour étudiants internationaux
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = [
+        "étudiant étranger international",
+        "visa étudiant Niger Niamey",
+        "titre de séjour étudiant",
+        "inscription étudiant étranger",
+        "reconnaissance diplôme étranger équivalence",
+        "logement international cité universitaire",
+    ]
+    if level:
+        query_parts.append(f"niveau {level} étudiant étranger")
+    if country:
+        query_parts.append(f"étudiant {country}")
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=5)
+
+    static_info = (
+        "\n🌍 INFORMATIONS POUR ÉTUDIANTS ÉTRANGERS À L'UAM :\n\n"
+        "📋 Démarches générales recommandées :\n"
+        "1. Obtenir l'admission de la faculté souhaitée (lettre d'acceptation)\n"
+        "2. Demander un visa étudiant auprès de l'ambassade du Niger dans votre pays\n"
+        "3. Faire valider votre diplôme (équivalence) par le Ministère de l'Éducation du Niger\n"
+        "4. Déposer votre dossier d'inscription à la scolarité de la faculté\n"
+        "5. Vous enregistrer à la Direction des Affaires Étudiantes (DAE) pour le logement\n\n"
+        "📞 Pour plus d'informations, contactez la Direction des Relations Internationales de l'UAM.\n"
+    )
+
+    if not docs:
+        return static_info
+    results = [static_info] + [doc.page_content[:800] for doc in docs]
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_recognition_prior_learning(
+    level: str = "",
+    faculty: str = "",
+    experience_type: str = ""
+) -> str:
+    """
+    Recherche les procédures de Validation des Acquis de l'Expérience (VAE) ou
+    Validation des Acquis Professionnels (VAP) et de reprise d'études à l'UAM.
+    Pour les professionnels souhaitant reprendre des études ou faire valider leur parcours.
+
+    Args:
+        level: Niveau visé (licence, master, doctorat) – optionnel
+        faculty: Faculté ou domaine (optionnel)
+        experience_type: Type d'expérience (professionnelle, académique, etc.) – optionnel
+
+    Returns:
+        Informations sur la VAE/VAP et la reprise d'études
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = [
+        "validation acquis expérience VAE VAP",
+        "reprise d'études formation continue",
+        "reconnaissance acquis antérieurs",
+        "expérience professionnelle admission",
+    ]
+    if level:
+        query_parts.append(f"niveau {level}")
+    if faculty:
+        info = get_structure_info(faculty)
+        query_parts.append(info["nom_complet"] if info else faculty)
+    if experience_type:
+        query_parts.append(experience_type)
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=4)
+
+    if not docs:
+        return (
+            "Aucune information spécifique sur la VAE/VAP trouvée dans la base de connaissances.\n\n"
+            "Conseil : La validation des acquis de l'expérience est une procédure qui varie selon "
+            "les facultés. Contactez directement la scolarité de la faculté concernée ou la "
+            "Direction des Études et de la Vie Universitaire (DEVU) de l'UAM pour connaître "
+            "les modalités de reconnaissance de votre parcours."
+        )
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+@tool
+def search_master_thesis_supervision(
+    specialty: str = "",
+    faculty: str = "",
+    research_axis: str = ""
+) -> str:
+    """
+    Recherche les informations sur les directeurs de mémoire / thèse disponibles à l'UAM,
+    les axes de recherche, les laboratoires, et la procédure pour trouver et contacter
+    un directeur de recherche.
+
+    Args:
+        specialty: Spécialité ou domaine de recherche (optionnel)
+        faculty: Faculté ou structure (optionnel)
+        research_axis: Axe de recherche spécifique (optionnel)
+
+    Returns:
+        Informations sur l'encadrement et la direction de recherche à l'UAM
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = [
+        "directeur de mémoire thèse encadrement",
+        "laboratoire de recherche",
+        "axes de recherche",
+        "enseignants chercheurs",
+    ]
+    if specialty:
+        query_parts.append(f"recherche {specialty}")
+    if faculty:
+        info = get_structure_info(faculty)
+        query_parts.append(info["nom_complet"] if info else faculty)
+    if research_axis:
+        query_parts.append(research_axis)
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=4)
+
+    guidance = (
+        "\n🔬 COMMENT TROUVER UN DIRECTEUR DE MÉMOIRE/THÈSE À L'UAM :\n\n"
+        "1. Identifiez votre domaine de recherche et la faculté/école doctorale correspondante\n"
+        "2. Consultez la liste des enseignants-chercheurs de la structure cible\n"
+        "3. Prenez contact par email ou en présentiel avec le(s) directeur(s) potentiel(s)\n"
+        "4. Soumettez un pré-projet de recherche (2-3 pages) pour discussion\n"
+        "5. Une fois l'accord obtenu, formalisez la direction par un document officiel\n\n"
+        "📞 Pour les thèses en cotutelle internationale : contactez la Direction des Relations "
+        "Internationales de l'UAM.\n"
+    )
+
+    if not docs:
+        return guidance
+    results = [guidance] + [doc.page_content[:800] for doc in docs]
+    return "\n\n---\n\n".join(results)
+
+
+@tool
+def search_academic_partnership(
+    country: str = "",
+    institution: str = "",
+    program_type: str = ""
+) -> str:
+    """
+    Recherche les partenariats académiques de l'UAM avec d'autres universités nationales
+    ou internationales : accords d'échange, cotutelles, programmes conjoints, mobilité.
+
+    Args:
+        country: Pays partenaire (optionnel)
+        institution: Université ou institution partenaire (optionnel)
+        program_type: Type de programme (échange, cotutelle, double diplôme…) – optionnel
+
+    Returns:
+        Informations sur les partenariats et accords de coopération de l'UAM
+    """
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+
+    query_parts = [
+        "partenariat accord coopération universités",
+        "mobilité étudiante échange international",
+        "convention inter-universitaire",
+    ]
+    if country:
+        query_parts.append(f"partenariat {country}")
+    if institution:
+        query_parts.append(f"accord {institution}")
+    if program_type:
+        query_parts.append(program_type)
+
+    query = " ".join(query_parts)
+    docs = _vectorstore.similarity_search(query, k=4)
+
+    if not docs:
+        return (
+            "Aucune information détaillée sur les partenariats trouvée dans la base de connaissances.\n\n"
+            "Pour connaître les accords de coopération et partenariats de l'UAM, contactez :\n"
+            "• La Direction des Relations Internationales et de la Coopération (DRIC) de l'UAM\n"
+            "• Le Bureau des Relations Extérieures de la faculté concernée"
+        )
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
 @traceable
 def get_tools():
     """Retourne la liste des outils disponibles pour l'agent"""
     tools = [
+        # Détection et profiling conversationnel
         detect_greeting,
-        search_uam_knowledge,
+        detect_user_profile,
+        detect_frustration_or_confusion,
+        get_agent_capabilities,
         check_question_relevance,
-        calculate_fees,
-        search_formations,
+
+        # Recherche générale
+        search_uam_knowledge,
         get_faculty_info,
         get_structure_by_abbreviation,
         list_all_structures,
-        save_user_preference,
-        get_user_preferences,
+
+        # Formations et filières
+        search_formations,
         search_prerequisites,
         search_competences_requises,
         search_cycles_et_duree,
         search_chronogramme,
         search_coefficients,
-        search_professeurs,
         search_debouches,
-        search_reglement_interieur,
+        search_avantages_universite,
+
+        # Admission et inscription
+        search_admission_requirements,
+        search_required_documents,
+        search_registration_procedure,
+        search_registration_calendar,
+        search_late_reenrollment,
+        generate_registration_checklist,
+        calculate_fees,
+
+        # Étudiants externes / étrangers / master / doctorat
+        search_external_student_master,
+        search_phd_admission,
+        search_foreign_student_procedures,
+        search_recognition_prior_learning,
+        search_master_thesis_supervision,
+        search_academic_partnership,
+        search_international_equivalence,
+        search_transfer_equivalence,
+
+        # Documents et démarches
+        search_student_card,
+        search_internship_info,
+        search_double_degree,
+        search_reclamations,
+
+        # Services et vie étudiante
+        search_housing_and_services,
+        search_scholarships,
+        search_contacts_services,
+
+        # Corps universitaire
+        search_professeurs,
         search_organisation_corps_professoral,
         search_organisation_corps_estudiantin,
-        search_reclamations,
-        search_avantages_universite
+        search_reglement_interieur,
+
+        # Mémoire utilisateur
+        save_user_preference,
+        get_user_preferences,
     ]
-    
+
     # Ajouter les outils de base de données si disponible
     if _db_available:
         tools.extend([

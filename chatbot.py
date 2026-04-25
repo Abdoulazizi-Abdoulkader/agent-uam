@@ -2,6 +2,7 @@
 Interface utilisateur pour le chatbot UAM
 """
 import uuid
+import time
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langsmith import traceable
 from config import LLMProvider
@@ -9,6 +10,8 @@ from llm_utils import initialize_llm
 from document_loader import load_and_index_documents
 from agent_graph import create_agent_graph
 from typing import Optional
+from app_config import get_config
+from metrics import record_question
 
 # ==================== INTERFACE UTILISATEUR ====================
 @traceable
@@ -25,7 +28,8 @@ def run_chatbot(pdf_directory: str, provider: LLMProvider, model_name: Optional[
     print()
     
     # Initialiser le LLM
-    llm = initialize_llm(provider, model_name, temperature=0.3)
+    app_config = get_config()
+    llm = initialize_llm(provider, model_name, temperature=app_config.llm.temperature)
     
     # Charger et indexer les documents
     vectorstore = load_and_index_documents(pdf_directory, provider)
@@ -45,7 +49,10 @@ def run_chatbot(pdf_directory: str, provider: LLMProvider, model_name: Optional[
     print()
     
     # Configuration de session avec thread_id unique
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": app_config.max_tool_iterations * 3 + 10
+    }
     
     # Message système initial accueillant
     system_message = SystemMessage(
@@ -73,7 +80,10 @@ Comment puis-je vous aider aujourd'hui ?"""
         "is_relevant": False,
         "context": "",
         "response": "",
-        "need_clarification": False
+        "need_clarification": False,
+        "user_id": thread_id,
+        "user_preferences": {},
+        "tool_iterations": 0
     }
     
     # Mettre à jour l'état initial dans le graphe
@@ -120,11 +130,16 @@ Comment puis-je vous aider aujourd'hui ?"""
                 "is_relevant": False,
                 "context": "",
                 "response": "",
-                "need_clarification": False
+                "need_clarification": False,
+                "user_id": thread_id,
+                "user_preferences": {},
+                "tool_iterations": 0
             }
             
             # Exécuter le graphe - MemorySaver conserve automatiquement l'historique
+            start_time = time.perf_counter()
             result = agent.invoke(current_state, config)
+            elapsed_ms = int((time.perf_counter() - start_time) * 1000)
             
             # Afficher la réponse
             print()
@@ -137,6 +152,10 @@ Comment puis-je vous aider aujourd'hui ?"""
                         print(f" Assistant: {msg.content}")
                         break
             print()
+
+            # Enregistrer métriques
+            is_relevant = result.get("is_relevant", True)
+            record_question(thread_id, user_input, is_relevant, elapsed_ms)
             
         except KeyboardInterrupt:
             print()

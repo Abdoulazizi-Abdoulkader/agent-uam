@@ -1,184 +1,96 @@
 """
-Utilitaires pour l'initialisation des LLM et embeddings
+Initialisation du LLM et des embeddings — provider OpenRouter uniquement
 """
 import os
+import threading
 from typing import Optional
+
 from langsmith import traceable
 from config import LLMProvider
+from app_config import get_config
+from logger_config import get_logger
+
+logger = get_logger(__name__)
+
+_openrouter_lock = threading.Lock()
+
+DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 
 @traceable
-def initialize_llm(provider: LLMProvider, model_name: Optional[str] = None, temperature: float = 0.3):
+def initialize_llm(
+    provider: LLMProvider = LLMProvider.OPENROUTER,
+    model_name: Optional[str] = None,
+    temperature: Optional[float] = None,
+):
     """
-    Initialise le LLM selon le provider choisi
+    Initialise le LLM OpenRouter.
 
     Args:
-        provider: Provider LLM (OPENAI, CLAUDE, LLAMA_OLLAMA, LLAMA_GROQ, OPENROUTER)
-        model_name: Nom du modèle (optionnel, utilise les valeurs par défaut)
-        temperature: Température pour la génération (0 = déterministe, 1 = créatif)
+        provider: ignoré (gardé pour compatibilité des signatures), seul OPENROUTER est supporté
+        model_name: identifiant OpenRouter du modèle (ex: ``meta-llama/llama-3.3-70b-instruct``)
+        temperature: température de génération (défaut: config)
 
     Returns:
-        Instance du LLM configuré
+        Instance ChatOpenAI pointant vers openrouter.ai
     """
-    if provider == LLMProvider.OPENAI:
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
-            model=model_name or "gpt-4o",
-            temperature=temperature
+    from langchain_openai import ChatOpenAI
+
+    config = get_config()
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "OPENROUTER_API_KEY non définie. "
+            "Ajoutez OPENROUTER_API_KEY=sk-or-v1-... dans votre fichier .env"
         )
 
-    elif provider == LLMProvider.CLAUDE:
-        from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(
-            model=model_name or "claude-sonnet-4-20250514",
-            temperature=temperature,
-        )
+    final_model = model_name or config.llm.model_name or DEFAULT_MODEL
+    final_temperature = temperature if temperature is not None else config.llm.temperature
 
-    elif provider == LLMProvider.LLAMA_OLLAMA:
-        from langchain_community.chat_models import ChatOllama
-        return ChatOllama(
-            model=model_name or "llama3.2",
-            temperature=temperature
-        )
-
-    elif provider == LLMProvider.LLAMA_GROQ:
-        from langchain_groq import ChatGroq
-        # Vérifier que la clé API est disponible
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "GROQ_API_KEY non définie. "
-                "Définissez-la dans le fichier .env ou comme variable d'environnement.\n"
-                "Exemple: export GROQ_API_KEY='votre_cle' ou créez un fichier .env avec GROQ_API_KEY=votre_cle"
-            )
-        return ChatGroq(
-            model=model_name or "llama-3.3-70b-versatile",
-            temperature=temperature,
-            api_key=api_key  # Passer explicitement la clé API
-        )
-
-    elif provider == LLMProvider.OPENROUTER:
-        from langchain_openai import ChatOpenAI
-        # Vérifier que la clé API est disponible
-        api_key = os.getenv("OPENROUTER_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "OPENROUTER_API_KEY non définie. "
-                "Définissez-la dans le fichier .env ou comme variable d'environnement.\n"
-                "Exemple: export OPENROUTER_API_KEY='votre_cle' ou créez un fichier .env avec OPENROUTER_API_KEY=votre_cle\n"
-                "Obtenez votre clé sur https://openrouter.ai/"
-            )
-        # OpenRouter utilise une API compatible OpenAI avec une URL de base différente
-        # ChatOpenAI nécessite que api_key soit passé explicitement ET que OPENAI_API_KEY soit définie
-        # On définit temporairement OPENAI_API_KEY pour éviter les erreurs de validation
-        original_openai_key = os.environ.get("OPENAI_API_KEY")
+    # langchain-openai peut chercher OPENAI_API_KEY même quand api_key est fourni
+    # → on la positionne temporairement sous verrou pour la thread-safety
+    with _openrouter_lock:
+        original = os.environ.get("OPENAI_API_KEY")
         os.environ["OPENAI_API_KEY"] = api_key
-
         try:
             llm = ChatOpenAI(
-                model=model_name or "openai/gpt-4o",
-                temperature=temperature,
-                api_key=api_key,  # Passer explicitement
+                model=final_model,
+                temperature=final_temperature,
+                api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
                 default_headers={
-                    "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", "https://github.com/your-repo"),  # Optionnel mais recommandé
-                    "X-Title": os.getenv("OPENROUTER_APP_NAME", "Agent UAM"),  # Optionnel mais recommandé
-                }
+                    "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", "https://github.com/agent-uam"),
+                    "X-Title": os.getenv("OPENROUTER_APP_NAME", "Agent UAM"),
+                },
             )
-            return llm
         finally:
-            # Restaurer la valeur originale
-            if original_openai_key is not None:
-                os.environ["OPENAI_API_KEY"] = original_openai_key
+            if original is not None:
+                os.environ["OPENAI_API_KEY"] = original
             else:
                 os.environ.pop("OPENAI_API_KEY", None)
 
-    else:
-        raise ValueError(f"Provider non supporté: {provider}")
+    logger.info(f"LLM OpenRouter initialisé : {final_model}")
+    return llm
 
 
 @traceable
-def initialize_embeddings(provider: LLMProvider):
+def initialize_embeddings(provider: LLMProvider = LLMProvider.OPENROUTER):
     """
-    Initialise les embeddings selon le provider
+    Initialise les embeddings HuggingFace multilingues.
+    OpenRouter ne fournit pas d'API embeddings — on utilise sentence-transformers localement.
 
     Args:
-        provider: Provider LLM
+        provider: ignoré (gardé pour compatibilité des signatures)
 
     Returns:
-        Instance des embeddings
+        Instance HuggingFaceEmbeddings
     """
-    if provider == LLMProvider.OPENAI:
-        from langchain_openai import OpenAIEmbeddings
-        return OpenAIEmbeddings()
-
-    elif provider == LLMProvider.CLAUDE:
-        # Claude n'a pas d'API embeddings, utiliser alternatives
-        from langchain_openai import OpenAIEmbeddings
-        print("  Claude n'a pas d'embeddings natifs, utilisation d'OpenAI Embeddings")
-        return OpenAIEmbeddings()
-
-    elif provider == LLMProvider.LLAMA_OLLAMA:
-        from langchain_community.embeddings import OllamaEmbeddings
-        return OllamaEmbeddings(model="llama3.2")
-
-    elif provider == LLMProvider.LLAMA_GROQ:
-        # Groq n'a pas d'API embeddings, utiliser HuggingFace
-        try:
-            from langchain_huggingface import HuggingFaceEmbeddings
-            print("  Groq n'a pas d'embeddings natifs, utilisation de HuggingFace")
-            return HuggingFaceEmbeddings(
-                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            )
-        except ImportError:
-            # Fallback vers l'ancienne version si langchain-huggingface n'est pas installé
-            try:
-                from langchain_community.embeddings import HuggingFaceEmbeddings
-                print("  Groq n'a pas d'embeddings natifs, utilisation de HuggingFace (version community)")
-                return HuggingFaceEmbeddings(
-                    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-                )
-            except ImportError:
-                # Dernier recours : utiliser OpenAI embeddings
-                from langchain_openai import OpenAIEmbeddings
-                print("  HuggingFace non disponible, utilisation d'OpenAI Embeddings")
-                return OpenAIEmbeddings()
-
-    elif provider == LLMProvider.OPENROUTER:
-        # OpenRouter n'a pas d'API embeddings dédiée, utiliser OpenAI embeddings ou HuggingFace
-        # Option 1: Utiliser OpenAI embeddings via OpenRouter (si disponible)
-        try:
-            from langchain_openai import OpenAIEmbeddings
-            api_key = os.getenv("OPENROUTER_API_KEY")
-            if api_key:
-                print("  OpenRouter: utilisation d'OpenAI Embeddings via OpenRouter")
-                return OpenAIEmbeddings(
-                    api_key=api_key,
-                    base_url="https://openrouter.ai/api/v1"
-                )
-        except Exception:
-            pass
-
-        # Option 2: Fallback vers HuggingFace (gratuit et multilingue)
-        try:
-            from langchain_huggingface import HuggingFaceEmbeddings
-            print("  OpenRouter n'a pas d'embeddings natifs, utilisation de HuggingFace")
-            return HuggingFaceEmbeddings(
-                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            )
-        except ImportError:
-            try:
-                from langchain_community.embeddings import HuggingFaceEmbeddings
-                print("  OpenRouter n'a pas d'embeddings natifs, utilisation de HuggingFace (version community)")
-                return HuggingFaceEmbeddings(
-                    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-                )
-            except ImportError:
-                # Dernier recours : utiliser OpenAI embeddings standard
-                from langchain_openai import OpenAIEmbeddings
-                print("  HuggingFace non disponible, utilisation d'OpenAI Embeddings")
-                return OpenAIEmbeddings()
-
-    else:
-        raise ValueError(f"Provider non supporté: {provider}")
-
+    model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    try:
+        from langchain_huggingface import HuggingFaceEmbeddings
+        logger.info(f"Embeddings HuggingFace : {model}")
+        return HuggingFaceEmbeddings(model_name=model)
+    except ImportError:
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        logger.info(f"Embeddings HuggingFace (community) : {model}")
+        return HuggingFaceEmbeddings(model_name=model)

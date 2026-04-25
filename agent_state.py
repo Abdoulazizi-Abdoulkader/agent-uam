@@ -16,5 +16,6 @@ class AgentState(TypedDict):
     need_clarification: bool
     user_id: str  # ID utilisateur pour la mémoire à long terme
     user_preferences: Dict[str, Any]  # Préférences utilisateur
+    tool_iterations: int  # Compteur d'appels d'outils pour éviter les boucles
 
 

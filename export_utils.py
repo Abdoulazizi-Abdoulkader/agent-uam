@@ -5,7 +5,7 @@ Utilitaires pour l'export des conversations en PDF et JSON
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -15,7 +15,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 
-def export_to_json(conversations: List[Dict], user_id: str, preferences: Dict = None, output_path: str = None) -> str:
+def export_to_json(conversations: List[Dict], user_id: str, preferences: Optional[Dict] = None, output_path: str = None) -> str:
     """
     Exporte les conversations en format JSON
     
@@ -49,7 +49,7 @@ def export_to_json(conversations: List[Dict], user_id: str, preferences: Dict = 
     return output_path
 
 
-def export_to_pdf(conversations: List[Dict], user_id: str, preferences: Dict = None, output_path: str = None) -> str:
+def export_to_pdf(conversations: List[Dict], user_id: str, preferences: Optional[Dict] = None, output_path: str = None) -> str:
     """
     Exporte les conversations en format PDF
     

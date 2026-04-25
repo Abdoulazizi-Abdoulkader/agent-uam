@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/home/aaaky/.claude/projects/-home-aaaky-Bureau-UAM-App-agent-uam"
+    ],
+    "allow": [
+      "Bash(source venv/bin/activate)",
+      "Bash(pip install:*)"
+    ]
+  }
+}

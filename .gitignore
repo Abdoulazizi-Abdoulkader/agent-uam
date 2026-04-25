@@ -29,7 +29,21 @@ ENV/
 # Variables d'environnement
 .env
 .env.local
-.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Base de données
+*.db
+*.sqlite
+*.sqlite3
+
+# Fichiers de mémoire utilisateur
+user_memory.json
+
+# Exports
+exports/
 
 # IDE
 .vscode/
@@ -37,41 +51,15 @@ ENV/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
+Thumbs.db
 
-# Fichiers générés
-user_memory.json
-exports/
-*.log
-
-# Base de données (peut être régénérée)
-*.db
-*.sqlite
-*.sqlite3
+# LangSmith (optionnel)
+.langsmith/
 
 # Fichiers temporaires
-Info.txt
 *.tmp
 *.bak
-
-# FAISS index (peut être régénéré)
-*.index
-*.faiss
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pytest
-.pytest_cache/
-.coverage
-htmlcov/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Documents sensibles (optionnel - à adapter selon vos besoins)
-# documents_uam/*.pdf
-# documents_uam/*.txt
-
+*.cache

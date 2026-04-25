@@ -7,70 +7,8 @@ from langchain_community.vectorstores import FAISS
 from langsmith import traceable
 from agent_state import AgentState
 from tools import get_tools, set_vectorstore
-from graph_nodes import route_question, should_continue, call_model, generate_response, reject_query, search_knowledge
-
-# Import ToolNode avec fallback si non disponible
-try:
-    from langgraph.prebuilt import ToolNode
-except ImportError:
-    # Créer une implémentation alternative de ToolNode
-    from langchain_core.messages import ToolMessage
-
-    class ToolNode:
-        """Implémentation alternative de ToolNode pour exécuter les outils"""
-        def __init__(self, tools):
-            # Créer un dictionnaire des outils par nom
-            self.tools = {}
-            for tool in tools:
-                if hasattr(tool, 'name'):
-                    self.tools[tool.name] = tool
-                elif hasattr(tool, '__name__'):
-                    self.tools[tool.__name__] = tool
-
-        def invoke(self, state):
-            """Exécute les appels d'outils depuis les messages"""
-            messages = state.get("messages", [])
-            if not messages:
-                return {"messages": []}
-
-            last_message = messages[-1]
-            tool_messages = []
-
-            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                for tool_call in last_message.tool_calls:
-                    # Gérer différents formats de tool_call
-                    if isinstance(tool_call, dict):
-                        tool_name = tool_call.get("name", "")
-                        tool_args = tool_call.get("args", {})
-                        tool_call_id = tool_call.get("id", "")
-                    else:
-                        # Format objet
-                        tool_name = getattr(tool_call, "name", "")
-                        tool_args = getattr(tool_call, "args", {})
-                        tool_call_id = getattr(tool_call, "id", "")
-
-                    if tool_name in self.tools:
-                        try:
-                            result = self.tools[tool_name].invoke(tool_args)
-                            tool_messages.append(
-                                ToolMessage(
-                                    content=str(result),
-                                    tool_call_id=tool_call_id
-                                )
-                            )
-                        except Exception as e:
-                            tool_messages.append(
-                                ToolMessage(
-                                    content=f"Erreur lors de l'exécution de {tool_name}: {e}",
-                                    tool_call_id=tool_call_id
-                                )
-                            )
-
-            return {"messages": tool_messages}
-
-        def __call__(self, state):
-            """Permet d'utiliser ToolNode comme une fonction"""
-            return self.invoke(state)
+from graph_nodes import route_question, should_continue, call_model, reject_query, handle_special_case
+from tool_node import ToolNode
 
 # ==================== CONSTRUCTION DU GRAPHE ====================
 @traceable
@@ -105,16 +43,16 @@ def create_agent_graph(vectorstore: FAISS, llm):
     # Ajouter les nœuds
     workflow.add_node("agent", lambda s: call_model(s, llm_with_tools))
     workflow.add_node("tools", tool_node)
-    workflow.add_node("search_knowledge", search_knowledge)
-    workflow.add_node("generate_response", lambda s: generate_response(s, llm))
     workflow.add_node("reject_query", reject_query)
-    
+    workflow.add_node("handle_special_case", handle_special_case)
+
     # Définir le point d'entrée avec routage conditionnel
     workflow.set_conditional_entry_point(
         route_question,
         {
-            "agent": "agent",  # Utiliser le pattern agent amélioré
-            "reject_query": "reject_query"
+            "agent": "agent",
+            "reject_query": "reject_query",
+            "handle_special_case": "handle_special_case",
         }
     )
     
@@ -133,11 +71,8 @@ def create_agent_graph(vectorstore: FAISS, llm):
     
     # Définir les transitions
     workflow.add_edge("reject_query", END)
-    
-    # Garder les nœuds de recherche pour compatibilité (peuvent être utilisés dans d'autres flux)
-    # workflow.add_edge("search_knowledge", "generate_response")
-    # workflow.add_edge("generate_response", END)
-    
+    workflow.add_edge("handle_special_case", END)
+
     # Compiler avec MemorySaver pour la persistance de l'état
     memory = MemorySaver()
     app = workflow.compile(checkpointer=memory)

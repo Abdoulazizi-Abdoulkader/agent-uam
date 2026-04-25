@@ -236,9 +236,12 @@ agent-uam/
 ├── export_utils.py          # Utilitaires d'export PDF/JSON
 ├── requirements.txt         # Dépendances Python
 ├── README.md                # Documentation principale
-├── FEATURES.md              # Documentation des nouvelles fonctionnalités
-├── QUICKSTART.md            # Guide de démarrage rapide
+├── IMPROVEMENTS.md          # Documentation des améliorations récentes
 ├── run_streamlit.sh         # Script pour lancer Streamlit
+│
+├── logger_config.py          # Configuration du système de logging
+├── utils.py                 # Utilitaires généraux (validation, helpers)
+├── app_config.py            # Configuration centralisée de l'application
 │
 ├── documents_uam/           # Dossier contenant les documents UAM
 │   ├── Document_Final_SR_UAM.pdf
@@ -248,11 +251,42 @@ agent-uam/
 │   └── Présentation_des_Facultés_Ecoles_Instituts.txt
 │
 ├── exports/                 # Dossier d'export (généré automatiquement)
+├── logs/                    # Dossier des logs (généré automatiquement)
+│   ├── agent_uam_YYYYMMDD.log
+│   └── errors_YYYYMMDD.log
 ├── user_memory.json         # Mémoire persistante (généré automatiquement)
 └── venv/                    # Environnement virtuel Python (généré)
 ```
 
 ## 🔧 Améliorations implémentées (2025)
+
+### Améliorations Récentes
+
+#### ✅ Système de Logging Structuré
+- Logging complet avec différents niveaux (DEBUG, INFO, WARNING, ERROR)
+- Logs séparés pour les erreurs (`logs/errors_YYYYMMDD.log`)
+- Logs détaillés avec contexte (fichier, ligne, fonction)
+- Rotation automatique des fichiers de log par date
+
+#### ✅ Gestion d'Erreurs Améliorée
+- Gestion d'erreurs robuste avec try/except appropriés
+- Messages d'erreur conviviaux pour l'utilisateur
+- Retry logic pour les opérations critiques
+- Validation des entrées utilisateur
+
+#### ✅ Configuration Centralisée
+- Module de configuration centralisé (`app_config.py`)
+- Chargement depuis les variables d'environnement
+- Configuration pour base de données, LLM, vector store
+- Validation et initialisation automatique des dossiers
+
+#### ✅ Utilitaires et Helpers
+- Fonctions de validation et sanitization
+- Extraction d'entités (structures, niveaux, mots-clés)
+- Formatage d'erreurs convivial
+- Helpers pour manipulation de données
+
+### Fonctionnalités LangChain/LangGraph
 
 Ce projet utilise les dernières fonctionnalités de LangChain et LangGraph :
 
