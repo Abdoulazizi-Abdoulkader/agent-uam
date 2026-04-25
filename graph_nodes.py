@@ -1,9 +1,9 @@
 """
 Nœuds du graphe LangGraph pour l'agent conversationnel UAM
 """
-from typing import Literal
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from typing import Literal
 from langchain_core.output_parsers import StrOutputParser
 from langsmith import traceable
 from uam_structures import UAM_STRUCTURES, detect_structure_in_text
@@ -26,32 +26,29 @@ logger = get_logger(__name__)
 # ==================== NŒUDS DU GRAPHE ====================
 
 @traceable
-def route_question(state: AgentState) -> Literal["agent", "reject_query", "handle_special_case"]:
+def route_and_store(state: AgentState) -> AgentState:
     """
-    Route la question selon sa nature et son contenu.
-    Gère les cas suivants :
-      - Salutations d'ouverture et fermetures de conversation
-      - Remerciements
-      - Frustration / confusion de l'utilisateur
-      - Questions hors sujet
-      - Abréviations de structures UAM
-      - Étudiants externes / étrangers / candidats master / doctorat
-      - Questions UAM standards → agent avec outils
+    Nœud de routage : analyse le message, stocke la destination dans routing_hint
+    et le sous-type dans routing_context pour éviter toute re-détection en aval.
     """
+    def _result(hint: str, context: str = "") -> AgentState:
+        return {**state, "routing_hint": hint, "routing_context": context}
+
     try:
         if not state["messages"]:
             logger.warning("Aucun message dans l'état pour le routage")
-            return "reject_query"
+            return _result("reject_query")
 
         last_message = state["messages"][-1]
         question = last_message.content if hasattr(last_message, "content") else str(last_message)
         if not isinstance(question, str):
             question = str(question)
 
-        # Validation souple
+        # Validation avec effet réel : rejeter si question vide / invalide
         is_valid, error_msg = validate_question(question)
         if not is_valid:
-            logger.warning(f"Question invalide: {error_msg}")
+            logger.warning(f"Question invalide rejetée: {error_msg}")
+            return _result("reject_query")
 
         question_stripped = question.strip().upper()
         logger.debug(f"Routage de la question: {question[:100]}...")
@@ -61,49 +58,48 @@ def route_question(state: AgentState) -> Literal["agent", "reject_query", "handl
         for category in ["facultes", "instituts", "ecoles"]:
             all_abbreviations.extend(UAM_STRUCTURES[category].keys())
         if question_stripped in all_abbreviations:
-            logger.debug("Question routée vers l'agent (abréviation de structure)")
-            return "agent"
+            logger.debug("Abréviation de structure → agent")
+            return _result("agent")
 
-        # ── 2. Nature conversationnelle du message ────────────────────────────
+        # ── 2. Nature conversationnelle ────────────────────────────────────────
         greeting_type = detect_greeting.invoke({"message": question})
 
         if greeting_type == "FAREWELL":
-            logger.debug("Fin de conversation détectée → handle_special_case")
-            return "handle_special_case"
+            logger.debug("Fin de conversation → handle_special_case")
+            return _result("handle_special_case", "FAREWELL")
 
         if greeting_type == "THANKS":
-            logger.debug("Remerciement détecté → handle_special_case")
-            return "handle_special_case"
+            logger.debug("Remerciement → handle_special_case")
+            return _result("handle_special_case", "THANKS")
 
         if greeting_type == "GREETING":
             logger.debug("Salutation simple → agent")
-            return "agent"
+            return _result("agent")
 
-        # ── 3. Frustration / confusion ────────────────────────────────────────
+        # ── 3. Frustration / confusion ─────────────────────────────────────────
         sentiment = detect_frustration_or_confusion.invoke({"message": question})
         if sentiment in ("FRUSTRATION", "CONFUSION", "REPETITION"):
-            logger.debug(f"Sentiment négatif détecté ({sentiment}) → handle_special_case")
-            return "handle_special_case"
+            logger.debug(f"Sentiment ({sentiment}) → handle_special_case")
+            return _result("handle_special_case", sentiment)
 
-        # ── 4. Profil utilisateur spécial ─────────────────────────────────────
+        # ── 4. Profil utilisateur spécial ──────────────────────────────────────
         profile = detect_user_profile.invoke({"message": question})
-        special_profiles = ("CANDIDAT_MASTER", "CANDIDAT_DOCTORAT", "ETUDIANT_ETRANGER")
-        if profile in special_profiles:
-            logger.debug(f"Profil spécial détecté ({profile}) → agent avec contexte enrichi")
-            return "agent"
+        if profile in ("CANDIDAT_MASTER", "CANDIDAT_DOCTORAT", "ETUDIANT_ETRANGER"):
+            logger.debug(f"Profil spécial ({profile}) → agent")
+            return _result("agent")
 
-        # ── 5. Pertinence UAM ─────────────────────────────────────────────────
+        # ── 5. Pertinence UAM ───────────────────────────────────────────────────
         relevance = check_question_relevance.invoke({"question": question})
         if relevance == "PERTINENT" or greeting_type == "BOTH":
-            logger.debug("Question pertinente routée vers l'agent")
-            return "agent"
+            logger.debug("Question pertinente → agent")
+            return _result("agent")
 
         logger.debug("Question hors sujet → reject_query")
-        return "reject_query"
+        return _result("reject_query")
 
     except Exception as e:
-        logger.error(f"Erreur lors du routage de la question: {e}", exc_info=True)
-        return "agent"
+        logger.error(f"Erreur lors du routage: {e}", exc_info=True)
+        return _result("agent")
 
 
 @traceable
@@ -292,39 +288,26 @@ def generate_response(state: AgentState, llm) -> AgentState:
 @traceable
 def handle_special_case(state: AgentState) -> AgentState:
     """
-    Gère les cas conversationnels exceptionnels sans passer par le LLM coûteux :
-      - Fins de conversation (FAREWELL)
-      - Remerciements (THANKS)
-      - Frustration utilisateur (FRUSTRATION)
-      - Confusion / demande de clarification (CONFUSION)
-      - Répétition de question (REPETITION)
+    Gère les cas conversationnels exceptionnels sans LLM.
+    Lit routing_context (stocké par route_and_store) pour éviter tout appel d'outil redondant.
     """
-    last_message = state["messages"][-1] if state["messages"] else None
-    question = ""
-    if last_message and hasattr(last_message, "content"):
-        question = last_message.content if isinstance(last_message.content, str) else str(last_message.content)
+    routing_context = state.get("routing_context", "")
 
-    greeting_type = detect_greeting.invoke({"message": question})
-    sentiment = detect_frustration_or_confusion.invoke({"message": question})
-
-    # ── Fin de conversation ───────────────────────────────────────────────────
-    if greeting_type == "FAREWELL":
+    if routing_context == "FAREWELL":
         response = (
             "Merci pour votre visite ! C'était un plaisir de vous accompagner.\n\n"
             "N'hésitez pas à revenir si vous avez d'autres questions sur l'UAM. "
-            "Bonne continuation et à bientôt ! 🎓"
+            "Bonne continuation et à bientôt !"
         )
 
-    # ── Remerciement ─────────────────────────────────────────────────────────
-    elif greeting_type == "THANKS":
+    elif routing_context == "THANKS":
         response = (
             "Avec plaisir ! Je suis toujours disponible pour vous aider.\n\n"
             "Si vous avez d'autres questions sur l'UAM — formations, inscription, "
-            "procédures ou services — n'hésitez pas à me les poser. 😊"
+            "procédures ou services — n'hésitez pas à me les poser."
         )
 
-    # ── Frustration ───────────────────────────────────────────────────────────
-    elif sentiment == "FRUSTRATION":
+    elif routing_context == "FRUSTRATION":
         response = (
             "Je suis sincèrement désolé si mes réponses ne vous ont pas satisfait. "
             "Je comprends votre frustration et je vais faire de mon mieux pour mieux vous aider.\n\n"
@@ -337,8 +320,7 @@ def handle_special_case(state: AgentState) -> AgentState:
             "le service de scolarité de la faculté concernée pour une réponse officielle."
         )
 
-    # ── Confusion ─────────────────────────────────────────────────────────────
-    elif sentiment == "CONFUSION":
+    elif routing_context == "CONFUSION":
         response = (
             "Je comprends, permettez-moi de clarifier les choses.\n\n"
             "Je suis l'assistant virtuel de l'UAM, spécialisé dans :\n"
@@ -350,8 +332,7 @@ def handle_special_case(state: AgentState) -> AgentState:
             "Je ferai de mon mieux pour vous apporter une réponse claire."
         )
 
-    # ── Répétition ────────────────────────────────────────────────────────────
-    elif sentiment == "REPETITION":
+    elif routing_context == "REPETITION":
         response = (
             "Je vois que vous avez déjà posé cette question. Laissez-moi essayer "
             "de vous apporter une réponse plus complète ou sous un angle différent.\n\n"
@@ -360,7 +341,8 @@ def handle_special_case(state: AgentState) -> AgentState:
         )
 
     else:
-        # Cas par défaut (ne devrait pas arriver normalement)
+        # Ne devrait pas arriver en flux normal — fallback sans appel LLM
+        logger.warning(f"handle_special_case: routing_context inattendu '{routing_context}'")
         response = (
             "Je suis là pour vous aider. Pouvez-vous préciser votre demande "
             "concernant l'Université Abdou Moumouni de Niamey ?"

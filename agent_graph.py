@@ -7,7 +7,7 @@ from langchain_community.vectorstores import FAISS
 from langsmith import traceable
 from agent_state import AgentState
 from tools import get_tools, set_vectorstore
-from graph_nodes import route_question, should_continue, call_model, reject_query, handle_special_case
+from graph_nodes import route_and_store, should_continue, call_model, reject_query, handle_special_case
 from tool_node import ToolNode
 
 # ==================== CONSTRUCTION DU GRAPHE ====================
@@ -41,14 +41,17 @@ def create_agent_graph(vectorstore: FAISS, llm):
     workflow = StateGraph(AgentState)
     
     # Ajouter les nœuds
+    workflow.add_node("router", route_and_store)
     workflow.add_node("agent", lambda s: call_model(s, llm_with_tools))
     workflow.add_node("tools", tool_node)
     workflow.add_node("reject_query", reject_query)
     workflow.add_node("handle_special_case", handle_special_case)
 
-    # Définir le point d'entrée avec routage conditionnel
-    workflow.set_conditional_entry_point(
-        route_question,
+    # Nœud router comme point d'entrée ; l'arête conditionnelle lit routing_hint
+    workflow.set_entry_point("router")
+    workflow.add_conditional_edges(
+        "router",
+        lambda s: s.get("routing_hint", "agent"),
         {
             "agent": "agent",
             "reject_query": "reject_query",

@@ -3,6 +3,7 @@ Configuration centralisée pour l'agent UAM
 Gère toutes les configurations de l'application
 """
 import os
+import threading
 from pathlib import Path
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
@@ -109,8 +110,10 @@ class AppConfig:
     streamlit_host: str = "localhost"
     
     def __post_init__(self):
-        """Initialise les dossiers nécessaires"""
-        # Créer les dossiers s'ils n'existent pas
+        logger.info(f"Configuration chargée - Documents: {self.documents_directory}")
+
+    def setup(self) -> None:
+        """Crée les dossiers nécessaires. À appeler au démarrage de l'application, pas à l'import."""
         Path(self.documents_directory).mkdir(parents=True, exist_ok=True)
         Path(self.exports_directory).mkdir(parents=True, exist_ok=True)
         Path(self.logs_directory).mkdir(parents=True, exist_ok=True)
@@ -118,8 +121,6 @@ class AppConfig:
         Path(self.metrics_db_path).parent.mkdir(parents=True, exist_ok=True)
         if self.vectorstore.persist_directory:
             Path(self.vectorstore.persist_directory).mkdir(parents=True, exist_ok=True)
-        
-        logger.info(f"Configuration chargée - Documents: {self.documents_directory}")
 
     def validate(self) -> None:
         """Valide la configuration et journalise les problèmes."""
@@ -187,7 +188,9 @@ class AppConfig:
                 "db_type": self.database.db_type,
                 "db_host": self.database.db_host,
                 "db_port": self.database.db_port,
-                "db_name": self.database.db_name
+                "db_name": self.database.db_name,
+                "db_user": self.database.db_user,
+                "db_password": "***" if self.database.db_password else "",
             },
             "llm": {
                 "provider": self.llm.provider,
@@ -207,33 +210,31 @@ class AppConfig:
         }
 
 
-# Instance globale de configuration
+# Instance globale de configuration (singleton thread-safe)
 _config: Optional[AppConfig] = None
+_config_lock = threading.Lock()
 
 
 def get_config() -> AppConfig:
-    """
-    Récupère l'instance globale de configuration
-    
-    Returns:
-        Configuration de l'application
-    """
+    """Récupère l'instance globale de configuration (thread-safe, double-checked locking)."""
     global _config
     if _config is None:
-        _config = AppConfig.from_env()
-        _config.validate()
+        with _config_lock:
+            if _config is None:
+                instance = AppConfig.from_env()
+                instance.setup()
+                instance.validate()
+                _config = instance
     return _config
 
 
 def reload_config() -> AppConfig:
-    """
-    Recharge la configuration depuis les variables d'environnement
-    
-    Returns:
-        Nouvelle configuration
-    """
+    """Recharge la configuration depuis les variables d'environnement."""
     global _config
-    _config = AppConfig.from_env()
-    _config.validate()
+    with _config_lock:
+        instance = AppConfig.from_env()
+        instance.setup()
+        instance.validate()
+        _config = instance
     logger.info("Configuration rechargée")
     return _config

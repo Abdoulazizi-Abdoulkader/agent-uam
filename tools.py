@@ -59,7 +59,7 @@ def set_vectorstore(vectorstore: FAISS):
 
 
 @tool
-@retry_on_failure(max_retries=2, delay=0.5, exceptions=(Exception,))
+@retry_on_failure(max_retries=2, delay=0.5, exceptions=(IOError, OSError, TimeoutError))
 def search_uam_knowledge(query: str) -> str:
     """
     Recherche des informations dans la base de connaissances de l'UAM.

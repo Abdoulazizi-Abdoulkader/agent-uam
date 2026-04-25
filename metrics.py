@@ -4,21 +4,31 @@ Collecte de métriques métier pour l'agent UAM.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app_config import get_config
 
+# Connexion SQLite réutilisée (singleton thread-safe)
+_conn: Optional[sqlite3.Connection] = None
+_conn_lock = threading.Lock()
+
 
 def _get_connection() -> sqlite3.Connection:
-    config = get_config()
-    conn = sqlite3.connect(config.metrics_db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA busy_timeout=3000")
-    _ensure_tables(conn)
-    return conn
+    global _conn
+    if _conn is not None:
+        return _conn
+    with _conn_lock:
+        if _conn is None:
+            config = get_config()
+            _conn = sqlite3.connect(config.metrics_db_path, check_same_thread=False)
+            _conn.row_factory = sqlite3.Row
+            _conn.execute("PRAGMA journal_mode=WAL")
+            _conn.execute("PRAGMA synchronous=NORMAL")
+            _conn.execute("PRAGMA busy_timeout=3000")
+            _ensure_tables(_conn)
+    return _conn
 
 
 def _ensure_tables(conn: sqlite3.Connection) -> None:
@@ -66,7 +76,6 @@ def record_question(
         )
     )
     conn.commit()
-    conn.close()
 
 
 def get_metrics_summary() -> Dict[str, int | float]:
@@ -78,7 +87,6 @@ def get_metrics_summary() -> Dict[str, int | float]:
     hors_sujet = cursor.fetchone()["count"]
     cursor.execute("SELECT AVG(response_time_ms) as avg_ms FROM metrics_questions")
     avg_ms = cursor.fetchone()["avg_ms"] or 0
-    conn.close()
     return {
         "total_questions": int(total),
         "hors_sujet": int(hors_sujet),
@@ -100,5 +108,4 @@ def get_top_questions(limit: int = 20) -> List[Dict[str, int | str]]:
         (limit,)
     )
     rows = cursor.fetchall()
-    conn.close()
     return [{"question": row["normalized"], "count": row["count"]} for row in rows]

@@ -63,3 +63,8 @@ Thumbs.db
 *.tmp
 *.bak
 *.cache
+
+# Artefacts d'évaluation (résultats de runs, non destinés au versionnement)
+evaluation/results/
+evaluation/**/*.json
+dataset_evaluation.csv

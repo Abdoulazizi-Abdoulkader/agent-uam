@@ -14,8 +14,11 @@ class AgentState(TypedDict):
     context: str
     response: str
     need_clarification: bool
-    user_id: str  # ID utilisateur pour la mémoire à long terme
-    user_preferences: Dict[str, Any]  # Préférences utilisateur
-    tool_iterations: int  # Compteur d'appels d'outils pour éviter les boucles
+    user_id: str
+    user_preferences: Dict[str, Any]
+    tool_iterations: int
+    # Routage : défini par route_and_store, lu par l'arête conditionnelle et handle_special_case
+    routing_hint: str     # destination : "agent" | "reject_query" | "handle_special_case"
+    routing_context: str  # sous-type pour handle_special_case : "FAREWELL" | "THANKS" | "FRUSTRATION" | "CONFUSION" | "REPETITION"
 
 

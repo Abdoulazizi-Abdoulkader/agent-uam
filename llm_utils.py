@@ -36,6 +36,12 @@ def initialize_llm(
     """
     from langchain_openai import ChatOpenAI
 
+    if provider != LLMProvider.OPENROUTER:
+        logger.warning(
+            f"Provider '{provider.value}' ignoré : seul OPENROUTER est supporté. "
+            "Utilisation d'OpenRouter."
+        )
+
     config = get_config()
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
