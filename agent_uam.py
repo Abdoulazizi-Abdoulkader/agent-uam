@@ -71,7 +71,7 @@ from tools import (
     get_schedules_from_db,
 )
 from graph_nodes import (
-    route_question,
+    route_and_store,
     search_knowledge,
     should_continue,
     call_model,
@@ -176,7 +176,7 @@ __all__ = [
     "get_schedules_from_db",
 
     # Nœuds du graphe
-    "route_question",
+    "route_and_store",
     "search_knowledge",
     "should_continue",
     "call_model",
