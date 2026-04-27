@@ -56,10 +56,15 @@ reportlab>=4.0.0
 
 # Pour les logs et le monitoring
 # loguru==0.7.2
-# Note: Le logging standard de Python est utilisé (pas besoin de dépendance supplémentaire)
+psutil>=5.9.0  # Pour la collecte des métriques système CPU/RAM
 
 # Pour le tracing avec LangSmith
-langsmith>=0.1.0
+langsmith>=0.2.0
+
+# Documentation
+sphinx>=7.0.0
+sphinx-rtd-theme>=1.3.0
+
 
 # Pour la persistance en base de données
 sqlalchemy==2.0.36

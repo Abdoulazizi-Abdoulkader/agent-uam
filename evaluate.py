@@ -32,7 +32,7 @@ except ImportError:
 sys.path.append(str(Path(__file__).parent))
 
 # ── Imports projet ─────────────────────────────────────────────────────────────
-from config import LLMProvider
+from app_config import LLMProvider
 from llm_utils import initialize_llm, initialize_embeddings
 from document_loader import load_and_index_documents
 from agent_graph import create_agent_graph

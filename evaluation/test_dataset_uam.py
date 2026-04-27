@@ -1,6 +1,6 @@
 """
 Jeu de données de test enrichi — Chatbot UAM
-34 cas de test répartis en 9 catégories
+50 cas de test répartis en 10 catégories
 
 Usage :
     Remplacer TEST_DATASET dans tests/evaluation.py par cette liste.
@@ -9,12 +9,13 @@ Catégories :
     - inscription_premiere (5 cas)
     - inscription_reinscription (3 cas)
     - inscription_master_doctorat (4 cas)
-    - formations_facultes (5 cas)
+    - formations_facultes (9 cas)   — 7 facultés + cas généraux
     - frais (3 cas)
     - contacts_services (3 cas)
     - hors_sujet (4 cas)
     - profils_specialises (3 cas)
     - consultation_bdd (4 cas)
+    - instituts_ecoles (12 cas)     — 3 instituts + ENS + 3 écoles doctorales
 """
 
 TEST_DATASET = [
@@ -126,7 +127,7 @@ TEST_DATASET = [
     {
         "question": "Quelles sont les facultés disponibles à l'UAM ?",
         "mots_cles_attendus": [
-            "FAST", "FSS", "FLSH", "FSEG", "FSJP", "FA"
+            "FAST", "FSS", "FLSH", "FSEG", "FSJP", "FSEJ", "FA"
         ],
         "categorie": "formations_facultes",
     },
@@ -155,7 +156,37 @@ TEST_DATASET = [
     {
         "question": "Quelles sont les écoles et instituts de l'UAM en dehors des facultés ?",
         "mots_cles_attendus": [
-            "ENS", "ENA", "IRIM", "école", "institut"
+            "ENS", "IRSH", "IREM", "IRI", "école", "institut"
+        ],
+        "categorie": "formations_facultes",
+    },
+    {
+        "question": "Quelles sont les formations disponibles à la FLSH ?",
+        "mots_cles_attendus": [
+            "FLSH", "Faculté des Lettres et Sciences Humaines",
+            "lettres", "langues", "histoire", "philosophie", "géographie"
+        ],
+        "categorie": "formations_facultes",
+    },
+    {
+        "question": "Que propose la Faculté d'Agronomie de l'UAM ?",
+        "mots_cles_attendus": [
+            "FA", "agronomie", "agriculture", "licence", "master", "formation"
+        ],
+        "categorie": "formations_facultes",
+    },
+    {
+        "question": "Quelles filières propose la FSEJ à l'UAM ?",
+        "mots_cles_attendus": [
+            "FSEJ", "Faculté des Sciences Économiques et Juridiques",
+            "droit", "économie", "juridique", "licence"
+        ],
+        "categorie": "formations_facultes",
+    },
+    {
+        "question": "Que propose la Faculté des Sciences de la Santé ?",
+        "mots_cles_attendus": [
+            "FSS", "santé", "médecine", "pharmacie", "licence", "master"
         ],
         "categorie": "formations_facultes",
     },
@@ -298,6 +329,100 @@ TEST_DATASET = [
             "inscriptions", "statistiques", "total", "composante"
         ],
         "categorie": "consultation_bdd",
+    },
+    # ═══════════════════════════════════════════════════════════════
+    # CATÉGORIE 10 — Instituts et écoles doctorales (12 cas)
+    # ═══════════════════════════════════════════════════════════════
+
+    # ── Instituts de recherche ──────────────────────────────────────
+    {
+        "question": "Qu'est-ce que l'IRSH de l'UAM ?",
+        "mots_cles_attendus": [
+            "IRSH", "Institut de Recherche en Sciences Humaines",
+            "recherche", "sciences humaines"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Quel est le rôle de l'IREM à l'UAM ?",
+        "mots_cles_attendus": [
+            "IREM", "mathématiques", "enseignement", "recherche", "institut"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "À quoi sert l'Institut des Radio-isotopes de l'UAM ?",
+        "mots_cles_attendus": [
+            "IRI", "radio-isotopes", "recherche", "sciences"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Combien d'instituts de recherche compte l'UAM ?",
+        "mots_cles_attendus": [
+            "IRSH", "IREM", "IRI", "instituts", "recherche"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+
+    # ── École Normale Supérieure ────────────────────────────────────
+    {
+        "question": "Comment s'inscrire à l'École Normale Supérieure de l'UAM ?",
+        "mots_cles_attendus": [
+            "ENS", "École Normale Supérieure", "inscription", "formation", "enseignement"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Quelles formations propose l'ENS ?",
+        "mots_cles_attendus": [
+            "ENS", "enseignement", "pédagogie", "formation", "professeur"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+
+    # ── Écoles doctorales ───────────────────────────────────────────
+    {
+        "question": "Quelles sont les écoles doctorales de l'UAM ?",
+        "mots_cles_attendus": [
+            "ED-SVT", "ED-LASHS", "ED-SET", "école doctorale", "doctorat"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Comment s'inscrire à l'École Doctorale des Sciences de la Vie et de la Terre ?",
+        "mots_cles_attendus": [
+            "ED-SVT", "doctorat", "sciences de la vie", "inscription", "directeur"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Qu'est-ce que l'ED-LASHS ?",
+        "mots_cles_attendus": [
+            "ED-LASHS", "lettres", "arts", "sciences humaines", "école doctorale"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Je veux faire un doctorat en mathématiques, quelle école doctorale choisir ?",
+        "mots_cles_attendus": [
+            "ED-SET", "Sciences Exactes et Techniques", "mathématiques", "doctorat"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Quelles sont les conditions d'accès aux écoles doctorales de l'UAM ?",
+        "mots_cles_attendus": [
+            "master", "doctorat", "directeur de thèse", "dossier", "école doctorale"
+        ],
+        "categorie": "instituts_ecoles",
+    },
+    {
+        "question": "Quelle école doctorale correspond aux sciences exactes à l'UAM ?",
+        "mots_cles_attendus": [
+            "ED-SET", "Sciences Exactes et Techniques", "physique", "chimie", "informatique"
+        ],
+        "categorie": "instituts_ecoles",
     },
 ]
 

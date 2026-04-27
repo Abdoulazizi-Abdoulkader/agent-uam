@@ -4,12 +4,22 @@ Gère toutes les configurations de l'application
 """
 import os
 import threading
+from enum import Enum
 from pathlib import Path
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from logger_config import get_logger
 
 logger = get_logger(__name__)
+
+
+class LLMProvider(Enum):
+    """Provider LLM supporté. Seul OPENROUTER est actuellement actif dans llm_utils.py."""
+    OPENROUTER   = "openrouter"    # défaut — seul provider actif
+    OPENAI       = "openai"
+    CLAUDE       = "claude"
+    LLAMA_GROQ   = "llama_groq"
+    LLAMA_OLLAMA = "llama_ollama"
 
 
 @dataclass

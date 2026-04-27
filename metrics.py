@@ -44,6 +44,15 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS metrics_system (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cpu_percent REAL NOT NULL,
+            memory_percent REAL NOT NULL,
+            memory_used_mb REAL NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
 
 
@@ -109,3 +118,43 @@ def get_top_questions(limit: int = 20) -> List[Dict[str, int | str]]:
     )
     rows = cursor.fetchall()
     return [{"question": row["normalized"], "count": row["count"]} for row in rows]
+
+
+def record_system_metrics() -> None:
+    """Enregistre l'utilisation CPU et RAM"""
+    try:
+        import psutil
+        cpu = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        
+        conn = _get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO metrics_system (cpu_percent, memory_percent, memory_used_mb, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (cpu, mem.percent, mem.used / (1024 * 1024), datetime.now().isoformat())
+        )
+        conn.commit()
+    except ImportError:
+        pass
+
+
+def get_latest_system_metrics() -> Optional[Dict[str, float]]:
+    """Récupère les dernières métriques système enregistrées"""
+    conn = _get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT cpu_percent, memory_percent, memory_used_mb FROM metrics_system ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            return {
+                "cpu_percent": round(row["cpu_percent"], 1),
+                "memory_percent": round(row["memory_percent"], 1),
+                "memory_used_mb": round(row["memory_used_mb"], 1)
+            }
+    except sqlite3.OperationalError:
+        pass
+    return None
+

@@ -5,7 +5,7 @@ import uuid
 import time
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langsmith import traceable
-from config import LLMProvider
+from app_config import LLMProvider
 from llm_utils import initialize_llm
 from document_loader import load_and_index_documents
 from agent_graph import create_agent_graph

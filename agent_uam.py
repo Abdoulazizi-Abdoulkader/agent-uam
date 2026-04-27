@@ -8,7 +8,7 @@ except ImportError:
 from tool_node import ToolNode
 
 # Imports depuis les modules refactorisés
-from config import LLMProvider
+from app_config import LLMProvider
 from llm_utils import initialize_llm, initialize_embeddings
 from uam_structures import (
     UAM_STRUCTURES,

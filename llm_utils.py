@@ -6,7 +6,7 @@ import threading
 from typing import Optional
 
 from langsmith import traceable
-from config import LLMProvider
+from app_config import LLMProvider
 from app_config import get_config
 from logger_config import get_logger
 

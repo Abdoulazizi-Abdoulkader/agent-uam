@@ -11,7 +11,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
 from langchain_community.vectorstores import FAISS
 from langsmith import traceable
-from config import LLMProvider
+from app_config import LLMProvider
 from app_config import get_config
 from llm_utils import initialize_embeddings
 from logger_config import get_logger
