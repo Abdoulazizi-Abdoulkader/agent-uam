@@ -20,5 +20,7 @@ class AgentState(TypedDict):
     # Routage : défini par route_and_store, lu par l'arête conditionnelle et handle_special_case
     routing_hint: str     # destination : "agent" | "reject_query" | "handle_special_case"
     routing_context: str  # sous-type pour handle_special_case : "FAREWELL" | "THANKS" | "FRUSTRATION" | "CONFUSION" | "REPETITION"
+    # Profil détecté une seule fois par route_and_store, réutilisé par call_model
+    user_profile: str     # ex : "BACHELIER" | "CANDIDAT_MASTER" | "INCONNU" | …
 
 

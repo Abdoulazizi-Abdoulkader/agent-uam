@@ -1,4 +1,4 @@
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,51 +20,57 @@ wheels/
 .installed.cfg
 *.egg
 
-# Environnement virtuel
+# ── Environnements virtuels ───────────────────────────────────────────────────
 venv/
+.venv/
 env/
 ENV/
-.venv
 
-# Variables d'environnement
+# ── Variables d'environnement ─────────────────────────────────────────────────
 .env
 .env.local
+.env.*.local
 
-# Logs
-logs/
-*.log
-
-# Base de données
+# ── Bases de données et fichiers WAL SQLite ───────────────────────────────────
 *.db
 *.sqlite
 *.sqlite3
+*.db-shm
+*.db-wal
 
-# Fichiers de mémoire utilisateur
+# ── Vectorstore FAISS (index binaire volumineux) ──────────────────────────────
+vectorstore/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Données utilisateur générées à l'exécution ───────────────────────────────
+exports/
 user_memory.json
 
-# Exports
-exports/
+# ── Évaluation — résultats générés (pas le code source) ──────────────────────
+evaluation_results/
+evaluation/**/*.json
+dataset_evaluation.csv
+*.tex
 
-# IDE
+# ── IDE et outils locaux ──────────────────────────────────────────────────────
 .vscode/
 .idea/
+.qodo/
 *.swp
 *.swo
 *~
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# LangSmith (optionnel)
+# ── LangSmith ────────────────────────────────────────────────────────────────
 .langsmith/
 
-# Fichiers temporaires
+# ── Fichiers temporaires ──────────────────────────────────────────────────────
 *.tmp
 *.bak
 *.cache
-
-# Artefacts d'évaluation (résultats de runs, non destinés au versionnement)
-evaluation/results/
-evaluation/**/*.json
-dataset_evaluation.csv

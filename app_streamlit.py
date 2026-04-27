@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 import sys
+from langchain_core.messages import HumanMessage
 
 try:
     from dotenv import load_dotenv
@@ -27,6 +28,7 @@ from agent_uam import (
     create_agent_graph,
     _user_memory,
 )
+from tools import set_session_user_id
 from multi_agents import create_multi_agent_graph
 from export_utils import export_to_json, export_to_pdf
 from app_config import get_config
@@ -404,6 +406,19 @@ user_input = st.chat_input("Posez votre question sur l'UAM…")
 question = user_input or pending
 
 if question:
+    # ── Rate limiting ─────────────────────────────────────────────────────────
+    _now = time.time()
+    _window = _now - 60
+    _times = [t for t in st.session_state.get("_request_times", []) if t > _window]
+    if len(_times) >= app_config.rate_limit_per_minute:
+        st.warning(
+            f"⚠️ Limite atteinte ({app_config.rate_limit_per_minute} requêtes/min). "
+            "Veuillez patienter avant d'envoyer une nouvelle question."
+        )
+        st.stop()
+    _times.append(_now)
+    st.session_state["_request_times"] = _times
+
     # Afficher message utilisateur
     with st.chat_message("user", avatar="👤"):
         st.markdown(question)
@@ -424,8 +439,6 @@ if question:
                     "recursion_limit": app_config.max_tool_iterations * 3 + 10,
                 }
 
-                from langchain_core.messages import HumanMessage
-
                 if st.session_state.agent_mode == "multi":
                     state = {
                         "messages": [HumanMessage(content=question)],
@@ -436,6 +449,7 @@ if question:
                         "agent_used": "",
                     }
                 else:
+                    set_session_user_id(st.session_state.user_id)
                     state = {
                         "messages": [HumanMessage(content=question)],
                         "question": question,
@@ -446,6 +460,9 @@ if question:
                         "user_id": st.session_state.user_id,
                         "user_preferences": user_prefs,
                         "tool_iterations": 0,
+                        "routing_hint": "",
+                        "routing_context": "",
+                        "user_profile": "",
                     }
 
                 result = st.session_state.agent.invoke(state, run_cfg)

@@ -4,7 +4,7 @@ Fonctions helper pour validation, sanitization, etc.
 """
 import re
 import functools
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -70,39 +70,6 @@ def validate_question(question: str) -> Tuple[bool, Optional[str]]:
     except ValueError as e:
         return False, str(e)
 
-
-def extract_entities(text: str) -> Dict[str, List[str]]:
-    """
-    Extrait les entités mentionnées dans le texte (structures, niveaux, etc.)
-    
-    Args:
-        text: Texte à analyser
-        
-    Returns:
-        Dictionnaire avec les entités extraites
-    """
-    entities = {
-        "structures": [],
-        "niveaux": [],
-        "keywords": []
-    }
-    
-    # Structures UAM communes
-    structures_pattern = r'\b(FAST|FLSH|FA|FSEG|FSJP|FSS|ENS|ED-SVT|ED-LASHS|ED-SET|IRSH|IREM|IRI)\b'
-    structures = re.findall(structures_pattern, text, re.IGNORECASE)
-    entities["structures"] = list(set(structures))
-    
-    # Niveaux d'étude
-    niveaux_pattern = r'\b(licence|master|doctorat|bac|baccalauréat)\b'
-    niveaux = re.findall(niveaux_pattern, text, re.IGNORECASE)
-    entities["niveaux"] = list(set(niveaux))
-    
-    # Mots-clés importants
-    keywords_pattern = r'\b(inscription|admission|formation|filière|diplôme|attestation|relevé|frais|scolarité)\b'
-    keywords = re.findall(keywords_pattern, text, re.IGNORECASE)
-    entities["keywords"] = list(set(keywords))
-    
-    return entities
 
 
 def format_error_message(error: Exception, context: Optional[str] = None) -> str:

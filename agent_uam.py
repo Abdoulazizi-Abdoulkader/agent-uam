@@ -72,10 +72,8 @@ from tools import (
 )
 from graph_nodes import (
     route_and_store,
-    search_knowledge,
     should_continue,
     call_model,
-    generate_response,
     reject_query,
     handle_special_case,
 )
@@ -177,10 +175,8 @@ __all__ = [
 
     # Nœuds du graphe
     "route_and_store",
-    "search_knowledge",
     "should_continue",
     "call_model",
-    "generate_response",
     "reject_query",
     "handle_special_case",
     

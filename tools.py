@@ -27,6 +27,19 @@ logger = get_logger(__name__)
 _vectorstore = None
 _vectorstore_lock = threading.Lock()
 
+# user_id de session — stocké par thread pour éviter les collisions inter-sessions.
+# Appelez set_session_user_id() à l'initialisation de chaque session Streamlit.
+_thread_local = threading.local()
+
+
+def set_session_user_id(user_id: str) -> None:
+    """Fixe l'identifiant de session pour le thread courant (appelé côté Streamlit)."""
+    _thread_local.user_id = user_id
+
+
+def _get_session_user_id() -> str | None:
+    return getattr(_thread_local, "user_id", None)
+
 # Import du module de connexion à la base de données
 try:
     from database_connector import (
@@ -152,7 +165,6 @@ def detect_greeting(message: str) -> str:
         r"\bje vous remercie\b", r"\bje te remercie\b",
         r"\bc['']est parfait\b", r"\bc['']est g[eé]nial\b",
         r"\btr[eè]s bien\b", r"\bparfait\b", r"\bnickel\b",
-        r"\bsuper\b", r"\bexcellent\b", r"\bbravo\b",
         r"\bthank[s]?\b",
     ]
     is_thanks = any(re.search(p, message_lower) for p in thanks_patterns)
@@ -859,36 +871,40 @@ def list_all_structures() -> str:
 
 
 @tool
-def save_user_preference(user_id: str, preference_key: str, preference_value: str) -> str:
+def save_user_preference(preference_key: str, preference_value: str) -> str:
     """
     Sauvegarde une préférence utilisateur pour la mémoire à long terme.
-    
+    L'identifiant de session est géré côté serveur — ne pas fournir de user_id.
+
     Args:
-        user_id: Identifiant de l'utilisateur
         preference_key: Clé de la préférence (ex: 'faculte_interesse', 'niveau_etude')
         preference_value: Valeur de la préférence
-        
+
     Returns:
         Confirmation de sauvegarde
     """
-    _user_memory.save_user_preference(user_id, preference_key, preference_value)
-    return f"Préférence '{preference_key}' sauvegardée avec succès: {preference_value}"
+    uid = _get_session_user_id()
+    if not uid:
+        return "Session non initialisée — préférence non sauvegardée."
+    _user_memory.save_user_preference(uid, preference_key, preference_value)
+    return f"Préférence '{preference_key}' sauvegardée avec succès : {preference_value}"
 
 
 @tool
-def get_user_preferences(user_id: str) -> str:
+def get_user_preferences() -> str:
     """
-    Récupère les préférences sauvegardées d'un utilisateur.
-    
-    Args:
-        user_id: Identifiant de l'utilisateur
-        
+    Récupère les préférences sauvegardées de la session courante.
+    L'identifiant de session est géré côté serveur.
+
     Returns:
         Préférences de l'utilisateur au format JSON
     """
-    preferences = _user_memory.get_user_preferences(user_id)
+    uid = _get_session_user_id()
+    if not uid:
+        return "Session non initialisée — aucune préférence disponible."
+    preferences = _user_memory.get_user_preferences(uid)
     if not preferences:
-        return "Aucune préférence sauvegardée pour cet utilisateur."
+        return "Aucune préférence sauvegardée pour cette session."
     return json.dumps(preferences, ensure_ascii=False, indent=2)
 
 
@@ -1436,14 +1452,7 @@ def get_schedules_from_db(faculty: str = "", filiere: str = "", level: str = "")
             else:
                 faculty_abbrev = faculty.upper()
         
-        # Utiliser la fonction importée depuis database_connector
-        # Utiliser la fonction importée depuis database_connector (au niveau global)
-        # Note: search_schedules_db est importée au niveau global si disponible
-        try:
-            schedules = search_schedules_db(faculty=faculty_abbrev, filiere=filiere, level=level)
-        except NameError:
-            # Si la fonction n'est pas disponible, retourner un message
-            return " Fonction de recherche dans la base de données non disponible."
+        schedules = search_schedules_db(faculty=faculty_abbrev, filiere=filiere, level=level)
         
         if not schedules:
             return f"Aucun horaire trouvé pour {faculty if faculty else 'les structures'}."

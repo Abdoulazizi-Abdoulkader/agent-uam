@@ -2,23 +2,20 @@
 Nœuds du graphe LangGraph pour l'agent conversationnel UAM
 """
 from langchain_core.messages import AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from typing import Literal
-from langchain_core.output_parsers import StrOutputParser
 from langsmith import traceable
 from uam_structures import UAM_STRUCTURES, detect_structure_in_text
 from tools import (
     detect_greeting,
     check_question_relevance,
-    search_uam_knowledge,
     detect_user_profile,
     detect_frustration_or_confusion,
 )
 from agent_state import AgentState
 from logger_config import get_logger
-from utils import validate_question, format_error_message
+from utils import validate_question
 from app_config import get_config
-from prompts import build_tool_system_prompt, build_context_system_prompt
+from prompts import build_tool_system_prompt
 
 # Logger pour ce module
 logger = get_logger(__name__)
@@ -31,8 +28,8 @@ def route_and_store(state: AgentState) -> AgentState:
     Nœud de routage : analyse le message, stocke la destination dans routing_hint
     et le sous-type dans routing_context pour éviter toute re-détection en aval.
     """
-    def _result(hint: str, context: str = "") -> AgentState:
-        return {**state, "routing_hint": hint, "routing_context": context}
+    def _result(hint: str, context: str = "", profile: str = "") -> AgentState:
+        return {**state, "routing_hint": hint, "routing_context": context, "user_profile": profile}
 
     try:
         if not state["messages"]:
@@ -86,41 +83,22 @@ def route_and_store(state: AgentState) -> AgentState:
         profile = detect_user_profile.invoke({"message": question})
         if profile in ("CANDIDAT_MASTER", "CANDIDAT_DOCTORAT", "ETUDIANT_ETRANGER"):
             logger.debug(f"Profil spécial ({profile}) → agent")
-            return _result("agent")
+            return _result("agent", profile=profile)
 
         # ── 5. Pertinence UAM ───────────────────────────────────────────────────
         relevance = check_question_relevance.invoke({"question": question})
         if relevance == "PERTINENT" or greeting_type == "BOTH":
             logger.debug("Question pertinente → agent")
-            return _result("agent")
+            return _result("agent", profile=profile)
 
         logger.debug("Question hors sujet → reject_query")
-        return _result("reject_query")
+        return _result("reject_query", profile=profile)
 
     except Exception as e:
         logger.error(f"Erreur lors du routage: {e}", exc_info=True)
         return _result("agent")
 
 
-@traceable
-def search_knowledge(state: AgentState) -> AgentState:
-    """Recherche le contexte dans la base de connaissances"""
-    if not state["messages"]:
-        return state
-    
-    last_message = state["messages"][-1]
-    question = last_message.content if hasattr(last_message, 'content') else str(last_message)
-    
-    # Utiliser l'outil de recherche
-    context = search_uam_knowledge.invoke({"query": question})
-    
-    # Mettre à jour l'état avec le contexte trouvé
-    return {
-        **state,
-        "context": context,
-        "question": question,
-        "is_relevant": True
-    }
 
 
 @traceable
@@ -172,8 +150,8 @@ def call_model(state: AgentState, llm_with_tools) -> AgentState:
         ]
         structures_context = "\n\nSTRUCTURES DÉTECTÉES DANS LA QUESTION :\n" + "\n".join(structures_info)
 
-    # Détecter le profil utilisateur pour adapter le prompt
-    profile = detect_user_profile.invoke({"message": question})
+    # Récupérer le profil depuis l'état (détecté une seule fois dans route_and_store)
+    profile = state.get("user_profile", "INCONNU")
     profile_context = ""
     profile_hints = {
         "CANDIDAT_MASTER": (
@@ -236,53 +214,6 @@ def call_model(state: AgentState, llm_with_tools) -> AgentState:
     }
 
 
-@traceable(run_type="llm")
-def generate_response(state: AgentState, llm) -> AgentState:
-    """
-    Génère une réponse basée sur le contexte.
-    Version améliorée qui utilise le contexte déjà récupéré.
-    """
-    # Récupérer le contexte depuis l'état
-    context = state.get("context", "")
-    messages = state["messages"]
-    
-    # Détecter les structures dans les messages pour enrichir le contexte
-    question_text = ""
-    for msg in reversed(messages):
-        if hasattr(msg, 'content'):
-            question_text = msg.content
-            break
-    
-    # S'assurer que question_text est une chaîne de caractères
-    if not isinstance(question_text, str):
-        question_text = str(question_text)
-    
-    detected_structures = detect_structure_in_text(question_text)
-    structures_info = ""
-    if detected_structures:
-        structures_list = [f"{s['nom_complet']} ({s['abreviation']})" for s in detected_structures]
-        structures_info = f"\n\nStructures mentionnées : {', '.join(structures_list)}"
-    
-    # Créer le prompt avec le contexte
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", build_context_system_prompt(context, structures_info)),
-        MessagesPlaceholder(variable_name="messages"),
-    ])
-    
-    # Générer la réponse avec le contexte
-    chain = prompt | llm | StrOutputParser()
-    response = chain.invoke({
-        "context": context,
-        "structures_info": structures_info,
-        "messages": messages
-    })
-    
-    # Retourner l'état mis à jour - Annotated[Sequence[BaseMessage], add] fusionne automatiquement
-    return {
-        **state,
-        "response": response,
-        "messages": [AIMessage(content=response)]  # Sera automatiquement ajouté à la liste existante
-    }
 
 
 @traceable
@@ -358,44 +289,28 @@ def handle_special_case(state: AgentState) -> AgentState:
 
 @traceable
 def reject_query(state: AgentState) -> AgentState:
-    """Rejette poliment les questions hors sujet avec une réponse accueillante"""
-    # Vérifier si c'est une salutation
-    last_message = state["messages"][-1] if state["messages"] else None
-    question = last_message.content if (last_message and hasattr(last_message, 'content')) else ""
-    greeting_type = detect_greeting.invoke({"message": question})
-    
-    if greeting_type == "GREETING":
-        # Répondre poliment à la salutation même si hors sujet
-        response = """Bonjour ! Je suis l'assistant virtuel de l'Université Abdou Moumouni de Niamey (UAM).
+    """Rejette poliment les questions hors sujet.
 
-Je suis là pour vous aider avec toutes vos questions concernant l'UAM :
-- 📋 Informations sur les facultés, écoles et instituts
-- 🎓 Formations et filières disponibles
-- 📝 Conditions d'admission et pièces d'inscription
-- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
-- ⏰ Horaires et services
-- 📞 Contacts des différents services
-
-Comment puis-je vous aider aujourd'hui ?"""
-    else:
-        response = """Bonjour ! Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
-
-Je peux vous aider avec :
-- 📋 Informations sur les facultés, écoles et instituts
-- 🎓 Formations et filières disponibles
-- 📝 Conditions d'admission et pièces d'inscription
-- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
-- ⏰ Horaires et services
-- 📞 Contacts des différents services
-
-Avez-vous une question concernant l'UAM ? Je serai ravi de vous aider !"""
-    
-    # Retourner l'état mis à jour - Annotated[Sequence[BaseMessage], add] fusionne automatiquement
+    Les messages de type GREETING sont routés vers 'agent' par route_and_store,
+    donc cette fonction ne reçoit que des questions non pertinentes pour l'UAM.
+    """
+    response = (
+        "Je suis désolé, mais je suis spécialisé uniquement dans les questions "
+        "concernant l'Université Abdou Moumouni de Niamey (UAM).\n\n"
+        "Je peux vous aider avec :\n"
+        "- 📋 Informations sur les facultés, écoles et instituts\n"
+        "- 🎓 Formations et filières disponibles\n"
+        "- 📝 Conditions d'admission et pièces d'inscription\n"
+        "- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)\n"
+        "- ⏰ Horaires et services\n"
+        "- 📞 Contacts des différents services\n\n"
+        "Avez-vous une question concernant l'UAM ? Je serai ravi de vous aider !"
+    )
     return {
         **state,
         "response": response,
         "is_relevant": False,
-        "messages": [AIMessage(content=response)]  # Sera automatiquement ajouté à la liste existante
+        "messages": [AIMessage(content=response)],
     }
 
 
