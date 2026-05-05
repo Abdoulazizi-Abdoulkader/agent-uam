@@ -127,7 +127,7 @@ TEST_DATASET = [
     {
         "question": "Quelles sont les facultés disponibles à l'UAM ?",
         "mots_cles_attendus": [
-            "FAST", "FSS", "FLSH", "FSEG", "FSJP", "FSEJ", "FA"
+            "FAST", "FSS", "FLSH", "FSEG", "FSJP", "FA", "ENS"
         ],
         "categorie": "formations_facultes",
     },
@@ -176,9 +176,10 @@ TEST_DATASET = [
         "categorie": "formations_facultes",
     },
     {
-        "question": "Quelles filières propose la FSEJ à l'UAM ?",
+        "question": "Quelles filières proposent la FSEG et la FSJP à l'UAM ?",
         "mots_cles_attendus": [
-            "FSEJ", "Faculté des Sciences Économiques et Juridiques",
+            "FSEG", "FSJP", "Faculté des Sciences Économiques et de Gestion",
+            "Faculté des Sciences Juridiques et Politiques",
             "droit", "économie", "juridique", "licence"
         ],
         "categorie": "formations_facultes",
@@ -338,7 +339,7 @@ TEST_DATASET = [
     {
         "question": "Qu'est-ce que l'IRSH de l'UAM ?",
         "mots_cles_attendus": [
-            "IRSH", "Institut de Recherche en Sciences Humaines",
+            "IRSH", "Institut de Recherches en Sciences Humaines",
             "recherche", "sciences humaines"
         ],
         "categorie": "instituts_ecoles",
@@ -351,7 +352,7 @@ TEST_DATASET = [
         "categorie": "instituts_ecoles",
     },
     {
-        "question": "À quoi sert l'Institut des Radio-isotopes de l'UAM ?",
+        "question": "À quoi sert l'Institut des Radio-Isotopes de l'UAM ?",
         "mots_cles_attendus": [
             "IRI", "radio-isotopes", "recherche", "sciences"
         ],

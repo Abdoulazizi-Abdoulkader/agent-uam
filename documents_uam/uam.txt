@@ -1,277 +1,172 @@
-Les Structures d’Enseignement et de Recherche
-Les programmes de recherche sont menés à la fois dans les laboratoires, instituts et les facultés. L’UAM dispose de trois (3) Ecoles Doctorales, trente-un (31) Laboratoires et soixante-dix (70) équipes de Recherche.
-Les programmes de recherche s'articulent directement sur les problèmes de développement dans les domaines suivants : la lutte contre les maladies nutritionnelles, l'autosuffisance alimentaire, la protection de l'environnement, la gestion des ressources naturelles, la lutte contre la désertification, l'éducation, la valorisation du patrimoine culturel, la gestion des ressources humaines, les études relatives à l'économie, aux libertés publiques et aux droits de l'homme
+Règles détaillées du système LMD et gouvernance de l'UAM
+Source : documents officiels UAM (uam.edu.ne)
 
-1.1. Les Facultés, Instituts de Recherche et Ecole
-L’Université Abdou Moumouni de Niamey est composée de :
-• Une (1) École Normale Supérieure (ENS),
-• Une Faculté des Lettres et Sciences Humaines (FLSH) ;
-• Une Faculté des Sciences et Techniques (FAST) ;
-• Une Faculté des Sciences de la Santé (FSS) ;
-• Une Faculté d’Agronomie (FA) ;
-• Une faculté des Sciences Économiques et Juridiques (FSEG) ;
-• Une Faculté des Sciences Juridiques et Politiques (FSJP);
-• Un institut des Radio-isotopes (IRI) ;
-• Un institut de Recherches en Sciences Humaines (IRSH) ;
-• Un Institut de Recherches sur l’enseignement en Mathématiques (IREM) ;
-Ces facultés, Ecole Normale Supérieure et Instituts, dirigés respectivement par un Doyen ou Directeur élu dans les mêmes conditions que le Recteur, sont subdivisés en Départements dirigés chacun par un Chef de Département secondé par un adjoint élus.
+NOTE : La liste des structures, l'historique et les chiffres clés se trouvent dans info_UAM.md.
+Ce fichier contient les règles pédagogiques détaillées et la gouvernance approfondies.
 
-1.2. Les Ecoles Doctorales
-L’Université Abdou Moumouni s’est engagée dans un processus de structuration de la recherche en son sein. Cette dynamique s’est traduite par la création de laboratoires et d’équipes de recherche rattachées aux trois écoles doctorales créées pour renforcer l’utilité sociale de l’université en lui permettant de répondre au mieux aux besoins de la société.
-Ces trois (3) Écoles Doctorales couvrent tous les champs disciplinaires de l’Université. Il s’agit de :
--L’École Doctorale des Sciences de la Vie et de la Terre Champs disciplinaires :
-Biologie / Agronomie / Environnement / Géologie / Sciences de la Santé.
-L’École Doctorale Lettres, Arts, Sciences de l’Homme et de la Société.
--Champs disciplinaires :
-Lettres / Arts / Sciences Humaines / Sciences Juridiques / Sciences politiques/Sciences Économiques / Sciences de Gestion.
--L’Ecole Doctorale des Sciences Exactes et Techniques Champs disciplinaires :
-Sciences Chimiques / Sciences de l’Ingénieur / Sciences Physiques / Biochimie / Mathématiques / Informatique.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LES ORGANES DÉLIBÉRANTS — DÉTAIL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1.2. Les structures d’accompagnement
-En dehors des services disponibles dans les Facultés, Instituts et École, l’Université Abdou Moumouni propose d’autres prestations à travers d’autres structures :
-• Le Campus du Nouvel Espace Universitaire Francophone (C-NEUF)
-• L’Université Virtuelle Africaine
-• Le Centre Indiend’enseignement à distance
-• Le Centre Wascal « Energie et changements
-climatiques » • Le Centre Régional d’Enseignement Spécialisé en Agriculture (CRESA)
-• Le Centre de langues de la FLSH
-• La Cellule Assurance Qualité (CellAQ) ;
-• Cellule d’Appui aux Technologies et à l’Innovation (CATI) ;
-• Le Centre de Didactique et de Pédagogie Universitaire (CDPU).
-• Le Centre Incubateur de l’UAM (CIUAM).
-Le Centre d'excellence régional sur les productions pastorales : Lait, viande et cuirs (CERPP).
-• Le Centre Émergent Africain, Innovant d'Enseignement/Apprentissage des Mathématiques et Sciences pour l'Afrique Subsaharienne (CEA/IEA-MS4SSA). Le CEA MS4SSA a pour objectif de contribuer à l’amélioration de la qualité de l’enseignement/ apprentissage des mathématiques et sciences (PC et SVT) au Niger et dans la région. Site web : https://cea-ms4ssa.org
+1. Le Conseil d'Université
+Le conseil d'Université est composé des représentants des trois composantes de la communauté
+universitaire (Enseignants-chercheurs/chercheurs, étudiants, Personnel Administratif et technique)
+et des personnalités extérieures (Cabinet de la Présidence, Cabinet du Premier Ministre et
+ministères techniques). Les membres du Conseil d'Université sont nommés pour un mandat de
+trois (3) ans, renouvelable une fois.
 
-LES ORGANES DELIBERANTS
-1.1. Le Conseil d’Université
-Le conseil de d’Université est composé des représentants des trois composantes de la communauté universitaire (Enseignantschercheurs/chercheurs, étudiants, Personnel Administratif et technique) et des personnalités extérieures (Cabinet de la Présidence, Cabinet du Premier Ministre et ministères techniques). Les membres du Conseil d’Université sont nommés pour un mandat de trois (3) ans, renouvelable une fois. Le Conseil de l’Université est l’instance de décision de l’institution. De ce fait, il délibère sur le budget de l’Université et a compétence pour toutes les questions concernant :
-• Les biens de l’Université ;
-• La scolarité, l’organisation des enseignements et le régime des études ;
-• Les affaires disciplinaires intéressant le personnel enseignant-chercheur et chercheur, le personnel administratif et technique et les étudiants ;
-• L’organisation matérielle, sociale et culturelle sur le domaine universitaire ;
-• Les élections organisées dans les Facultés, Instituts et Ecole ;
-En outre, le conseil de d’université propose aux autorités et organismes compétents les créations de diplômes et la création des Facultés, Ecoles, Instituts et autres institutions. Il donne son avis sur les créations, transformations, suppressions des postes et sur toutes les questions qui lui sont soumises par le Ministre en charge de l’Enseignement Supérieur et de la Recherche ou par le Recteur. Les étudiants sont parties prenantes du Conseil de d’Université à travers leurs représentants élus pour trois ans renouvelables une fois, à raison d’un représentant par Faculté, Ecole, Institut de l’université. Ils sont destinataires des ordres du jour des conseils et peuvent être entendus sur des points précis concernant la vie étudiante et les projets universitaires.
+Le Conseil de l'Université est l'instance de décision de l'institution. De ce fait, il délibère
+sur le budget de l'Université et a compétence pour toutes les questions concernant :
+• Les biens de l'Université ;
+• La scolarité, l'organisation des enseignements et le régime des études ;
+• Les affaires disciplinaires intéressant le personnel enseignant-chercheur et chercheur,
+  le personnel administratif et technique et les étudiants ;
+• L'organisation matérielle, sociale et culturelle sur le domaine universitaire ;
+• Les élections organisées dans les Facultés, Instituts et Ecole.
 
-1.2. Le Conseil Scientifique
-Il est composé de 27 membres dont 20 enseignants-chercheurs et chercheurs de rang magistral, 4 personnalités scientifiques extérieures et 3 membres partenaires de recherche avec un mandat de trois ans renouvelables une fois. Le Conseil Scientifique :
-• Assure la programmation, l’organisation, la coordination et le contrôle de la recherche scientifique universitaire ;
-• Assure l’évaluation des travaux scientifiques ainsi que le suivi des projets ;
-• Donne son avis sur les contenus scientifiques des programmes d’enseignement et de recherche ;
-• Donne son avis sur les dossiers des collaborations scientifiques extérieures et sur les dossiers d’enseignants-chercheurs et chercheurs qui lui sont soumis.
+En outre, le conseil d'Université propose aux autorités et organismes compétents les créations
+de diplômes et la création des Facultés, Écoles, Instituts et autres institutions. Il donne son
+avis sur les créations, transformations, suppressions des postes et sur toutes les questions qui
+lui sont soumises par le Ministre en charge de l'Enseignement Supérieur et de la Recherche ou
+par le Recteur.
 
-1.3. Le Conseil académique
-Le conseil académique est composé comme suit (23 membres)
+Les étudiants sont parties prenantes du Conseil d'Université à travers leurs représentants élus
+pour trois ans renouvelables une fois, à raison d'un représentant par Faculté, Ecole, Institut
+de l'université.
+
+2. Le Conseil Scientifique
+Il est composé de 27 membres dont 20 enseignants-chercheurs et chercheurs de rang magistral,
+4 personnalités scientifiques extérieures et 3 membres partenaires de recherche (mandat 3 ans
+renouvelable une fois). Le Conseil Scientifique :
+• Assure la programmation, l'organisation, la coordination et le contrôle de la recherche
+  scientifique universitaire ;
+• Assure l'évaluation des travaux scientifiques ainsi que le suivi des projets ;
+• Donne son avis sur les contenus scientifiques des programmes d'enseignement et de recherche ;
+• Donne son avis sur les dossiers des collaborations scientifiques extérieures et sur les
+  dossiers d'enseignants-chercheurs et chercheurs qui lui sont soumis.
+
+3. Le Conseil Académique
+Le conseil académique est composé comme suit (23 membres) :
 • des doyens des facultés (6) ;
-• du Directeur de l’Ecole ou Institut relevant de l’Université (1) ;
-• du Chef de la Scolarité Centrale (1);
-• des Chefs de Scolarité des Facultés, Ecoles ou Instituts (7);
-• d’un Représentant des Enseignants-Chercheurs par faculté (7);
-• d’un Représentant des Enseignants Technologues de l’IUT (1).
-Ce conseil fonctionne avec 22 membres pour le moment, compte tenu du fait que l’Université Abdou Moumouni n’héberge pas d’IUT.
-Le conseil académique a pour mission le suivi et l’évaluation des activités académiques et pédagogiques. Il est chargé particulièrement :
-• d’approuver les programmes et le contenu des enseignements ;
-de valider les calendriers semestriels des enseignements soumis par les facultés ;
-• de proposer les mesures de nature à améliorer la qualité de la formation initiale et développer la formation continue ;
-• de proposer au Conseil d’Université la création ou la suppression de filières et/ou de structures de formation ; • d’évaluer les programmes de formation en relation avec le ministère de tutelle ;
-• de donner un avis sur l’équivalence académique des grades, des diplômes et des certificats ;
-• de donner un avis sur tout autre dossier qui lui est soumis par le Ministre chargé de la tutelle technique ou le Recteur.
-Le conseil académique propose au Conseil d’Université le régime des études et des examens. Il participe à l’élaboration du plan stratégique et de développement de l’université, ainsi qu’aux opérations d’évaluations et de l’établissement.
-Le conseil académique délibère sur le congé sabbatique, le congé maladie et l’accueil des professeurs associés.
+• du Directeur de l'Ecole ou Institut relevant de l'Université (1) ;
+• du Chef de la Scolarité Centrale (1) ;
+• des Chefs de Scolarité des Facultés, Ecoles ou Instituts (7) ;
+• d'un Représentant des Enseignants-Chercheurs par faculté (7) ;
+• d'un Représentant des Enseignants Technologues de l'IUT (1) — poste vacant (pas d'IUT à l'UAM).
 
-4.2. Les organes d’appui à la qualité
-4.1. La cellule Assurance Qualité
-L’Université Abdou Moumouni dispose d’une Cellule Assurance Qualité visant à : • Améliorer le fonctionnement de l’Université et ses prestations ; • Mettre l’université aux normes des universités modernes ; • Rendre l’Université plus compétitive.
+Le conseil académique a pour mission :
+• d'approuver les programmes et le contenu des enseignements ;
+• de valider les calendriers semestriels des enseignements soumis par les facultés ;
+• de proposer les mesures de nature à améliorer la qualité de la formation initiale et
+  développer la formation continue ;
+• de proposer au Conseil d'Université la création ou la suppression de filières et/ou de
+  structures de formation ;
+• d'évaluer les programmes de formation en relation avec le ministère de tutelle ;
+• de donner un avis sur l'équivalence académique des grades, des diplômes et des certificats.
 
-4.2. La Cellule d‘Appui à la Technologie et à l’Innovation
-Pour protéger la production scientifique des enseignants chercheurs et chercheurs, l’Université Abdou Moumouni dispose depuis 2013 d’un Centre d’Appui à la Technologie et à l’Innovation qui sert de structure de propriété intellectuelle aux enseignants-chercheurs et chercheurs. Cette cellule sera aussi chargée du contrôle anti-plagiat des mémoires et thèses produits au niveau de l’Université.
+Le conseil académique propose au Conseil d'Université le régime des études et des examens.
+Il participe à l'élaboration du plan stratégique et de développement de l'université.
+Il délibère sur le congé sabbatique, le congé maladie et l'accueil des professeurs associés.
 
-4.3. Les Organes dirigeants
-L’Université est dirigée par un Recteur assisté d’un Vice-Recteur élus en tandem pour un mandat de trois (3) ans, renouvelable une fois. Le recteur est assisté par une administration composée de son cabinet, d’un Secrétaire Général et des directions techniques.
-5. Les Structures d’Enseignement et de Recherche
-Les programmes de recherche sont menés à la fois dans les laboratoires, instituts et les facultés. L’UAM dispose de trois (3) Ecoles Doctorales, trente-un (31) Laboratoires et soixante-dix (70) équipes de Recherche.
-Les programmes de recherche s'articulent directement sur les problèmes de développement dans les domaines suivants : la lutte contre les maladies nutritionnelles, l'autosuffisance alimentaire, la protection de l'environnement, la gestion des ressources naturelles, la lutte contre la désertification, l'éducation, la valorisation du patrimoine culturel, la gestion des ressources humaines, les études relatives à l'économie, aux libertés publiques et aux droits de l'homme.
+4. La Cellule d'Appui à la Technologie et à l'Innovation (CATI)
+Depuis 2013, l'UAM dispose d'un Centre d'Appui à la Technologie et à l'Innovation qui sert
+de structure de propriété intellectuelle aux enseignants-chercheurs et chercheurs. Cette cellule
+est aussi chargée du contrôle anti-plagiat des mémoires et thèses produits à l'UAM.
 
-Présentation
-Créé en 1971, le Centre d'enseignement supérieur de Niamey est devenu l'université de Niamey en 1973, et a pris le nom d'université Abdou-Moumouni en 19925.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RÈGLES DÉTAILLÉES DU SYSTÈME LMD (REESAO / UEMOA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Le Conseil de l'Université, présidé par le recteur ou, en cas d'absence ou d'empêchement, par le vice-recteur, se compose du secrétaire général, des doyens de facultés, des directeurs d'instituts, du directeur du Centre national des oeuvres universitaires, de représentants des enseignants, chercheurs, étudiants et de personnalités désignées par le gouvernement. Il définit l'orientation de l'enseignement, des programmes, le régime des études et des examens et l'organisation matérielle, sociale et culturelle sur le campus universitaire. Il a compétence pour toutes les questions concernant les biens de l'Université et les affaires administratives et disciplinaires intéressant le personnel enseignant, les chercheurs et les étudiants. Il vote le budget et donne son avis sur les questions soumises par le ministère de tutelle ou le recteur.
+L'adoption du système LMD à l'UAM s'inscrit dans le cadre de l'harmonisation de l'enseignement
+supérieur au niveau des pays membres de l'UEMOA et selon les règles du Réseau pour l'Excellence
+de l'Enseignement Supérieur en Afrique de l'Ouest (REESAO).
 
-Liste des facultés.
+1 - Trois grades
+• L : Licence (Bac+3) — premier cycle, 3 ans ; option générale ou professionnelle
+• M : Master (Bac+5) — deuxième cycle, 2 ans ; option professionnelle ou recherche
+• D : Doctorat (Bac+8) — formation doctorale, 3 ans minimum après master recherche ou professionnel
 
-Instituts de recherche.
+2 - Organisation en semestres et Unités d'Enseignement (UE)
+Les formations sont organisées en semestres (14 à 16 semaines, évaluations incluses).
+Au sein de chaque semestre, les enseignements sont dispensés sous forme d'UE, correspondant
+à une matière ou un ensemble de matières.
 
-Liste des facultés.
-• Faculté des sciences et techniques (FAST)
-• Faculté des lettres et sciences humaines (FLSH)
-• Faculté d'agronomie (FA)
-• Faculté des sciences économiques et de gestion (FSEG)
-• Faculté des sciences juridiques et politiques (FSJP)
-• Faculté des sciences de la santé (FSS)
+Types d'UE :
+• UE fondamentales : liées à la discipline principale de la mention
+• UE transversales : formation complémentaire dans différents domaines
+• UE complémentaires : disciplines connexes à la mention
+• UE optionnelles : approfondissement ou ouverture (choix de l'étudiant)
 
-Instituts de recherche.
-• Institut de recherche en sciences humaines (IRSH)
-• Institut de recherches pour l'enseignement des mathématiques (IREM)
-• Institut des radio-isotopes (IRI)
+3 - Système de crédits
+1 crédit = 25 heures de travail étudiant (cours, TD, TP, stages, travail personnel) — Norme REESAO.
+• Licence : 180 crédits (30 par semestre × 6 semestres)
+• Master : 120 crédits (30 par semestre × 4 semestres)
+• Doctorat : 180 crédits
 
-Écoles
-• École normale supérieure (ENS)
-• École doctorale des Sciences de la Vie et de la Terre de l'université Abdou Moumouni (ED-SVT)
-• École doctorale des Lettres, Arts, Sciences de l'Homme et de la Société de l'université Abdou Moumouni (ED-LASHS)
-• École doctorale des Sciences Exactes et Techniques de l'université Abdou Moumouni (ED-SET)
+Les cycles de licence et de master comportent des enseignements théoriques (CT), des travaux
+dirigés (TD) et des travaux pratiques (TP). La présence aux TP est obligatoire. Après trois
+absences non justifiées, l'étudiant est déclaré défaillant pour la première session.
 
+4 - Évaluation semestrielle
+Pour chaque UE : examen final + contrôles continus (TD, TP, exposés, travail personnel).
+Chaque composante est pondérée par un coefficient. Les notes des matières d'une même UE
+se compensent entre elles.
+L'UE est acquise si la note finale globale ≥ 10/20 → les crédits correspondants sont validés
+et capitalisés définitivement.
 
-Relations internationales
-Depuis sa création, l'UAM s'est efforcée de développer un réseau de coopération internationale avec des universités et des centres de recherche situés en Afrique, en Europe et en Amérique du Nord.
-Tous des diplômes proposés par l'UAM sont reconnus par le CAMES.
+Mentions : Passable (10–12), Assez Bien (12–14), Bien (14–16), Très Bien (≥16).
 
-Personnalités liées à l'université
-1-Professeurs
-• Aïchatou Mindaoudou, (née en 1959), professeure de droit
-• Gerd Spittler (né en 1939), sociologue, ethnologue et Africaniste allemand
-• Zeinabou Mindaoudou Souley (née en 1964), physicienne
+La moyenne générale du semestre est obtenue par compensation entre les différentes UE,
+pondérées par leurs crédits respectifs.
+Le semestre est validé par une moyenne générale ≥ 10/20 → 30 crédits acquis.
 
-1- Informations générales
-Depuis l'adoption du système LMD, l'offre de formation à l'Université Abdou Moumouni est organisée selon le schéma : LICENCE-MASTER-DOCTORAT.
-Ceci rentre dans le cadre de l'harmonisation du système d'enseignement supérieur au niveau des pays membres de l'Union Économique et Monétaire Ouest-Africaine (UEMOA) et selon les règles fixées par le Réseau pour l'Excellence de l'Enseignement Supérieur en Afrique de l'Ouest (REESAO).
-Cette harmonisation des parcours de formation a pour objectifs :
+5 - Sessions d'examens
+Deux sessions par semestre :
+• Session ordinaire (1ère session)
+• Session de rattrapage (2ème session) — juillet et septembre
 
-de favoriser une meilleure lisibilité des diplômes de sortie ;
-de faciliter l'amélioration de la qualité du système pédagogique, de l'orientation et de l'accompagnement de l'étudiant ;
-de permettre à l'étudiant d'adapter son parcours à son projet professionnel ;
-de faciliter et encourager la mobilité des étudiants et des enseignants ;
-de faciliter la transférabilité des crédits après leurs capitalisation.
+Tout étudiant non admis à la session ordinaire peut s'inscrire à la session de rattrapage
+pour les épreuves des UE non acquises (note < 10/20).
+La moyenne de rattrapage est calculée sur la base de la note de l'examen de 2ème session
++ notes non modifiables de contrôle continu de 1ère session.
 
-2- Trois grades
-Avec le système LMD, l'architecture des études de l'enseignement supérieur s'articule autour de 3 grades ou niveaux de sortie :
+Exclusions de la 2ème session : UE de stage, projets, mémoires bibliographiques, UE évaluées
+exclusivement en contrôle continu.
+La note de CC est reportée automatiquement de la 1ère à la 2ème session.
+Aucune session supplémentaire n'est organisée si l'étudiant ne s'est pas présenté, quel que
+soit le motif. L'inscription à la 2ème session est automatique pour tout étudiant ajourné ou
+défaillant à la 1ère session.
 
-L : La licence (Bac + 3) est le premier cycle de formation d'une durée de 3 ans ; cette formation peut être à option générale ou professionnelle, débouchant sur un master recherche ou professionnel.
-M : Le master (Bac + 5) est obtenu en 2 ans en deuxième cycle de la formation universitaire ; il comporte 2 options : une option professionnelle dirigée vers plusieurs compétences professionnelles et une option approfondie qui prépare à la recherche scientifique.
-D : Le doctorat (Bac + 8) correspond à la formation doctorale. Sa durée est de 3 ans ; il est accessible après un master à option de recherche ou professionnel.
+6 - Progression dans un parcours
+• L1 → L2 : de droit si S1 ET S2 validés.
+  Si un seul semestre validé : inscription pédagogique pour le semestre correspondant de L2
+  (S3 si S1 validé, S4 si S2 validé). Mêmes règles entre L2 et L3.
+• Maximum 2 semestres par année académique.
+• Diplôme de Licence : validation des 6 semestres du même parcours.
 
-3- Des parcours de formation organisés en semestres et en Unités d'Enseignement (UE)
-Les formations sont organisées en semestres. Au sein de chaque semestre, les enseignements sont dispensés sous forme d'Unité d'Enseignement (UE), qui correspondent à une matière ou à un ensemble de matières.
+7 - Jurys
+Deux types de jurys :
+• Jurys d'UE : rassemblant les enseignants de chaque UE
+• Jurys de semestre : rassemblant tous les enseignants intervenant dans les UE du semestre
 
-4- Des programmes de formation organisés en UE obligatoires et optionnelles
-Les UE obligatoires sont constituées par l'ensemble des UE que tous les étudiants inscrits à un parcours de formation donné doivent suivre. Les UE obligatoires se déclinent en UE fondamentales, UE transversales et UE complémentaires :
+Les membres des jurys sont désignés par le Doyen de la Faculté. Ils se réunissent sous
+l'autorité d'un enseignant de rang magistral. La participation des enseignants aux jurys
+désignés est obligatoire.
 
-Les UE fondamentales sont liées à la discipline ou aux disciplines correspondant à l'intitulé de la mention ;
-Les UE transversales portent sur une formation complémentaire et sont prises dans différents domaines ;
-Les UE complémentaires portent sur les disciplines connexes à la mention.
-Les UE optionnelles permettent à l'étudiant d'approfondir sa spécialisation ou s'ouvrir à d'autres champs de formation.
+8 - Absences aux examens
+Toute absence doit être justifiée. Les certificats et attestations doivent être fournis avant
+la délibération du jury d'UE. Toute absence non justifiée à une épreuve entraîne la défaillance.
 
-5- Un système de crédits
-Chaque UE est affectée d'une valeur en crédits qui est l'unité de mesure de la charge de travail de l'étudiant (cours, TD, TP, stages... et travail personnel). Un crédit correspond à un volume horaire de 25 h (Norme REESAO). Chaque semestre validé permet l'acquisition de 30 crédits. Un semestre contient 14 à 16 semaines, y compris les évaluations.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RELATIONS INTERNATIONALES ET RECONNAISSANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Les crédits affectés aux différents grades se répartissent comme suit :
+Depuis sa création, l'UAM s'est efforcée de développer un réseau de coopération internationale
+avec des universités et des centres de recherche situés en Afrique, en Europe et en Amérique
+du Nord. Tous les diplômes proposés par l'UAM sont reconnus par le CAMES.
 
-La Licence sanctionne un niveau validé par l'obtention de 180 crédits ;
-Le Master sanctionne un niveau validé par l'obtention de 120 crédits ;
-Le Doctorat sanctionne un niveau de validité par l'obtention de 180 crédits.
-Les cycles de licence et de master comportent un enseignement théorique, un enseignement dirigé et un enseignement pratique. Ces enseignements sont organisés sous la direction et la responsabilité d'un enseignant de rang magistral.
-
-L'enseignement théorique est donné sous forme de cours théorique (CT). L'enseignement dirigé, sous forme de travaux dirigés (TD), consiste en des exercices de révision et d'explication comportant un entraînement des étudiants au travail personnel.
-
-L'enseignement pratique, sous forme de travaux pratiques (TP), comporte, suivant les disciplines et matières, des interrogations assorties d'explication sur le cours, des exercices d'application, des expériences ou exercices sur le terrain, des manipulations en laboratoire. Les séances d'enseignement pratique sont rédigées et notées.
-
-La présence aux séances de travaux pratiques est obligatoire. Toute absence doit être justifiée. Après trois absences non justifiées, l'étudiant est déclaré défaillant pour la première session. Il ne pourra capitaliser aucune unité d'enseignant à cette session.
-
-6- Évaluation et progression
-Les principes retenus pour l'évaluation et la progression reposent sur un système d'évaluation semestriel, et une progression annuelle.
-
-7- Principes généraux
-Pour chaque Unité d'Enseignement (UE), un examen final est organisé, en plus des contrôles continus, des contrôles de TP, de l'évaluation du travail personnel. Chacune de ces évaluations intervient dans la note finale selon une pondération. À l'intérieur d'une même Unité d'Enseignement, les notes des différentes matières sont pondérées par des coefficients et se compensent entre elles. L'unité d'enseignement est acquise si l'étudiant obtient une note finale globale égale ou supérieure à 10/20. Cette note permet d'acquérir et de capitaliser les crédits correspondants : une UE acquise l'est définitivement. En cas d'échec à une UE à la première session, les crédits correspondant aux enseignements pour lesquels l'étudiant a obtenu une note supérieure ou égale à 10/20 ne seront pas octroyés d'office mais les notes seront reportées à la deuxième session, à la demande de l'étudiant.
-
-8- Évaluation des semestres
-Le système d'évaluation est semestriel.
-La moyenne générale du semestre est obtenue par compensation entre les différentes UE composant le semestre. Les moyennes obtenues pour les différentes UE sont pondérées par leurs coefficients (crédits) respectifs.
-
-9- Validation du semestre
-Le semestre est validé par l'obtention d'une moyenne générale supérieure ou égale à 10/20.
-
-10- Les sessions
-Deux sessions de contrôle de connaissances sont organisées pour chaque semestre d'enseignement : une première session ou session ordinaire et une session de rattrapage.
-Tout étudiant non admis à la session ordinaire est autorisé à s'inscrire à la session de rattrapage pour les épreuves des matières des Unités d'Enseignement non acquises (où il a obtenu une note inférieure à 10/20). La moyenne, pour chacune des matières, est alors calculée sur la base de la note obtenue lors de l'examen de cette deuxième session et des notes non modifiables du contrôle continu des connaissances obtenues lors du semestre. Ainsi, sont exclues de la seconde session les UE de stage, projets ou mémoire bibliographique, les UE dont l'évaluation est faite exclusivement sous forme de contrôle continu. La note de contrôle continu est reportée automatiquement de la première à la seconde session.
-En aucun cas une session supplémentaire ne sera organisée si l'étudiant n'a pu se présenter à l'une des sessions, quel que soit le motif de son absence. L'inscription à la seconde session est automatique pour tout étudiant ajourné ou défaillant à la première session.
-
-11- Progression dans un parcours
-La progression de la L1 à la L2 est de droit pour tout apprenant ayant validé les deux semestres S1 et S2 du même parcours de formation. Néanmoins, l'apprenant ayant validé un des deux semestres est autorisé à prendre une inscription pédagogique pour un des deux semestres de L2 :
-
-En S3 pour l'apprenant ayant validé S1 ;
-En S4 pour l'apprenant ayant validé S2.
-Les mêmes dispositions s'appliquent entre L2 et L3.
-Nul ne peut s'inscrire dans plus de 2 semestres au cours d'une même année académique. L'obtention du diplôme de la Licence est assujettie à la validation des six semestres du même parcours.
-
-12- Absences aux examens
-Toute absence doit être justifiée. Les certificats et attestations doivent être fournis en tout état de cause avant la délibération du jury d'UE. Toute absence non justifiée à une épreuve, au cours d'une session d'examen, entraînera la défaillance de l'étudiant.
-
-13- Jurys
-Deux types de jurys sont mis en place :
-
-les « jurys d'UE », rassemblant les enseignants de chaque UE ;
-les « jurys de semestre », rassemblant tous les enseignants intervenant dans les UE du semestre.
-Les membres des jurys sont désignés par le Doyen de la Faculté. Ils se réunissent sous l'autorité d'un enseignant de rang magistral. La participation des enseignants aux jurys pour lesquels ils ont été désignés est obligatoire.
-
-La Recherche à l'UAM
-L'Université Abdou Moumouni de Niamey (UAM) s'engage activement dans des activités de recherche à travers diverses entités académiques. Voici un aperçu des activités de recherche menées dans différentes facultés et instituts de l'UAM :
-
-
-Activités de recherche à l'ENS (École Normale Supérieure) :
-Développer des programmes de recherche pédagogique.
-Contribuer à l'avancement des méthodes d'enseignement.
-
-Activités de recherche à l'IREM (Institut de Recherche en Mathématiques) :
-Conduire des recherches en mathématiques pures et appliquées.
-Participer à des projets de recherche nationaux et internationaux.
-
-Activités de recherche à l'IRI (Institut des Radio-Isotopes) :
-Explorer des domaines innovants de l'informatique.
-Collaborer avec des institutions de recherche et de l'industrie.
-
-Activités de recherche à l'IRSH (Institut de Recherche en Sciences Humaines) :
-Mener des études anthropologiques, sociologiques, et linguistiques.
-Promouvoir la recherche interdisciplinaire dans les sciences humaines.
-
-Activités de recherche à la FA (Faculté d'Agronomie) :
-Développer des projets de recherche en agronomie et sciences connexes.
-Travailler sur des solutions agricoles durables.
-
-Activités de recherche à la FAST (Faculté des Sciences et Techniques) :
-Conduire des recherches en sciences fondamentales et appliquées.
-Participer à des initiatives scientifiques régionales et internationales.
-
-Activités de recherche à la FLSH (Faculté des Lettres et Sciences Humaines) :
-Explorer les domaines des lettres, langues, et sciences humaines.
-Promouvoir la recherche culturelle et linguistique.
-
-Activités de recherche à la FSEG (Faculté des Sciences Économiques et de Gestion) :
-Engager des études économiques et de gestion.
-Contribuer aux débats académiques sur les questions économiques.
-
-Activités de recherche à la FSJP (Faculté de Sciences Juridiques et Politiques) :
-Mener des recherches juridiques et politiques.
-Contribuer aux avancées dans le domaine du droit et de la politique.
-
-Activités de recherche à la FSS (Faculté des Sciences de la Santé) :
-Conduire des recherches en sciences de la santé.
-Participer à des programmes de santé publique.
-
-Bienvenue dans les Écoles doctorales
-Le 29 mars 2013, donnant suite à un arrêté du Ministère de l'Enseignement supérieur et de la Recherche scientifique en date du 14 mars 2012 portant création d'un cycle de formation conduisant au diplôme de Doctorat, le Recteur de l'Université Abdou Moumouni signe un arrêté portant création de trois Écoles doctorales, à savoir :
-
-L'École doctorale des Sciences de la Vie et de la Terre dont les champs disciplinaires sont : Biologie, Agronomie, Environnement, Géologie, Sciences de la Santé ;
-
-L'École doctorale des Lettres, des Arts, des Sciences de l'Homme et de la Société dont les champs disciplinaires sont : Lettres, Arts, Sciences Humaines, Sciences Juridiques, Sciences Économiques, Sciences de Gestion ;
-
-L'École doctorale des Sciences exactes et techniques dont les champs disciplinaires sont : Sciences Chimiques, Sciences de l'Ingénieur, Sciences Physiques, Biochimie, Mathématiques, Informatique.
-
-Situées au niveau de l'amphi 1000 places de la FSS, les Écoles doctorales gèrent la scolarité des doctorants, la mise en place et le suivi des conventions de co-tutelles de thèse, l'organisation de la formation doctorale, l'aide à l'insertion professionnelle des docteurs et coordonne le suivi des missions des écoles doctorales. Les Écoles doctorales mettent le Centre de Didactique Universitaire (CDPU) à contribution dans le cadre de la formation des doctorants en pédagogie universitaire.
-
-Les recherches à l'UAM
-L'Université Abdou Moumouni s'est engagée dans un processus de structuration de la recherche.
-
-Cette dynamique s'est traduite par la création de laboratoires et d'équipes de recherche rattachées aux trois écoles doctorales. La création de ces laboratoires et équipes de recherche vient combler le vide de l'inexistence de structures pérennes de ce type dans cette institution.
-
-En effet, jusque-là les travaux de recherche s'effectuaient sur la base d'équipes constituées au gré des opportunités de projets et de programmes proposés en réponse aux appels d'offres internationaux ou soumis au financement du fonds de recherche existant à l'UAM depuis 2008.
-
-Ces réformes visent à renforcer l'utilité sociale de l'université en lui permettant de répondre au mieux aux besoins de la société. À cet effet, les équipes et les laboratoires de recherche tout en contribuant à la formation à la recherche par la recherche, sont appelés à traiter des problématiques de développement du Niger.
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTACT UAM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+rectorat@uam.edu.ne
+contact@rectorat.ne

@@ -718,14 +718,15 @@ L'UAM comprend plusieurs structures :
 - Faculté d'Agronomie (FA)
 - Faculté des Lettres et Sciences Humaines (FLSH)
 - Faculté des Sciences de la Santé (FSS)
-- Faculté des Sciences Économiques et Juridiques (FSEJ)
+- Faculté des Sciences Économiques et de Gestion (FSEG)
+- Faculté des Sciences Juridiques et Politiques (FSJP)
 
 ### Écoles
 - École Normale Supérieure (ENS)
 
 ### Instituts de Recherche
-- Institut de Recherche en Sciences Humaines (IRSH)
-- Institut de Recherche sur l'Enseignement des Mathématiques (IREM)
+- Institut de Recherches en Sciences Humaines (IRSH)
+- Institut de Recherches en Enseignement des Mathématiques (IREM)
 - Institut des Radio-Isotopes (IRI)
 
 ## Campus

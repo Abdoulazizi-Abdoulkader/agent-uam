@@ -1798,7 +1798,7 @@ def search_phd_admission(
     doctoral_schools_info = (
         "\n📚 ÉCOLES DOCTORALES DE L'UAM :\n"
         "• ED-SVT  – École Doctorale des Sciences de la Vie et de la Terre\n"
-        "• ED-LASHS – École Doctorale des Lettres, Arts, Sciences de l'Homme et de la Société\n"
+        "• ED-LASHS – École Doctorale Lettres, Arts, Sciences Humaines et Sociales\n"
         "• ED-SET  – École Doctorale des Sciences Exactes et Techniques\n"
     )
 

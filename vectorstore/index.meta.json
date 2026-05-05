@@ -1,7 +1,7 @@
 {
-  "fingerprint": "77a3cab72914f9513631e388d63aebfac3e89e3ca3aa151d62ef73e1f6774dde",
-  "file_count": 11,
+  "fingerprint": "2cc0a0d0cf56b35cf424909395a700c8572007f3516efc6f0daff306d24f5553",
+  "file_count": 13,
   "provider": "openrouter",
   "embedding": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-  "updated_at": "2026-04-23T12:34:23.490110"
+  "updated_at": "2026-05-05T12:25:01.989212"
 }

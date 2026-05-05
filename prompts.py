@@ -32,11 +32,11 @@ COMPRÉHENSION DES ABRÉVIATIONS :
   * FSS = Faculté des Sciences de la Santé
   * ENS = École Normale Supérieure
   * ED-SVT = École Doctorale des Sciences de la Vie et de la Terre
-  * ED-LASHS = École Doctorale des Lettres, Arts, Sciences de l'Homme et de la Société
-  * ED-SET = École Doctorale des Sciences Exactes et Techniques
-  * IRSH = Institut de Recherche en Sciences Humaines
-  * IREM = Institut de Recherches pour l'Enseignement des Mathématiques
-  * IRI = Institut des Radio-isotopes
+  * ED-LASHS = École Doctorale Lettres, Arts, Sciences Humaines et Sociales
+  * ED-SET = École Doctorale Sciences Exactes et Techniques
+  * IRSH = Institut de Recherches en Sciences Humaines
+  * IREM = Institut de Recherches en Enseignement des Mathématiques
+  * IRI = Institut des Radio-Isotopes
 
 GESTION DES ABRÉVIATIONS SIMPLES :
 - Si l'utilisateur tape juste une abréviation (ex: "FA", "FAST", "ENS"), utilise IMMÉDIATEMENT l'outil get_faculty_info

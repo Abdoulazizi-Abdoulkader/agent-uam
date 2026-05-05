@@ -248,32 +248,32 @@ L'offre de formation comprend les programmes ci-après :
 
 1. Historique et mission
 1.1. Historique
-La FSJP a �t� cr��e par d�cret n�2010/308/PRN/MESR/I du 20 juin 2016 modifiant et compl�tant les Statuts de l?��Universit� Abdou Moumouni de Niamey. Elle fait suite � la scission de la Facult� des Sciences Economiques et Juridiques (FSEJ) en deux facult�s : la Facult� des Sciences Juridiques et Politiques et de la Facult� des Sciences Economiques et de Gestion.
+La FSJP a été créée par décret né2010/308/PRN/MESR/I du 20 juin 2016 modifiant et complétant les Statuts de l-Université Abdou Moumouni de Niamey. Elle fait suite é la scission de la Faculté des Sciences Economiques et Juridiques (FSEJ) en deux facultés : la Faculté des Sciences Juridiques et Politiques et de la Faculté des Sciences Economiques et de Gestion.
 
 1.2. Mission
-?�� assurer la formation des cadres pour les diff�rents types d?��activit�s juridiques et politiques, des enseignants pour l?��enseignement secondaire et sup�rieur en mati�re juridique et politique et des chercheurs dans les domaines juridique et politique,
-?�� Assurer le perfectionnement et le recyclage continus des enseignants en fonction et des cadres juristes et politistes en activit�,
-?�� Contribuer � la promotion de la recherche fondamentale et appliqu�e dans le domaine des sciences sociales.
+- assurer la formation des cadres pour les différents types d-activités juridiques et politiques, des enseignants pour l-enseignement secondaire et supérieur en matiére juridique et politique et des chercheurs dans les domaines juridique et politique,
+- Assurer le perfectionnement et le recyclage continus des enseignants en fonction et des cadres juristes et politistes en activité,
+- Contribuer é la promotion de la recherche fondamentale et appliquée dans le domaine des sciences sociales.
 
 2. Effectifs
-En 2023 la FSJP enregistre 2806 ��tudiants encadr�s par 36 Enseignants-Chercheurs et compte 25 Personnels Administratif et Technique (PAT).
+En 2023 la FSJP enregistre 2806 éétudiants encadrés par 36 Enseignants-Chercheurs et compte 25 Personnels Administratif et Technique (PAT).
 
 3. Organisation
-La Facult� des Sciences Politiques et Juridiques est compos�e de :
-?�� D�canat
-?�� D�partement droit priv�
-?�� D�partement Droit public
-?�� D�partement Science politique
+La Faculté des Sciences Politiques et Juridiques est composée de :
+- Décanat
+- Département droit privé
+- Département Droit public
+- Département Science politique
 
 
 4. Services administratifs et Techniques
-?�� Secr�tariat Principal
-?�� Service Financier
-?�� Service Personnel et Mat�riel
-?�� Service Scolarit�
-?�� Service TICE
-?�� Service Documentation
-?�� Service Courrier
+- Secrétariat Principal
+- Service Financier
+- Service Personnel et Matériel
+- Service Scolarité
+- Service TICE
+- Service Documentation
+- Service Courrier
 5. Offres de formation
 
 
@@ -763,9 +763,6 @@ Perspectives
 Poursuite du programme de recherche, éditions des manuels scolaires pour tous les niveaux du secondaire, Formations en ligne.
 
 
-
-
-
 École doctorale
 Le 29 mars 2013, donnant suite à un arrêté du Ministère de l'Enseignement supérieur et de la Recherche scientifique en date du 14 mars 2012 portant création d'un cycle de formation conduisant au diplôme de Doctorat, le Recteur de l'Université Abdou Moumouni signe un arrêté portant création de trois Écoles doctorales, à savoir :
 
@@ -776,8 +773,6 @@ L'École doctorale des Lettres, des Arts, des Sciences de l'Homme et de la Soci�
 L'École doctorale des Sciences exactes et techniques dont les champs disciplinaires sont : Sciences Chimiques, Sciences de l'Ingénieur, Sciences Physiques, Biochimie, Mathématiques, Informatique.
 
 Situées au niveau de l'amphi 1000 places de la FSS, les Écoles doctorales gèrent la scolarité des doctorants, la mise en place et le suivi des conventions de co-tutelles de thèse, l'organisation de la formation doctorale, l'aide à l'insertion professionnelle des docteurs et coordonne le suivi des missions des écoles doctorales. Les Écoles doctorales mettent le Centre de Didactique Universitaire (CDPU) à contribution dans le cadre de la formation des doctorants en pédagogie universitaire.
-
-
 
 CONTACT UAM:
 rectorat@uam.edu.ne
