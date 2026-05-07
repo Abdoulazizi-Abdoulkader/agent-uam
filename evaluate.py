@@ -294,31 +294,26 @@ def compute_ragas_metrics(results: List[Dict], llm, embeddings) -> Dict[str, flo
     """
     Calcule Faithfulness et Answer Relevancy via RAGAS.
 
-    Utilise un modèle gratuit OpenRouter (Llama 3.1 8B) pour les appels internes
-    de RAGAS, indépendamment du modèle principal — Claude Sonnet coûte trop cher
-    pour les 90+ appels générés par RAGAS sur 23 exemples.
+    Réutilise le LLM principal du projet pour les appels RAGAS.
+    RAGAS nécessite que OPENAI_API_KEY soit définie (même fictive) pour
+    initialiser certains composants internes.
     """
     try:
         from ragas import evaluate
         from ragas.metrics import faithfulness, answer_relevancy
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.embeddings import LangchainEmbeddingsWrapper
         from datasets import Dataset
     except ImportError:
         print(f"  {YELLOW}⚠ ragas/datasets non installés → pip install ragas datasets{RESET}")
         return {}
 
-    # Modèle léger gratuit pour RAGAS (évite les erreurs 402 avec Claude Sonnet)
+    # RAGAS cherche OPENAI_API_KEY en interne même avec un LLM personnalisé
+    os.environ.setdefault("OPENAI_API_KEY", "sk-ragas-placeholder")
+
     try:
-        from langchain_openai import ChatOpenAI as _ChatOpenAI
-        ragas_llm = _ChatOpenAI(
-            model="meta-llama/llama-3.1-8b-instruct:free",
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-            max_tokens=1024,
-            default_headers={
-                "HTTP-Referer": "https://github.com/agent-uam",
-                "X-Title": "Agent UAM RAGAS",
-            },
-        )
+        ragas_llm = LangchainLLMWrapper(llm)
+        ragas_embeddings = LangchainEmbeddingsWrapper(embeddings)
     except Exception as e:
         print(f"  {YELLOW}⚠ Impossible d'initialiser le LLM RAGAS : {e}{RESET}")
         return {}
@@ -344,23 +339,32 @@ def compute_ragas_metrics(results: List[Dict], llm, embeddings) -> Dict[str, flo
     dataset = Dataset.from_dict(data)
 
     try:
-        print(f"  Calcul RAGAS sur {len(valid)} exemples (modèle : llama-3.1-8b-instruct:free)…")
+        print(f"  Calcul RAGAS sur {len(valid)} exemples…")
         score = evaluate(
             dataset,
             metrics=[faithfulness, answer_relevancy],
             llm=ragas_llm,
-            embeddings=embeddings,
+            embeddings=ragas_embeddings,
+            raise_exceptions=False,
         )
-        # RAGAS 0.2+ renvoie un EvaluationResult (pas un dict) — on passe par pandas
+        # RAGAS 0.2+ renvoie un EvaluationResult — on passe par pandas
         try:
             import pandas as pd
             df = score.to_pandas()
             metric_cols = [c for c in df.columns
                            if c not in ("question", "answer", "contexts", "ground_truth", "reference")]
-            return {c: round(float(df[c].dropna().mean()), 4) for c in metric_cols}
+            out = {}
+            for c in metric_cols:
+                col_numeric = pd.to_numeric(df[c], errors="coerce").dropna()
+                if len(col_numeric) > 0:
+                    out[c] = round(float(col_numeric.mean()), 4)
+            if not out:
+                print(f"  {YELLOW}⚠ RAGAS : toutes les métriques sont NaN (réponses vides ou erreurs LLM){RESET}")
+                return {}
+            return out
         except AttributeError:
             # RAGAS 0.1 : dict-like direct
-            return {k: round(float(v), 4) for k, v in score.items()}
+            return {k: round(float(v), 4) for k, v in score.items() if v == v}
     except Exception as e:
         print(f"  {RED}Erreur RAGAS : {e}{RESET}")
         return {}
