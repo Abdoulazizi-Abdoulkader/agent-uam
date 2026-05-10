@@ -55,8 +55,8 @@ def route_and_store(state: AgentState) -> AgentState:
         for category in ["facultes", "instituts", "ecoles"]:
             all_abbreviations.extend(UAM_STRUCTURES[category].keys())
         if question_stripped in all_abbreviations:
-            logger.debug("Abréviation de structure → agent")
-            return _result("agent")
+            logger.debug("Abréviation de structure → réponse directe (sans LLM)")
+            return _result("handle_special_case", f"DIRECT_STRUCTURE:{question_stripped}")
 
         # ── 2. Nature conversationnelle ────────────────────────────────────────
         greeting_type = detect_greeting.invoke({"message": question})
@@ -223,6 +223,40 @@ def handle_special_case(state: AgentState) -> AgentState:
     Lit routing_context (stocké par route_and_store) pour éviter tout appel d'outil redondant.
     """
     routing_context = state.get("routing_context", "")
+
+    if routing_context.startswith("DIRECT_STRUCTURE:"):
+        abbrev = routing_context.split(":", 1)[1]
+        # Recherche directe par clé pour éviter le bug de sous-chaîne de get_structure_info
+        raw = None
+        struct_type = None
+        for cat in ("facultes", "instituts", "ecoles"):
+            if abbrev in UAM_STRUCTURES[cat]:
+                raw = UAM_STRUCTURES[cat][abbrev]
+                struct_type = cat[:-1]
+                break
+        info = {**raw, "abreviation": abbrev, "type": struct_type} if raw else None
+        if info:
+            type_label = {"faculte": "Faculté", "institut": "Institut", "ecole": "École"}.get(
+                info.get("type", ""), "Structure"
+            )
+            lines = [
+                f"Bonjour ! Voici les informations sur **{info['nom_complet']}** ({info['abreviation']}) :\n",
+                f"**Type :** {type_label}",
+            ]
+            if info.get("missions"):
+                lines.append(f"\n**Mission :** {info['missions']}")
+            if info.get("localisation"):
+                lines.append(f"\n**Localisation :** {info['localisation']}")
+            if info.get("historique"):
+                lines.append(f"\n**Historique :** {info['historique']}")
+            lines.append("\nN'hésitez pas à me poser d'autres questions sur l'UAM !")
+            response = "\n".join(lines)
+        else:
+            response = (
+                f"Désolé, je n'ai pas trouvé d'informations sur la structure « {abbrev} ».\n"
+                "Veuillez vérifier l'abréviation ou contacter la scolarité de l'UAM."
+            )
+        return {**state, "response": response, "is_relevant": True, "messages": [AIMessage(content=response)]}
 
     if routing_context == "FAREWELL":
         response = (

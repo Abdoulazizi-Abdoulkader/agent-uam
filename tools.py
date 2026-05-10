@@ -5,7 +5,9 @@ Tous les outils disponibles pour la recherche et l'interaction
 import json
 import re
 import threading
+import unicodedata
 from datetime import datetime
+from functools import lru_cache
 from langchain_core.tools import tool
 from langchain_community.vectorstores import FAISS
 from langsmith import traceable
@@ -22,6 +24,17 @@ from utils import sanitize_input, retry_on_failure, safe_get
 
 # Logger pour ce module
 logger = get_logger(__name__)
+
+# Patterns hors-sujet compilés une seule fois au chargement du module
+_OFF_TOPIC_RE = [re.compile(p) for p in [
+    r"\b(m[eé]t[eé]o|temp[eé]rature|clima[t]?|pluie|vent|soleil|nuage|pr[eé]vision)\b",
+    r"quel temps fait[-\s]?il",
+    r"\b(po[eè]me?|chanson|musique|film|cin[eé]ma|roman|litt[eé]rature)\b",
+    r"\b(pirater?|hack|mot de passe|compte facebook|instagram|r[eé]seau social)\b",
+    r"\b(recette|cuisine|plat|ingr[eé]dient)\b",
+    r"\b(sport|football|basket|championnat|score|r[eé]sultat sportif)\b",
+    r"\b(bourse[s]? (de|du|des) valeur|action|crypto|bitcoin|investissement financier)\b",
+]]
 
 # Vectorstore global avec protection thread-safe
 _vectorstore = None
@@ -66,9 +79,25 @@ def set_vectorstore(vectorstore: FAISS):
     global _vectorstore
     with _vectorstore_lock:
         _vectorstore = vectorstore
+        _cached_similarity_search.cache_clear()
 
 
 # ==================== OUTILS (TOOLS) ====================
+
+
+def _normalize_query(query: str) -> str:
+    """Normalise une requête pour le cache (minuscules, sans accents superflus, strip)."""
+    nfkd = unicodedata.normalize("NFKD", query.lower().strip())
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+@lru_cache(maxsize=128)
+def _cached_similarity_search(query_normalized: str, k: int) -> tuple:
+    """Recherche FAISS avec mise en cache LRU intra-session."""
+    if _vectorstore is None:
+        return ()
+    docs = _vectorstore.similarity_search(query_normalized, k=k)
+    return tuple(doc.page_content for doc in docs)
 
 
 @tool
@@ -107,20 +136,19 @@ def search_uam_knowledge(query: str) -> str:
             query_expanded = f"{query} {' '.join(structure_names)}"
             logger.debug(f"Structures détectées: {[s['abreviation'] for s in detected_structures]}")
         
-        # Recherche sémantique avec la requête enrichie
-        docs = _vectorstore.similarity_search(
-            query_expanded,
-            k=config.vectorstore.similarity_search_k
-        )
-        
-        if not docs:
+        # Recherche sémantique avec cache LRU (évite les appels FAISS redondants)
+        query_key = _normalize_query(query_expanded)
+        k = config.vectorstore.similarity_search_k
+        page_contents = _cached_similarity_search(query_key, k)
+
+        if not page_contents:
             logger.warning(f"Aucun document trouvé pour la requête: {query[:100]}")
             return "Aucune information trouvée pour cette requête."
-        
+
         # Combiner les documents
-        context = "\n\n---\n\n".join([doc.page_content for doc in docs])
+        context = "\n\n---\n\n".join(page_contents)
         
-        logger.debug(f"Trouvé {len(docs)} document(s) pertinents")
+        logger.debug(f"Trouvé {len(page_contents)} document(s) pertinents")
         return context
         
     except ValueError as e:
@@ -225,6 +253,10 @@ def check_question_relevance(question: str) -> str:
         "HORS_SUJET"  – question sans rapport avec l'UAM
     """
     question_lower = question.lower()
+
+    for pat in _OFF_TOPIC_RE:
+        if pat.search(question_lower):
+            return "HORS_SUJET"
 
     # Mots-clés directs UAM
     keywords_uam = [
@@ -1376,10 +1408,126 @@ def search_avantages_universite(filiere: str = "", faculty: str = "") -> str:
 
 
 @tool
+def search_student_record(matricule: str, query_type: str = "inscription") -> str:
+    """
+    Consulte le dossier d'un étudiant par son matricule dans la base de données UAM.
+    Permet de vérifier le statut d'inscription, les paiements et les résultats.
+
+    Args:
+        matricule: Numéro de matricule de l'étudiant (ex: UAM240001)
+        query_type: Type de consultation — "inscription" | "paiement" | "resultats" | "general"
+
+    Returns:
+        Informations sur le dossier de l'étudiant avec statut d'inscription, montants FCFA, notes, ECTS.
+    """
+    if not matricule or not matricule.strip():
+        return "Veuillez fournir un numéro de matricule valide (ex: UAM240001)."
+
+    matricule = matricule.strip().upper()
+
+    if not _db_available:
+        return (
+            f"La base de données n'est pas disponible pour consulter le matricule {matricule}.\n"
+            "Veuillez contacter directement le service de scolarité de votre faculté.\n"
+            "Scolarité Centrale UAM : +227 20 74 06 61 — Lun–Ven 7h30–15h30."
+        )
+
+    try:
+        students = search_students_db(student_id=matricule)
+    except Exception as e:
+        logger.error(f"Erreur BDD lors de la consultation du matricule {matricule}: {e}")
+        return (
+            f"Une erreur est survenue lors de la consultation du matricule {matricule}.\n"
+            "Veuillez réessayer ou contacter le service de scolarité."
+        )
+
+    if not students:
+        return (
+            f"Aucun étudiant trouvé avec le matricule {matricule}.\n"
+            "Vérifiez le numéro saisi ou contactez le service des inscriptions de l'UAM."
+        )
+
+    def _first_not_none(d: dict, *keys):
+        """Retourne la première valeur non-None parmi les clés données (gère 0 correctement)."""
+        for k in keys:
+            if k in d and d[k] is not None:
+                return d[k]
+        return None
+
+    student = students[0]
+    lines = [f"Dossier étudiant — Matricule : **{matricule}**\n"]
+
+    # sanitize_input protège contre l'injection indirecte depuis la BDD
+    nom = sanitize_input(
+        f"{student.get('last_name', '')} {student.get('first_name', '')}".strip(),
+        max_length=100
+    )
+    if nom:
+        lines.append(f"**Nom :** {nom}")
+
+    faculte = sanitize_input(
+        student.get("faculty_abbreviation") or student.get("faculty", ""),
+        max_length=50
+    )
+    if faculte:
+        lines.append(f"**Faculté :** {faculte}")
+
+    niveau = sanitize_input(student.get("level", ""), max_length=30)
+    if niveau:
+        lines.append(f"**Niveau :** {niveau}")
+
+    # Statut d'inscription
+    statut = student.get("inscription_status") or student.get("status", "")
+    if statut:
+        statut_label = "validée ✓" if statut.lower() in ("validé", "validee", "validated", "actif", "active") else statut
+        lines.append(f"\n**Statut d'inscription :** {statut_label}")
+    else:
+        lines.append("\n**Statut d'inscription :** non renseigné — contactez la scolarité pour confirmation.")
+
+    # Paiements / frais (FCFA) — _first_not_none gère correctement la valeur 0
+    if query_type in ("paiement", "general"):
+        montant = _first_not_none(student, "fees_paid", "montant_paye")
+        if montant is not None:
+            lines.append(f"**Montant payé :** {int(montant):,} FCFA")
+        frais_total = _first_not_none(student, "total_fees", "frais_total")
+        if frais_total is not None:
+            lines.append(f"**Frais totaux :** {int(frais_total):,} FCFA")
+        reste = _first_not_none(student, "remaining_fees", "reste_a_payer")
+        if reste is not None:
+            lines.append(f"**Reste à payer :** {int(reste):,} FCFA")
+
+    # Résultats académiques — idem pour 0 crédit ou 0/20
+    if query_type in ("resultats", "general"):
+        moyenne = _first_not_none(student, "average", "moyenne_generale")
+        if moyenne is not None:
+            lines.append(f"\n**Moyenne générale :** {moyenne}/20")
+        credits = _first_not_none(student, "credits_valides", "ects_valides")
+        if credits is not None:
+            lines.append(f"**Crédits ECTS validés :** {credits}")
+        notes_raw = student.get("notes") or student.get("results")
+        if notes_raw:
+            lines.append("**Notes par UE :**")
+            if isinstance(notes_raw, list):
+                for ue in notes_raw[:8]:
+                    ue_name = ue.get("ue") or ue.get("matiere", "UE inconnue")
+                    note = ue.get("note") or ue.get("grade", "—")
+                    valide = " ✓ validé" if ue.get("valide") or ue.get("validated") else ""
+                    lines.append(f"  • {ue_name} : {note}/20{valide}")
+            else:
+                lines.append(f"  {notes_raw}")
+
+    lines.append(
+        "\nPour toute contestation ou information complémentaire, contactez le service de scolarité "
+        "de votre faculté ou la Scolarité Centrale (Tél : +227 20 74 06 61)."
+    )
+    return "\n".join(lines)
+
+
+@tool
 def search_latest_news(limit: int = 5, category: str = "") -> str:
     """
     Recherche les dernières actualités et annonces de l'UAM depuis la base de données.
-    
+
     Args:
         limit: Nombre maximum d'actualités à retourner (défaut: 5)
         category: Catégorie d'annonce (optionnel, ex: "admission", "examen", "formation")
@@ -2091,7 +2239,8 @@ def get_tools():
     if _db_available:
         tools.extend([
             search_latest_news,
-            get_schedules_from_db
+            get_schedules_from_db,
+            search_student_record,
         ])
     
     return tools

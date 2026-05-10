@@ -319,24 +319,50 @@ def search_students_db(student_id: Optional[str] = None,
             "limit": 100
         })
     else:
-        # SQL
-        query = "SELECT * FROM students WHERE 1=1"
+        # SQL — jointure etudiants + inscriptions (schéma scolarite_uam.db)
+        # formations → departements → composantes (pas de lien direct formations.composante_id)
+        query = """
+            SELECT
+                e.matricule        AS student_id,
+                e.nom              AS last_name,
+                e.prenom           AS first_name,
+                e.telephone,
+                e.email,
+                e.type_etudiant,
+                f.niveau           AS level,
+                c.sigle            AS faculty_abbreviation,
+                i.statut           AS inscription_status,
+                i.annee_academique,
+                i.date_inscription,
+                i.numero_recu,
+                COALESCE((
+                    SELECT SUM(p.montant)
+                    FROM paiements p
+                    WHERE p.inscription_id = i.id
+                ), 0) AS fees_paid
+            FROM etudiants e
+            LEFT JOIN inscriptions i ON i.etudiant_id = e.id
+            LEFT JOIN formations f   ON f.id = i.formation_id
+            LEFT JOIN departements d ON d.id = f.departement_id
+            LEFT JOIN composantes c  ON c.id = d.composante_id
+            WHERE 1=1
+        """
         params = {}
-        
+
         if student_id:
-            query += " AND student_id = :student_id"
+            query += " AND e.matricule = :student_id"
             params["student_id"] = student_id
-        
+
         if faculty:
-            query += " AND faculty_abbreviation = :faculty"
+            query += " AND c.sigle = :faculty"
             params["faculty"] = faculty.upper()
-        
+
         if level:
-            query += " AND level = :level"
+            query += " AND LOWER(f.niveau) = :level"
             params["level"] = level.lower()
-        
-        query += " ORDER BY last_name, first_name"
-        
+
+        query += " ORDER BY e.nom, e.prenom LIMIT 100"
+
         return query_database(query, params)
 
 
