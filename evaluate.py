@@ -38,6 +38,7 @@ from document_loader import load_and_index_documents
 from agent_graph import create_agent_graph
 from app_config import get_config
 from logger_config import get_logger
+from context_tracker import flush_context, reset as reset_context
 
 logger = get_logger(__name__)
 
@@ -121,6 +122,7 @@ def run_agent_on_dataset(
             "tool_iterations":   0,
         }
 
+        reset_context()
         t0 = time.perf_counter()
         try:
             result = agent.invoke(state, run_cfg)
@@ -137,13 +139,15 @@ def run_agent_on_dataset(
                         response_text = m.content
                         break
 
-            # Récupérer les documents contextuels depuis FAISS
-            retrieved_docs = []
-            try:
-                docs = vectorstore.similarity_search(question, k=4)
-                retrieved_docs = [d.page_content for d in docs]
-            except Exception:
-                pass
+            # Récupérer les vrais contextes utilisés par l'agent (via context_tracker)
+            retrieved_docs = flush_context()
+            # Fallback : si l'agent n'a appelé aucun outil instrumenté
+            if not retrieved_docs:
+                try:
+                    docs = vectorstore.similarity_search(question, k=4)
+                    retrieved_docs = [d.page_content for d in docs]
+                except Exception:
+                    pass
 
             actual_relevant = result.get("is_relevant", True)
 

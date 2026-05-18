@@ -12,6 +12,7 @@ from langchain_core.tools import tool
 from langchain_community.vectorstores import FAISS
 from langsmith import traceable
 from app_config import get_config
+from context_tracker import push_context, push_text
 from uam_structures import (
     get_structure_info,
     detect_structure_in_text,
@@ -96,8 +97,17 @@ def _cached_similarity_search(query_normalized: str, k: int) -> tuple:
     """Recherche FAISS avec mise en cache LRU intra-session."""
     if _vectorstore is None:
         return ()
-    docs = _vectorstore.similarity_search(query_normalized, k=k)
+    docs = _rag_search(query_normalized, k=k)
     return tuple(doc.page_content for doc in docs)
+
+
+def _rag_search(query: str, k: int = 5) -> list:
+    """Effectue une recherche FAISS et enregistre le contexte pour RAGAS."""
+    if _vectorstore is None:
+        return []
+    docs = _rag_search(query, k=k)
+    push_context([d.page_content for d in docs])
+    return docs
 
 
 @tool
@@ -140,6 +150,7 @@ def search_uam_knowledge(query: str) -> str:
         query_key = _normalize_query(query_expanded)
         k = config.vectorstore.similarity_search_k
         page_contents = _cached_similarity_search(query_key, k)
+        push_context(list(page_contents))
 
         if not page_contents:
             logger.warning(f"Aucun document trouvé pour la requête: {query[:100]}")
@@ -475,7 +486,7 @@ def search_formations(faculty: str = "", level: str = "") -> str:
         query = " ".join(query_parts) if query_parts else "formations disponibles"
         
         # Recherche dans la base de connaissances
-        docs = _vectorstore.similarity_search(query, k=5)
+        docs = _rag_search(query, k=5)
         
         if docs:
             if results_parts:
@@ -515,7 +526,7 @@ def search_admission_requirements(level: str = "", faculty: str = "", filiere: s
             query_parts.append(faculty)
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur les conditions d'admission trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -543,7 +554,7 @@ def search_required_documents(process: str = "inscription", level: str = "", fac
             query_parts.append(faculty)
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur les pièces à fournir trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -558,7 +569,7 @@ def search_registration_procedure(process: str = "inscription") -> str:
         return "Erreur: Base de connaissances non initialisée"
 
     query = f"procédure étapes {process} université UAM"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur la procédure d'inscription trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -575,7 +586,7 @@ def search_registration_calendar(year: str = "") -> str:
     query = "calendrier académique dates d'inscription date limite"
     if year:
         query = f"{query} {year}"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur le calendrier d'inscription trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -590,7 +601,7 @@ def search_student_card() -> str:
         return "Erreur: Base de connaissances non initialisée"
 
     query = "carte étudiant badge étudiant obtention retrait remplacement"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur la carte d'étudiant trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -605,7 +616,7 @@ def search_transfer_equivalence(topic: str = "transfert") -> str:
         return "Erreur: Base de connaissances non initialisée"
 
     query = f"démarches {topic} équivalence changement de filière reprise d'études"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur le transfert/équivalence trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -622,7 +633,7 @@ def search_housing_and_services(service: str = "") -> str:
     query = "logement cité universitaire restauration transport bibliothèque service social"
     if service:
         query = f"{query} {service}"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur la vie étudiante trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -637,7 +648,7 @@ def search_scholarships() -> str:
         return "Erreur: Base de connaissances non initialisée"
 
     query = "bourse bourses aide financière allocation étudiant"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur les bourses trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -654,7 +665,7 @@ def search_contacts_services(service: str = "") -> str:
     query = "contacts téléphone email adresse service scolarité secrétariat admissions"
     if service:
         query = f"{query} {service}"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information de contact trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -673,7 +684,7 @@ def search_international_equivalence(level: str = "", country: str = "") -> str:
         query = f"{query} niveau {level}"
     if country:
         query = f"{query} pays {country}"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur l'équivalence internationale trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -690,7 +701,7 @@ def search_late_reenrollment(reason: str = "") -> str:
     query = "réinscription tardive pénalités délais dérogation"
     if reason:
         query = f"{query} motif {reason}"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur la réinscription tardive trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -709,7 +720,7 @@ def search_internship_info(filiere: str = "", level: str = "") -> str:
         query = f"{query} filière {filiere}"
     if level:
         query = f"{query} niveau {level}"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur les stages trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -732,7 +743,7 @@ def search_double_degree(filiere: str = "", faculty: str = "") -> str:
             query = f"{query} {structure_info['nom_complet']}"
         else:
             query = f"{query} {faculty}"
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     if not docs:
         return "Aucune information sur les doubles diplômes trouvée."
     return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
@@ -811,15 +822,15 @@ def get_faculty_info(faculty_name: str) -> str:
         
         # Recherche 1 : Définition
         query_definition = f"{nom_complet} définition présentation description"
-        docs_definition = _vectorstore.similarity_search(query_definition, k=2)
+        docs_definition = _rag_search(query_definition, k=2)
         
         # Recherche 2 : Mission
         query_mission = f"{nom_complet} mission objectifs rôles fonctions"
-        docs_mission = _vectorstore.similarity_search(query_mission, k=2)
+        docs_mission = _rag_search(query_mission, k=2)
         
         # Recherche 3 : Informations générales
         query_general = f"{nom_complet} informations générales"
-        docs_general = _vectorstore.similarity_search(query_general, k=3)
+        docs_general = _rag_search(query_general, k=3)
         
         # Combiner tous les résultats uniques
         all_docs = {}
@@ -839,7 +850,7 @@ def get_faculty_info(faculty_name: str) -> str:
         else:
             # Si pas de résultats spécifiques, faire une recherche générale
             search_query = nom_complet
-            docs = _vectorstore.similarity_search(search_query, k=3)
+            docs = _rag_search(search_query, k=3)
             
             if docs:
                 result_parts.append(" INFORMATIONS :")
@@ -850,7 +861,7 @@ def get_faculty_info(faculty_name: str) -> str:
     else:
         # Si la structure n'est pas trouvée dans la base structurée, faire une recherche générale
         search_query = f"{faculty_name} faculté école institut"
-        docs = _vectorstore.similarity_search(search_query, k=3)
+        docs = _rag_search(search_query, k=3)
         
         if docs:
             result_parts.append(f"Informations sur '{faculty_name}' :")
@@ -970,7 +981,7 @@ def search_prerequisites(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "prérequis pré-requis conditions admission filière"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur les prérequis trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
@@ -1012,7 +1023,7 @@ def search_competences_requises(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "compétences connaissances requises filière"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur les compétences requises trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
@@ -1053,7 +1064,7 @@ def search_cycles_et_duree(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "cycles durée études licence master doctorat"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur les cycles et durées trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
@@ -1094,7 +1105,7 @@ def search_chronogramme(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "chronogramme modules heures cours emploi temps programme"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur le chronogramme trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
@@ -1135,7 +1146,7 @@ def search_coefficients(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "coefficients modules"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur les coefficients trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
@@ -1176,7 +1187,7 @@ def search_professeurs(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "professeurs enseignants corps professoral qualifications"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur les professeurs trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
@@ -1217,7 +1228,7 @@ def search_debouches(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "débouchés professionnels embauche emploi carrière métiers"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur les débouchés trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
@@ -1254,7 +1265,7 @@ def search_reglement_interieur(faculty: str = "") -> str:
         query = "règlement intérieur UAM université règles discipline"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur le règlement intérieur trouvée pour {faculty if faculty else 'l\'UAM'}"
@@ -1291,7 +1302,7 @@ def search_organisation_corps_professoral(faculty: str = "") -> str:
         query = "organisation corps professoral UAM structure enseignants"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur l'organisation du corps professoral trouvée pour {faculty if faculty else 'l\'UAM'}"
@@ -1328,7 +1339,7 @@ def search_organisation_corps_estudiantin(faculty: str = "") -> str:
         query = "organisation corps estudiantin UAM associations étudiantes clubs étudiants"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur l'organisation du corps estudiantin trouvée pour {faculty if faculty else 'l\'UAM'}"
@@ -1354,7 +1365,7 @@ def search_reclamations() -> str:
     query = "réclamations réclamation procédure comment faire démarche"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return "Aucune information sur les réclamations trouvée dans la base de connaissances."
@@ -1395,7 +1406,7 @@ def search_avantages_universite(filiere: str = "", faculty: str = "") -> str:
     query = " ".join(query_parts) if query_parts else "avantages université UAM écoles instituts"
     
     # Recherche dans la base de connaissances
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
     
     if not docs:
         return f"Aucune information sur les avantages trouvée pour {filiere if filiere else faculty if faculty else 'l\'université'}"
@@ -1876,7 +1887,7 @@ def search_external_student_master(
         query_parts.append(f"université {origin_university} équivalence")
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
 
     intro = []
     if origin_country:
@@ -1940,7 +1951,7 @@ def search_phd_admission(
         query_parts.append(info["nom_complet"] if info else faculty)
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
 
     # Informations structurées sur les écoles doctorales UAM
     doctoral_schools_info = (
@@ -1996,7 +2007,7 @@ def search_foreign_student_procedures(
         query_parts.append(f"étudiant {country}")
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=5)
+    docs = _rag_search(query, k=5)
 
     static_info = (
         "\n🌍 INFORMATIONS POUR ÉTUDIANTS ÉTRANGERS À L'UAM :\n\n"
@@ -2052,7 +2063,7 @@ def search_recognition_prior_learning(
         query_parts.append(experience_type)
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=4)
+    docs = _rag_search(query, k=4)
 
     if not docs:
         return (
@@ -2102,7 +2113,7 @@ def search_master_thesis_supervision(
         query_parts.append(research_axis)
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=4)
+    docs = _rag_search(query, k=4)
 
     guidance = (
         "\n🔬 COMMENT TROUVER UN DIRECTEUR DE MÉMOIRE/THÈSE À L'UAM :\n\n"
@@ -2155,7 +2166,7 @@ def search_academic_partnership(
         query_parts.append(program_type)
 
     query = " ".join(query_parts)
-    docs = _vectorstore.similarity_search(query, k=4)
+    docs = _rag_search(query, k=4)
 
     if not docs:
         return (
