@@ -105,22 +105,35 @@ def route_and_store(state: AgentState) -> AgentState:
 def should_continue(state: AgentState) -> Literal["tools", "end"]:
     """
     Détermine si l'agent doit appeler des outils ou terminer la conversation.
-    Utilise le pattern recommandé de LangGraph 1.0.
+    Ajoute un court-circuit : si on a déjà ≥ 2 itérations ET un volume de
+    contexte d'outils suffisant, on coupe pour réduire la latence P90.
     """
+    from langchain_core.messages import ToolMessage
+
     messages = state["messages"]
     last_message = messages[-1]
-    
+
     config = get_config()
     tool_iterations = state.get("tool_iterations", 0)
     if tool_iterations >= config.max_tool_iterations:
         logger.warning("Limite d'appels d'outils atteinte, arrêt du cycle.")
         return "end"
 
+    # Court-circuit sur saturation de contexte (≥ 2 itérations + ≥ 2500 chars)
+    if tool_iterations >= 2:
+        tool_messages = [m for m in messages if isinstance(m, ToolMessage)]
+        total_chars = sum(len(getattr(m, "content", "") or "") for m in tool_messages)
+        if total_chars >= 2500:
+            logger.info(
+                f"Court-circuit ReAct : {tool_iterations} itérations, "
+                f"{total_chars} car. de contexte → end"
+            )
+            return "end"
+
     # Si le dernier message contient des appels d'outils, exécuter les outils
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
-    
-    # Sinon, terminer
+
     return "end"
 
 
