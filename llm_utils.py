@@ -53,22 +53,26 @@ def initialize_llm(
     final_model = model_name or config.llm.model_name or DEFAULT_MODEL
     final_temperature = temperature if temperature is not None else config.llm.temperature
 
+    llm_kwargs = {
+        "model": final_model,
+        "temperature": final_temperature,
+        "api_key": api_key,
+        "base_url": "https://openrouter.ai/api/v1",
+        "default_headers": {
+            "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", "https://github.com/agent-uam"),
+            "X-Title": os.getenv("OPENROUTER_APP_NAME", "Agent UAM"),
+        },
+    }
+    if config.llm.max_tokens:
+        llm_kwargs["max_tokens"] = config.llm.max_tokens
+
     # langchain-openai peut chercher OPENAI_API_KEY même quand api_key est fourni
     # → on la positionne temporairement sous verrou pour la thread-safety
     with _openrouter_lock:
         original = os.environ.get("OPENAI_API_KEY")
         os.environ["OPENAI_API_KEY"] = api_key
         try:
-            llm = ChatOpenAI(
-                model=final_model,
-                temperature=final_temperature,
-                api_key=api_key,
-                base_url="https://openrouter.ai/api/v1",
-                default_headers={
-                    "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", "https://github.com/agent-uam"),
-                    "X-Title": os.getenv("OPENROUTER_APP_NAME", "Agent UAM"),
-                },
-            )
+            llm = ChatOpenAI(**llm_kwargs)
         finally:
             if original is not None:
                 os.environ["OPENAI_API_KEY"] = original
