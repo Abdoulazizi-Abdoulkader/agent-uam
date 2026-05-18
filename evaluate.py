@@ -178,6 +178,54 @@ def run_agent_on_dataset(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 2b. EXÉCUTION EN MODE BASELINE RAG
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_baseline_on_dataset(
+    run_baseline_query,
+    vectorstore,
+    llm,
+    samples: List[Dict],
+) -> List[Dict]:
+    """Exécute la baseline RAG séquentielle sur chaque question du dataset."""
+    results = []
+    total = len(samples)
+
+    print(f"\n{BOLD}═══ Baseline RAG sur {total} questions ═══{RESET}\n")
+
+    for i, sample in enumerate(samples, 1):
+        question = sample["question"]
+        print(f"[{i:2}/{total}] {question[:70]}{'…' if len(question) > 70 else ''}", end=" ", flush=True)
+
+        t0 = time.perf_counter()
+        try:
+            out = run_baseline_query(question, vectorstore, llm)
+            elapsed_ms = int((time.perf_counter() - t0) * 1000)
+            print(f"{GREEN}✓{RESET} {elapsed_ms} ms")
+            results.append({
+                **sample,
+                "response":        out["response"],
+                "actual_relevant": out["is_relevant"],
+                "retrieved_docs":  out["retrieved_docs"],
+                "elapsed_ms":      elapsed_ms,
+                "error":           None,
+            })
+        except Exception as e:
+            elapsed_ms = int((time.perf_counter() - t0) * 1000)
+            print(f"{RED}✗ ERREUR : {e}{RESET}")
+            results.append({
+                **sample,
+                "response":        "",
+                "actual_relevant": False,
+                "retrieved_docs":  [],
+                "elapsed_ms":      elapsed_ms,
+                "error":           str(e),
+            })
+
+    return results
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 3. MÉTRIQUES DE CLASSIFICATION (PERTINENCE)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -807,6 +855,11 @@ def main():
         "--provider", default=None,
         help="Provider LLM (seul 'openrouter' est supporté)"
     )
+    parser.add_argument(
+        "--baseline",
+        action="store_true",
+        help="Exécute en mode baseline RAG séquentielle (sans graphe LangGraph)",
+    )
     args = parser.parse_args()
 
     # ── Configuration ──────────────────────────────────────────────────────
@@ -817,6 +870,7 @@ def main():
     print(f"\n{BOLD}🎓 ÉVALUATION DU CHATBOT UAM{RESET}")
     print(f"   Dataset    : {args.dataset}")
     print(f"   Provider   : {provider_str}")
+    print(f"   Mode       : {'BASELINE RAG' if args.baseline else 'Agent LangGraph'}")
     print(f"   RAGAS      : {'désactivé' if args.no_ragas else 'activé'}")
     print(f"   Sortie     : {args.output}\n")
 
@@ -827,16 +881,21 @@ def main():
         samples = samples[:args.limit]
     print(f"  {len(samples)} questions chargées")
 
-    # ── Initialisation agent ───────────────────────────────────────────────
-    print(f"\n{BOLD}► Initialisation de l'agent…{RESET}")
-    llm        = initialize_llm(provider, config.llm.model_name)
-    embeddings = initialize_embeddings(provider)
+    # ── Initialisation ────────────────────────────────────────────────────
+    print(f"\n{BOLD}► Initialisation…{RESET}")
+    llm         = initialize_llm(provider, config.llm.model_name)
+    embeddings  = initialize_embeddings(provider)
     vectorstore = load_and_index_documents(config.documents_directory, provider)
-    agent       = create_agent_graph(vectorstore, llm)
-    print(f"  Agent initialisé ({provider_str})")
 
     # ── Exécution ──────────────────────────────────────────────────────────
-    results = run_agent_on_dataset(agent, vectorstore, samples, config)
+    if args.baseline:
+        from baseline_rag import run_baseline_query
+        print(f"  Mode baseline RAG ({provider_str})")
+        results = _run_baseline_on_dataset(run_baseline_query, vectorstore, llm, samples)
+    else:
+        agent = create_agent_graph(vectorstore, llm)
+        print(f"  Agent LangGraph initialisé ({provider_str})")
+        results = run_agent_on_dataset(agent, vectorstore, samples, config)
 
     # ── Calcul des métriques ───────────────────────────────────────────────
     print(f"\n{BOLD}► Calcul des métriques…{RESET}")
