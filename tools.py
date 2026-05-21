@@ -105,7 +105,7 @@ def _rag_search(query: str, k: int = 5) -> list:
     """Effectue une recherche FAISS et enregistre le contexte pour RAGAS."""
     if _vectorstore is None:
         return []
-    docs = _rag_search(query, k=k)
+    docs = _vectorstore.similarity_search(query, k=k)
     push_context([d.page_content for d in docs])
     return docs
 

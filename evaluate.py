@@ -178,7 +178,54 @@ def run_agent_on_dataset(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2b. EXÉCUTION EN MODE BASELINE RAG
+# 2b. EXÉCUTION EN MODE LLM SEUL
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_llm_only_on_dataset(
+    run_llm_only_query,
+    llm,
+    samples: List[Dict],
+) -> List[Dict]:
+    """Exécute l'approche LLM seul (sans retrieval) sur chaque question du dataset."""
+    results = []
+    total = len(samples)
+
+    print(f"\n{BOLD}═══ LLM seul sur {total} questions ═══{RESET}\n")
+
+    for i, sample in enumerate(samples, 1):
+        question = sample["question"]
+        print(f"[{i:2}/{total}] {question[:70]}{'…' if len(question) > 70 else ''}", end=" ", flush=True)
+
+        t0 = time.perf_counter()
+        try:
+            out = run_llm_only_query(question, llm)
+            elapsed_ms = int((time.perf_counter() - t0) * 1000)
+            print(f"{GREEN}✓{RESET} {elapsed_ms} ms")
+            results.append({
+                **sample,
+                "response":        out["response"],
+                "actual_relevant": out["is_relevant"],
+                "retrieved_docs":  out["retrieved_docs"],
+                "elapsed_ms":      elapsed_ms,
+                "error":           None,
+            })
+        except Exception as e:
+            elapsed_ms = int((time.perf_counter() - t0) * 1000)
+            print(f"{RED}✗ ERREUR : {e}{RESET}")
+            results.append({
+                **sample,
+                "response":        "",
+                "actual_relevant": False,
+                "retrieved_docs":  [],
+                "elapsed_ms":      elapsed_ms,
+                "error":           str(e),
+            })
+
+    return results
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 2c. EXÉCUTION EN MODE BASELINE RAG
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _run_baseline_on_dataset(
@@ -342,20 +389,103 @@ def compute_keyword_recall(results: List[Dict]) -> Dict[str, Any]:
 # 7. MÉTRIQUES RAGAS (RAG spécifiques)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def compute_ragas_metrics(results: List[Dict], llm, embeddings) -> Dict[str, float]:
+def _sanitize_for_ragas(text: str) -> str:
+    """
+    Remplace les caractères Unicode typographiques par leurs équivalents ASCII.
+
+    RAGAS utilise un tokeniseur interne qui tente d'encoder certains champs en
+    ASCII — les tirets cadratins (U+2014), guillemets courbes, apostrophes
+    typographiques, etc. déclenchent UnicodeEncodeError. Les lettres accentuées
+    françaises (é, è, à…) passent sans problème.
+    """
+    _REPLACEMENTS = {
+        '—': ' - ',   # tiret cadratin —
+        '–': '-',     # tiret demi-cadratin –
+        '’': "'",     # apostrophe droite '
+        '‘': "'",     # guillemet simple ouvrant '
+        '“': '"',     # guillemet double ouvrant "
+        '”': '"',     # guillemet double fermant "
+        '«': '"',     # guillemet français ouvrant «
+        '»': '"',     # guillemet français fermant »
+        '…': '...',   # points de suspension …
+        ' ': ' ',     # espace insécable
+        ' ': ' ',     # espace fine insécable
+        '•': '-',     # puce •
+        '►': '>',     # flèche ►
+    }
+    for char, replacement in _REPLACEMENTS.items():
+        text = text.replace(char, replacement)
+    return text
+
+
+def _sanitize_list_for_ragas(texts) -> list:
+    """Applique _sanitize_for_ragas à chaque élément d'une liste."""
+    if isinstance(texts, list):
+        return [_sanitize_for_ragas(t) if isinstance(t, str) else t for t in texts]
+    return texts
+
+
+def _build_ragas_llm(agent_llm):
+    """
+    Construit un LLM dédié à l'évaluation RAGAS avec max_tokens=1024.
+
+    Les prompts internes de RAGAS (faithfulness reasoning, relevancy scoring)
+    génèrent du JSON structuré qui nécessite 512-800 tokens de sortie.
+    Le LLM de l'agent peut avoir un max_tokens trop bas (ex: 256), ce qui
+    provoque LLMDidNotFinishException. Ce LLM dédié force max_tokens=1024.
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            return agent_llm
+        base_kwargs = {}
+        for attr in ("model", "model_name", "temperature"):
+            val = getattr(agent_llm, attr, None)
+            if val is not None:
+                key = "model" if attr == "model_name" else attr
+                base_kwargs[key] = val
+        base_kwargs.update({
+            "api_key": api_key,
+            "base_url": "https://openrouter.ai/api/v1",
+            "max_tokens": 1024,
+            "default_headers": {
+                "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", "https://github.com/agent-uam"),
+                "X-Title": os.getenv("OPENROUTER_APP_NAME", "Agent UAM - RAGAS"),
+            },
+        })
+        return ChatOpenAI(**base_kwargs)
+    except Exception:
+        return agent_llm
+
+
+def compute_ragas_metrics(
+    results: List[Dict],
+    llm,
+    embeddings,
+    max_samples: int = 50,
+    ragas_timeout: int = 120,
+    ragas_workers: int = 1,
+) -> Dict[str, float]:
     """
     Calcule Faithfulness et Answer Relevancy via RAGAS.
 
-    Réutilise le LLM principal du projet pour les appels RAGAS.
-    RAGAS nécessite que OPENAI_API_KEY soit définie (même fictive) pour
-    initialiser certains composants internes.
+    Paramètres :
+        max_samples    : nb max d'exemples évalués (tirage aléatoire stratifié).
+                         Valeur par défaut 50 — calibré pour un dataset de ~98 questions
+                         (~74 pertinentes), évite les timeouts de rate-limit sur OpenRouter.
+        ragas_timeout  : timeout par appel LLM en secondes (défaut 120).
+        ragas_workers  : workers parallèles (défaut 1 = séquentiel, évite le
+                         rate-limiting).
     """
     try:
         from ragas import evaluate
         from ragas.metrics import faithfulness, answer_relevancy
         from ragas.llms import LangchainLLMWrapper
         from ragas.embeddings import LangchainEmbeddingsWrapper
+        from ragas.run_config import RunConfig
         from datasets import Dataset
+        import random
     except ImportError:
         print(f"  {YELLOW}⚠ ragas/datasets non installés → pip install ragas datasets{RESET}")
         return {}
@@ -364,11 +494,21 @@ def compute_ragas_metrics(results: List[Dict], llm, embeddings) -> Dict[str, flo
     os.environ.setdefault("OPENAI_API_KEY", "sk-ragas-placeholder")
 
     try:
-        ragas_llm = LangchainLLMWrapper(llm)
+        # LLM dédié RAGAS : max_tokens forcé à 1024 pour éviter LLMDidNotFinishException.
+        # Les prompts internes de RAGAS (faithfulness reasoning) nécessitent ~512-800 tokens
+        # de sortie — le LLM de l'agent peut avoir un max_tokens plus bas.
+        ragas_llm_instance = _build_ragas_llm(llm)
+        ragas_llm = LangchainLLMWrapper(ragas_llm_instance)
         ragas_embeddings = LangchainEmbeddingsWrapper(embeddings)
     except Exception as e:
         print(f"  {YELLOW}⚠ Impossible d'initialiser le LLM RAGAS : {e}{RESET}")
         return {}
+
+    n_total       = len(results)
+    n_expected    = sum(1 for r in results if r["expected_relevant"])
+    n_with_resp   = sum(1 for r in results if r["expected_relevant"] and r["response"])
+    n_with_ctx    = sum(1 for r in results if r["expected_relevant"] and r["response"] and r["retrieved_docs"])
+    n_no_error    = sum(1 for r in results if r["expected_relevant"] and r["response"] and r["retrieved_docs"] and not r["error"])
 
     valid = [
         r for r in results
@@ -378,25 +518,53 @@ def compute_ragas_metrics(results: List[Dict], llm, embeddings) -> Dict[str, flo
         and not r["error"]
     ]
 
-    if len(valid) < 3:
-        print(f"  {YELLOW}⚠ Pas assez de données valides pour RAGAS ({len(valid)} < 3){RESET}")
+    if n_expected == 0:
+        print(f"  {YELLOW}⚠ RAGAS ignoré : aucun exemple avec retrieved_docs (mode LLM seul ?){RESET}")
         return {}
 
+    if len(valid) < 3:
+        print(f"  {YELLOW}⚠ Pas assez de données valides pour RAGAS ({len(valid)} < 3){RESET}")
+        print(f"     Filtre : {n_total} total → {n_expected} pertinents attendus "
+              f"→ {n_with_resp} avec réponse → {n_with_ctx} avec contexte → {n_no_error} sans erreur")
+        return {}
+
+    if n_with_ctx < n_expected:
+        print(f"  {YELLOW}Note RAGAS : {n_expected - n_with_ctx} exemples pertinents exclus faute de contexte récupéré "
+              f"({n_with_ctx}/{n_expected} retenus){RESET}")
+
+    # Échantillonnage aléatoire reproductible pour éviter les timeouts
+    if len(valid) > max_samples:
+        random.seed(42)
+        valid = random.sample(valid, max_samples)
+        print(f"  Échantillon RAGAS : {len(valid)} exemples (sur {n_no_error} valides, graine 42)")
+    else:
+        print(f"  Calcul RAGAS sur {len(valid)} exemples…")
+
+    # Sanitisation : remplacer les caractères Unicode typographiques (—, «, »…)
+    # qui déclenchent UnicodeEncodeError dans le tokeniseur interne de RAGAS.
     data = {
-        "question":     [r["question"]       for r in valid],
-        "answer":       [r["response"]       for r in valid],
-        "contexts":     [r["retrieved_docs"] for r in valid],
-        "ground_truth": [r["ground_truth"]   for r in valid],
+        "question":     [_sanitize_for_ragas(r["question"])        for r in valid],
+        "answer":       [_sanitize_for_ragas(r["response"])        for r in valid],
+        "contexts":     [_sanitize_list_for_ragas(r["retrieved_docs"]) for r in valid],
+        "ground_truth": [_sanitize_for_ragas(r["ground_truth"])    for r in valid],
     }
     dataset = Dataset.from_dict(data)
 
+    # RunConfig : séquentiel + timeout long pour éviter le rate-limiting OpenRouter
+    run_cfg = RunConfig(
+        timeout=ragas_timeout,
+        max_retries=3,
+        max_wait=30,
+        max_workers=ragas_workers,
+    )
+
     try:
-        print(f"  Calcul RAGAS sur {len(valid)} exemples…")
         score = evaluate(
             dataset,
             metrics=[faithfulness, answer_relevancy],
             llm=ragas_llm,
             embeddings=ragas_embeddings,
+            run_config=run_cfg,
             raise_exceptions=False,
         )
         # RAGAS 0.2+ renvoie un EvaluationResult — on passe par pandas
@@ -413,6 +581,7 @@ def compute_ragas_metrics(results: List[Dict], llm, embeddings) -> Dict[str, flo
             if not out:
                 print(f"  {YELLOW}⚠ RAGAS : toutes les métriques sont NaN (réponses vides ou erreurs LLM){RESET}")
                 return {}
+            out["n_evaluated"] = len(valid)
             return out
         except AttributeError:
             # RAGAS 0.1 : dict-like direct
@@ -427,29 +596,53 @@ def compute_ragas_metrics(results: List[Dict], llm, embeddings) -> Dict[str, flo
 # ══════════════════════════════════════════════════════════════════════════════
 
 def compute_performance_metrics(results: List[Dict]) -> Dict[str, Any]:
-    """Calcule les métriques de temps de réponse et de longueur."""
-    valid = [r for r in results if not r["error"]]
-    if not valid:
+    """Calcule les métriques de temps de réponse et de longueur.
+
+    Trois niveaux d'erreur sont distingués :
+    - exception_rate     : exception Python levée (crash total)
+    - empty_rate         : réponse vide ou < 5 mots (échec silencieux)
+    - error_rate         : union des deux (taux d'erreur réel)
+    """
+    n = len(results)
+    if n == 0:
         return {}
 
-    times = [r["elapsed_ms"] for r in valid]
-    lengths = [len(r["response"].split()) for r in valid if r["response"]]
+    exceptions = [r for r in results if r["error"]]
+    # Réponse considérée vide si absente, whitespace-only, ou < 5 mots
+    empty = [
+        r for r in results
+        if not r["error"] and len((r.get("response") or "").split()) < 5
+    ]
+    failed = {id(r) for r in exceptions} | {id(r) for r in empty}
+
+    valid = [r for r in results if id(r) not in failed]
+    if not valid:
+        times, lengths = [], []
+    else:
+        times = [r["elapsed_ms"] for r in valid]
+        lengths = [len(r["response"].split()) for r in valid if r.get("response")]
 
     def percentile(lst, p):
+        if not lst:
+            return 0
         lst_sorted = sorted(lst)
         idx = int(len(lst_sorted) * p / 100)
         return lst_sorted[min(idx, len(lst_sorted) - 1)]
 
     return {
-        "response_time_mean_ms":   round(sum(times) / len(times), 1),
-        "response_time_min_ms":    min(times),
-        "response_time_max_ms":    max(times),
-        "response_time_p50_ms":    percentile(times, 50),
-        "response_time_p90_ms":    percentile(times, 90),
+        "response_time_mean_ms":      round(sum(times) / len(times), 1) if times else 0,
+        "response_time_min_ms":       min(times) if times else 0,
+        "response_time_max_ms":       max(times) if times else 0,
+        "response_time_p50_ms":       percentile(times, 50),
+        "response_time_p90_ms":       percentile(times, 90),
         "response_length_mean_words": round(sum(lengths) / len(lengths), 1) if lengths else 0,
-        "error_rate":              round(len([r for r in results if r["error"]]) / len(results), 4),
-        "total_evaluated":         len(results),
-        "successful":              len(valid),
+        "exception_rate":             round(len(exceptions) / n, 4),
+        "empty_response_rate":        round(len(empty) / n, 4),
+        "error_rate":                 round(len(failed) / n, 4),
+        "total_evaluated":            n,
+        "successful":                 len(valid),
+        "n_exceptions":               len(exceptions),
+        "n_empty":                    len(empty),
     }
 
 
@@ -556,7 +749,11 @@ def print_report(
         print(sep)
         print(f"  Questions évaluées  : {performance['total_evaluated']}")
         print(f"  Réussies            : {performance['successful']}")
-        print(f"  Taux d'erreur       : {performance['error_rate']*100:.1f}%")
+        print(f"  ── Taux d'erreur (réel) : {BOLD}{performance['error_rate']*100:.1f}%{RESET}")
+        print(f"     └─ Exceptions Python : {performance['exception_rate']*100:.1f}%"
+              f"  ({performance['n_exceptions']} cas)")
+        print(f"     └─ Réponses vides    : {performance['empty_response_rate']*100:.1f}%"
+              f"  ({performance['n_empty']} cas)")
         print(f"  Temps moyen         : {BOLD}{performance['response_time_mean_ms']} ms{RESET}")
         print(f"  Temps médian (P50)  : {performance['response_time_p50_ms']} ms")
         print(f"  Percentile 90 (P90) : {performance['response_time_p90_ms']} ms")
@@ -654,10 +851,12 @@ def save_results(
             rows.append(("RAGAS", k, f"{v:.4f}", "> 0.70 = bon"))
     if performance:
         rows += [
-            ("Performance", "Temps moyen (ms)",  str(performance["response_time_mean_ms"]), "< 5000 ms = bon"),
-            ("Performance", "Temps P90 (ms)",    str(performance["response_time_p90_ms"]),  "< 10000 ms = bon"),
-            ("Performance", "Taux d'erreur",     f"{performance['error_rate']:.4f}",         "< 0.05 = bon"),
-            ("Performance", "Longueur moy. (mots)", str(performance["response_length_mean_words"]), "50-300 mots = idéal"),
+            ("Performance", "Temps moyen (ms)",       str(performance["response_time_mean_ms"]),     "< 5000 ms = bon"),
+            ("Performance", "Temps P90 (ms)",         str(performance["response_time_p90_ms"]),      "< 10000 ms = bon"),
+            ("Performance", "Taux d'erreur (réel)",   f"{performance['error_rate']:.4f}",            "< 0.05 = bon"),
+            ("Performance", "Taux exceptions Python", f"{performance['exception_rate']:.4f}",        "< 0.02 = bon"),
+            ("Performance", "Taux réponses vides",    f"{performance['empty_response_rate']:.4f}",   "< 0.03 = bon"),
+            ("Performance", "Longueur moy. (mots)",   str(performance["response_length_mean_words"]), "50-300 mots = idéal"),
         ]
 
     with open(summary_path, "w", newline="", encoding="utf-8") as f:
@@ -781,10 +980,11 @@ def generate_latex_table(
 
     # Table 4 : RAGAS (si disponible)
     if ragas:
+        n_ragas = ragas.get("n_evaluated", "?")
         lines += [
             "\\begin{table}[h]",
             "\\centering",
-            "\\caption{Métriques RAGAS (évaluation du système RAG)}",
+            f"\\caption{{Métriques RAGAS sur {n_ragas} exemples (évaluation du système RAG)}}",
             "\\label{tab:ragas}",
             "\\begin{tabular}{lcc}",
             "\\hline",
@@ -792,6 +992,8 @@ def generate_latex_table(
             "\\hline",
         ]
         for k, v in ragas.items():
+            if k == "n_evaluated":
+                continue
             lines.append(f"{k.replace('_', ' ').title()} & {v:.4f} & $> 0.70$ \\\\")
         lines += [
             "\\hline",
@@ -860,6 +1062,20 @@ def main():
         action="store_true",
         help="Exécute en mode baseline RAG séquentielle (sans graphe LangGraph)",
     )
+    parser.add_argument(
+        "--llm-only",
+        action="store_true",
+        dest="llm_only",
+        help="Exécute en mode LLM seul (sans retrieval ni outils)",
+    )
+    parser.add_argument(
+        "--ragas-limit", type=int, default=50, dest="ragas_limit",
+        help="Nb max d'exemples pour RAGAS (défaut: 50, calibré pour un dataset de ~98 questions)",
+    )
+    parser.add_argument(
+        "--ragas-workers", type=int, default=1, dest="ragas_workers",
+        help="Workers parallèles pour RAGAS (défaut: 1 = séquentiel, évite le rate-limiting)",
+    )
     args = parser.parse_args()
 
     # ── Configuration ──────────────────────────────────────────────────────
@@ -870,7 +1086,8 @@ def main():
     print(f"\n{BOLD}🎓 ÉVALUATION DU CHATBOT UAM{RESET}")
     print(f"   Dataset    : {args.dataset}")
     print(f"   Provider   : {provider_str}")
-    print(f"   Mode       : {'BASELINE RAG' if args.baseline else 'Agent LangGraph'}")
+    mode_label = "LLM SEUL" if args.llm_only else ("BASELINE RAG" if args.baseline else "Agent LangGraph")
+    print(f"   Mode       : {mode_label}")
     print(f"   RAGAS      : {'désactivé' if args.no_ragas else 'activé'}")
     print(f"   Sortie     : {args.output}\n")
 
@@ -883,12 +1100,21 @@ def main():
 
     # ── Initialisation ────────────────────────────────────────────────────
     print(f"\n{BOLD}► Initialisation…{RESET}")
-    llm         = initialize_llm(provider, config.llm.model_name)
-    embeddings  = initialize_embeddings(provider)
-    vectorstore = load_and_index_documents(config.documents_directory, provider)
+    llm        = initialize_llm(provider, config.llm.model_name)
+    embeddings = initialize_embeddings(provider)
+    # Le vectorstore n'est pas nécessaire en mode LLM seul
+    if args.llm_only:
+        vectorstore = None
+        print(f"  Mode LLM seul — vectorstore non chargé")
+    else:
+        vectorstore = load_and_index_documents(config.documents_directory, provider)
 
     # ── Exécution ──────────────────────────────────────────────────────────
-    if args.baseline:
+    if args.llm_only:
+        from llm_only import run_llm_only_query
+        print(f"  Mode LLM seul ({provider_str})")
+        results = _run_llm_only_on_dataset(run_llm_only_query, llm, samples)
+    elif args.baseline:
         from baseline_rag import run_baseline_query
         print(f"  Mode baseline RAG ({provider_str})")
         results = _run_baseline_on_dataset(run_baseline_query, vectorstore, llm, samples)
@@ -903,7 +1129,11 @@ def main():
     relevance       = compute_relevance_metrics(results)
     rouge           = compute_rouge_metrics(results)
     kw_recall       = compute_keyword_recall(results)
-    ragas_scores    = {} if args.no_ragas else compute_ragas_metrics(results, llm, embeddings)
+    ragas_scores    = {} if args.no_ragas else compute_ragas_metrics(
+        results, llm, embeddings,
+        max_samples=args.ragas_limit,
+        ragas_workers=args.ragas_workers,
+    )
     performance     = compute_performance_metrics(results)
     per_category    = compute_per_category_metrics(results)
 

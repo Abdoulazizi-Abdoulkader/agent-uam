@@ -96,7 +96,7 @@ def route_and_store(state: AgentState) -> AgentState:
 
     except Exception as e:
         logger.error(f"Erreur lors du routage: {e}", exc_info=True)
-        return _result("agent")
+        return _result("reject_query")
 
 
 
@@ -105,8 +105,11 @@ def route_and_store(state: AgentState) -> AgentState:
 def should_continue(state: AgentState) -> Literal["tools", "end"]:
     """
     Détermine si l'agent doit appeler des outils ou terminer la conversation.
-    Ajoute un court-circuit : si on a déjà ≥ 2 itérations ET un volume de
-    contexte d'outils suffisant, on coupe pour réduire la latence P90.
+
+    Court-circuits :
+    - Limite globale max_tool_iterations
+    - Profils simples (BACHELIER, PARENT) : seuil réduit à 2 itérations
+    - Saturation de contexte : ≥ 2 itérations ET ≥ 2500 chars d'outils
     """
     from langchain_core.messages import ToolMessage
 
@@ -117,6 +120,14 @@ def should_continue(state: AgentState) -> Literal["tools", "end"]:
     tool_iterations = state.get("tool_iterations", 0)
     if tool_iterations >= config.max_tool_iterations:
         logger.warning("Limite d'appels d'outils atteinte, arrêt du cycle.")
+        return "end"
+
+    # Profils ne nécessitant jamais plus de 2 appels d'outils
+    _SIMPLE_PROFILES = {"BACHELIER", "PARENT", "ETUDIANT_UAM"}
+    profile = state.get("user_profile", "")
+    max_iter_for_profile = 2 if profile in _SIMPLE_PROFILES else config.max_tool_iterations
+    if tool_iterations >= max_iter_for_profile:
+        logger.info(f"Court-circuit profil {profile} : {tool_iterations} itérations → end")
         return "end"
 
     # Court-circuit sur saturation de contexte (≥ 2 itérations + ≥ 2500 chars)
@@ -208,6 +219,18 @@ def call_model(state: AgentState, llm_with_tools) -> AgentState:
         ),
     }
     profile_context = profile_hints.get(profile, "")
+
+    # Contrainte de longueur adaptée au profil
+    _length_hints = {
+        "BACHELIER":        "\n\nLONGUEUR CIBLE : 80-120 mots. Utilise des listes à puces pour les étapes.",
+        "PARENT":           "\n\nLONGUEUR CIBLE : 60-90 mots. Sois rassurant et concis.",
+        "ETUDIANT_UAM":     "\n\nLONGUEUR CIBLE : 60-100 mots. Va droit au but.",
+        "CANDIDAT_MASTER":  "\n\nLONGUEUR CIBLE : 100-150 mots. Liste les conditions et pièces requises.",
+        "CANDIDAT_DOCTORAT":"\n\nLONGUEUR CIBLE : 100-150 mots. Mentionne les 3 écoles doctorales si pertinent.",
+        "ETUDIANT_ETRANGER":"\n\nLONGUEUR CIBLE : 100-150 mots. Inclus les étapes administratives clés.",
+        "PROFESSIONNEL":    "\n\nLONGUEUR CIBLE : 80-120 mots. Précise la procédure VAE/VAP applicable.",
+    }
+    profile_context += _length_hints.get(profile, "")
 
     system_prompt = build_tool_system_prompt(structures_context + profile_context)
     

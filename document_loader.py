@@ -7,6 +7,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Optional
+from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader, TextLoader
 from langchain_community.vectorstores import FAISS
@@ -18,6 +19,91 @@ from logger_config import get_logger
 
 # Logger pour ce module
 logger = get_logger(__name__)
+
+
+def _generate_structure_documents() -> List[Document]:
+    """
+    Convertit UAM_STRUCTURES en Documents LangChain pour enrichir l'index FAISS.
+    Chaque structure (faculté, institut, école) génère un document texte dense
+    couvrant nom, missions, formations, débouchés, départements, etc.
+    """
+    try:
+        from uam_structures import UAM_STRUCTURES
+    except ImportError:
+        logger.warning("uam_structures non disponible — structures non indexées")
+        return []
+
+    docs: List[Document] = []
+
+    category_labels = {
+        "facultes": "Faculté",
+        "instituts": "Institut",
+        "ecoles": "École",
+    }
+
+    for category, structures in UAM_STRUCTURES.items():
+        label = category_labels.get(category, "Structure")
+        for abbrev, info in structures.items():
+            lines = [
+                f"{label} UAM - {info.get('nom_complet', abbrev)} ({abbrev})",
+            ]
+
+            if info.get("localisation"):
+                lines.append(f"Localisation : {info['localisation']}")
+
+            if info.get("missions"):
+                lines.append(f"Missions : {info['missions']}")
+
+            if info.get("historique"):
+                lines.append(f"Historique : {info['historique']}")
+
+            effectifs = info.get("effectifs", {})
+            if effectifs:
+                parts = []
+                if effectifs.get("etudiants"):
+                    parts.append(f"étudiants : {effectifs['etudiants']}")
+                if effectifs.get("enseignants_chercheurs"):
+                    parts.append(f"enseignants-chercheurs : {effectifs['enseignants_chercheurs']}")
+                if parts:
+                    lines.append("Effectifs : " + ", ".join(parts))
+
+            departements = info.get("departements", [])
+            if departements:
+                lines.append("Départements : " + ", ".join(departements))
+
+            formations = info.get("formations", [])
+            if formations:
+                lines.append("Formations proposées : " + " | ".join(formations))
+
+            debouches = info.get("debouches", [])
+            if debouches:
+                lines.append("Débouchés : " + ", ".join(debouches))
+
+            if info.get("conditions_acces"):
+                lines.append(f"Conditions d'accès : {info['conditions_acces']}")
+
+            partenariats = info.get("partenariats", info.get("partenaires", []))
+            if partenariats:
+                lines.append("Partenariats : " + ", ".join(partenariats))
+
+            activites = info.get("activites", [])
+            if activites:
+                lines.append("Activités : " + " | ".join(activites))
+
+            # Variantes pour améliorer le recall lors de la recherche
+            variantes = info.get("variantes", [])
+            if variantes:
+                lines.append("Noms alternatifs : " + ", ".join(variantes))
+
+            # Remplacer les caractères typographiques non-ASCII des valeurs source
+            text = "\n".join(lines).replace("—", "-").replace("–", "-").replace("«", '"').replace("»", '"').replace("…", "...")
+            docs.append(Document(
+                page_content=text,
+                metadata={"source": f"uam_structures/{abbrev}", "type": category, "abbrev": abbrev},
+            ))
+
+    logger.info(f"Structures UAM converties en {len(docs)} document(s) pour l'index FAISS")
+    return docs
 
 
 def _collect_source_files(pdf_directory: str) -> List[Path]:
@@ -254,6 +340,12 @@ def load_and_index_documents(pdf_directory: str, provider: LLMProvider) -> FAISS
         separators=["\n\n", "\n", ". ", " ", ""]
     )
     splits = text_splitter.split_documents(all_documents)
+
+    # Ajouter les structures UAM statiques (non soumises au chunking — déjà denses)
+    structure_docs = _generate_structure_documents()
+    if structure_docs:
+        splits.extend(structure_docs)
+        print(f"  ✓ {len(structure_docs)} structure(s) UAM injectée(s) dans l'index")
 
     print(f" {len(all_documents)} document(s) total chargé(s) et divisé(s) en {len(splits)} chunks")
 

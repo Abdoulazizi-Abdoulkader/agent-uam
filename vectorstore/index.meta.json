@@ -3,5 +3,5 @@
   "file_count": 14,
   "provider": "openrouter",
   "embedding": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-  "updated_at": "2026-05-10T18:03:13.520791"
+  "updated_at": "2026-05-21T11:20:20.120510"
 }

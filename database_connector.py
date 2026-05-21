@@ -256,35 +256,34 @@ def search_formations_db(faculty: Optional[str] = None, level: Optional[str] = N
             "limit": 100
         })
     else:
-        # SQL - Nouveau schéma avec jointure sur structures
+        # SQL — schéma réel : formations → departements → composantes
         query = """
-            SELECT 
+            SELECT
                 f.id,
-                f.nom as name,
-                f.niveau as level,
-                f.conditions_acces,
-                f.pieces_requises,
-                f.objectifs,
-                s.nom as structure_nom,
-                s.type as structure_type
+                f.intitule          AS name,
+                f.niveau            AS level,
+                f.type_formation,
+                c.nom_complet       AS structure_nom,
+                c.type_composante   AS structure_type,
+                c.sigle             AS structure_sigle
             FROM formations f
-            JOIN structures s ON f.structure_id = s.id
+            JOIN departements d ON f.departement_id = d.id
+            JOIN composantes  c ON d.composante_id  = c.id
             WHERE 1=1
         """
         params = {}
-        
+
         if faculty:
-            # Rechercher par nom ou abréviation de la structure
-            query += " AND (s.nom LIKE :faculty_pattern OR s.nom LIKE :faculty_pattern2)"
-            params["faculty_pattern"] = f"%{faculty}%"
-            params["faculty_pattern2"] = f"%{faculty.upper()}%"
-        
+            query += " AND (c.sigle LIKE :faculty_pattern OR c.nom_complet LIKE :faculty_pattern2)"
+            params["faculty_pattern"]  = f"%{faculty.upper()}%"
+            params["faculty_pattern2"] = f"%{faculty}%"
+
         if level:
             query += " AND LOWER(f.niveau) = LOWER(:level)"
             params["level"] = level
-        
-        query += " ORDER BY s.nom, f.niveau, f.nom"
-        
+
+        query += " ORDER BY c.nom_complet, f.niveau, f.intitule"
+
         return query_database(query, params)
 
 
@@ -460,40 +459,10 @@ def search_fees_db(level: Optional[str] = None,
             "limit": 50
         })
     else:
-        # SQL - Nouveau schéma avec table scolarite
-        query = "SELECT * FROM scolarite WHERE 1=1"
-        params = {}
-        
-        if level:
-            # Rechercher dans le champ niveau qui peut contenir "Licence", "Master", etc.
-            query += " AND (LOWER(niveau) LIKE :level_pattern OR LOWER(niveau) LIKE :level_pattern2)"
-            params["level_pattern"] = f"%{level.lower()}%"
-            params["level_pattern2"] = f"%{level.lower()}%"
-        
-        if faculty:
-            # Rechercher dans le champ niveau qui peut contenir le nom de la faculté
-            query += " AND (LOWER(niveau) LIKE :faculty_pattern)"
-            params["faculty_pattern"] = f"%{faculty.lower()}%"
-        
-        query += " ORDER BY niveau, type_inscription"
-        
-        results = query_database(query, params)
-        
-        # Transformer les résultats pour compatibilité
-        transformed_results = []
-        for row in results:
-            transformed = {
-                "level": row.get("niveau", ""),
-                "type_inscription": row.get("type_inscription", ""),
-                "frais_inscription": row.get("frais_inscription", 0),
-                "frais_scolarite": row.get("frais_scolarite", 0),
-                "frais_labo": row.get("frais_labo", 0),
-                "periode": row.get("periode", ""),
-                "amount": row.get("frais_inscription", 0) + row.get("frais_scolarite", 0) + row.get("frais_labo", 0)
-            }
-            transformed_results.append(transformed)
-        
-        return transformed_results
+        # La table 'scolarite' n'existe pas dans scolarite_uam.db.
+        # Les frais sont gérés par les données statiques de tools.py.
+        # On retourne [] pour que l'agent bascule sur le fallback RAG/statique.
+        return []
 
 
 def search_news_announcements_db(limit: int = 10, 
@@ -521,18 +490,9 @@ def search_news_announcements_db(limit: int = 10,
             "limit": limit
         })
     else:
-        # SQL
-        query = "SELECT * FROM announcements WHERE 1=1"
-        params = {}
-        
-        if category:
-            query += " AND category = :category"
-            params["category"] = category
-        
-        # LIMIT ne supporte pas les paramètres nommés en SQLite — on formate l'entier directement
-        query += f" ORDER BY published_date DESC LIMIT {int(limit)}"
-
-        return query_database(query, params)
+        # La table 'announcements' n'existe pas dans scolarite_uam.db.
+        # On retourne [] — l'agent bascule sur les documents RAG pour les actualités.
+        return []
 
 
 def is_database_available() -> bool:

@@ -12,6 +12,7 @@ Assistant virtuel intelligent pour l'Université Abdou Moumouni de Niamey (UAM),
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Utilisation](#utilisation)
+- [Évaluation automatique](#évaluation-automatique)
 - [Structure du projet](#structure-du-projet)
 - [Providers LLM supportés](#providers-llm-supportés)
 - [Dépannage](#dépannage)
@@ -202,9 +203,96 @@ Quelles sont les conditions pour les étudiants étrangers ?
 
 ---
 
+## Évaluation automatique
+
+Le projet inclut un pipeline d'évaluation complet qui compare trois approches pour quantifier la contribution de chaque composant (retrieval, orchestration agentique).
+
+### Approches comparées
+
+| Approche | Description |
+| --- | --- |
+| **LLM seul** | Génération directe à partir des connaissances du modèle, sans retrieval ni outils |
+| **RAG séquentielle** | Retrieve top-4 documents → generate avec contexte, sans graphe ni outils spécialisés |
+| **Agent LangGraph** | Graphe d'états + ReAct + 45+ outils `@tool` + routage intelligent + mémoire de session |
+
+### Métriques calculées
+
+| Métrique | Description | Seuil acceptable |
+| --- | --- | --- |
+| **Précision / Rappel / F1** | Classification pertinent / hors-sujet | > 0.80 |
+| **Exactitude** | Taux de bonne classification | > 0.85 |
+| **Keyword Recall** | Proportion de mots-clés attendus présents dans la réponse | > 0.70 |
+| **ROUGE-1 / ROUGE-2 / ROUGE-L** | Qualité du texte généré par rapport au ground truth | > 0.40 / 0.20 / 0.35 |
+| **Faithfulness** (RAGAS) | Ancrage de la réponse dans les documents récupérés | > 0.70 |
+| **Answer Relevancy** (RAGAS) | Adéquation de la réponse à la question posée | > 0.70 |
+| **Latence P50 / P90** | Temps de réponse médian et percentile 90 | < 5 000 / 10 000 ms |
+
+> RAGAS n'est pas calculé pour le mode LLM seul (Faithfulness et Answer Relevancy présupposent un contexte récupéré).
+
+### Dataset d'évaluation
+
+- **98 questions** couvrant 15 catégories (inscriptions, formations, facultés, frais, contacts, hors-sujet…)
+- 74 questions pertinentes UAM — 24 questions hors-sujet
+- Chaque question inclut : `ground_truth`, `category`, `expected_relevant`, `mots_cles`
+
+### Commandes
+
+```bash
+# Évaluation complète de l'agent LangGraph
+python evaluate.py
+
+# Test rapide sur 10 questions
+python evaluate.py --limit 10
+
+# Sans RAGAS (plus rapide)
+python evaluate.py --no-ragas
+
+# Mode baseline RAG séquentielle
+python evaluate.py --baseline
+
+# Mode LLM seul
+python evaluate.py --llm-only
+
+# Comparaison des 3 approches en une commande (génère COMPARISON_REPORT.md)
+./run_comparison.sh
+
+# Limiter le nombre d'exemples RAGAS (défaut : 50)
+./run_comparison.sh --ragas-limit 30
+
+# Exécution rapide pour tests
+./run_comparison.sh --limit 10 --no-ragas
+```
+
+### Options de `evaluate.py`
+
+| Option | Défaut | Description |
+| --- | --- | --- |
+| `--dataset` | `dataset_evaluation.csv` | Chemin vers le CSV de test |
+| `--limit N` | — | Limiter à N questions |
+| `--no-ragas` | — | Désactiver le calcul RAGAS |
+| `--baseline` | — | Mode baseline RAG séquentielle |
+| `--llm-only` | — | Mode LLM seul (sans retrieval) |
+| `--ragas-limit N` | `50` | Nb max d'exemples pour RAGAS |
+| `--ragas-workers N` | `1` | Workers parallèles RAGAS (1 = séquentiel) |
+| `--output` | `./evaluation_results` | Dossier de sortie |
+
+### Sorties générées
+
+```text
+evaluation_results/
+├── evaluation_detail_YYYYMMDD_HHMMSS.csv    # Une ligne par question
+├── evaluation_summary_YYYYMMDD_HHMMSS.csv   # Résumé des métriques (pour mémoire)
+├── evaluation_complete_YYYYMMDD_HHMMSS.json # Archive complète
+└── tableau_latex_YYYYMMDD_HHMMSS.tex        # Tableaux LaTeX prêts à l'emploi
+
+COMPARISON_REPORT.md                          # Rapport comparatif des 3 approches
+```
+
+---
+
 ## Structure du projet
 
-```
+```text
 agent-uam/
 ├── agent_uam.py              # Module principal (point d'entrée + réexports)
 ├── agent_graph.py            # Graphe LangGraph
@@ -225,17 +313,24 @@ agent-uam/
 ├── export_utils.py           # Export PDF / JSON
 ├── database_connector.py     # Connecteur base de données optionnel
 ├── setup_database.py         # Script d'initialisation de la BD
-├── evaluate.py               # Évaluation automatisée
+│
+├── evaluate.py               # Évaluation automatisée (3 modes)
+├── baseline_rag.py           # Baseline RAG séquentielle (retrieve → generate)
+├── llm_only.py               # Baseline LLM seul (sans retrieval)
+├── context_tracker.py        # Tracker des contextes RAG utilisés par l'agent
+├── dataset_evaluation.csv    # Dataset d'évaluation (98 questions)
 ├── human_eval.py             # Évaluation humaine
+│
 ├── logger_config.py          # Logging structuré
 ├── utils.py                  # Utilitaires (validation, sanitization, retry)
 │
 ├── documents_uam/            # Documents source de la base de connaissances
-├── evaluation/               # Jeux de données et scripts d'évaluation
+├── evaluation/               # Scripts et données d'évaluation complémentaires
 ├── tests/                    # Tests unitaires
 │
 ├── setup.sh                  # Script d'installation
 ├── run_streamlit.sh          # Lancement Streamlit
+├── run_comparison.sh         # Comparaison des 3 approches d'évaluation
 ├── requirements.txt          # Dépendances Python
 ├── .env                      # Clés API (non versionné)
 └── CLAUDE.md                 # Instructions pour Claude Code
