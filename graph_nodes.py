@@ -82,7 +82,11 @@ def route_and_store(state: AgentState) -> AgentState:
         # ── 4. Profil utilisateur spécial ──────────────────────────────────────
         profile = detect_user_profile.invoke({"message": question})
         if profile in ("CANDIDAT_MASTER", "CANDIDAT_DOCTORAT", "ETUDIANT_ETRANGER"):
-            logger.debug(f"Profil spécial ({profile}) → agent")
+            relevance = check_question_relevance.invoke({"question": question})
+            if relevance == "HORS_SUJET":
+                logger.debug(f"Profil ({profile}) mais question hors UAM → reject_query")
+                return _result("reject_query", profile=profile)
+            logger.debug(f"Profil spécial ({profile}) + pertinence UAM confirmée → agent")
             return _result("agent", profile=profile)
 
         # ── 5. Pertinence UAM ───────────────────────────────────────────────────

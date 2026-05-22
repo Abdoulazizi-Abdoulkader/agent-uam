@@ -35,6 +35,20 @@ _OFF_TOPIC_RE = [re.compile(p) for p in [
     r"\b(recette|cuisine|plat|ingr[eé]dient)\b",
     r"\b(sport|football|basket|championnat|score|r[eé]sultat sportif)\b",
     r"\b(bourse[s]? (de|du|des) valeur|action|crypto|bitcoin|investissement financier)\b",
+    # Politique et gouvernance — sans rapport avec l'UAM
+    r"\b([eé]lection|gouvernement|premier ministre|s[eé]nat|assembl[eé]e nationale)\b",
+    r"\bpr[eé]sident.{0,30}(du\s+niger|de la r[eé]publique)\b",
+    # Hébergement commercial / restauration non universitaire
+    r"\b(h[ôo]tel|auberge|pension).{0,40}(niamey|niger)\b",
+    # Prix du marché
+    r"\bprix.{0,20}(du\s+)?(mil|riz|sucre|kilogramme|kg).{0,20}march[eé]\b",
+    r"\bkilogramme.{0,20}(mil|riz|sucre)\b",
+    # Université explicitement étrangère (hors Niger)
+    r"universit[eé].{0,40}(fran[cç]aise?|[eé]trang[eè]re?|europ[eé]enne?|canadienne?|am[eé]ricaine?)\b",
+    r"universit[eé]\s+(de\s+)?(tillab[eé]ri|maradi|tahoua|agadez|dosso|zinder)\b",
+    # Visa/bourse explicitement orientés vers l'étranger (hors UAM)
+    r"visa [eé]tudiant.{0,60}(france|canada|europe|belgique|maroc|s[eé]n[eé]gal|all?emagne)\b",
+    r"bourse.{0,80}([eé]tudier|partir|aller).{0,40}([eé]tranger|abroad|hors du niger)\b",
 ]]
 
 # Vectorstore global avec protection thread-safe
@@ -269,15 +283,15 @@ def check_question_relevance(question: str) -> str:
         if pat.search(question_lower):
             return "HORS_SUJET"
 
-    # Mots-clés directs UAM
+    # Mots-clés directs UAM (termes spécifiques à l'établissement)
     keywords_uam = [
-        "uam", "université", "abdou moumouni", "niamey", "niger",
+        "uam", "abdou moumouni",
         "faculté", "école", "institut", "formation", "filière",
         "inscription", "admission", "diplôme", "attestation", "relevé",
         "scolarité", "étudiant", "licence", "master", "doctorat", "thèse",
         "cours", "horaire", "service", "recteur", "doyen",
-        "réinscription", "préinscription", "dossier", "pièces",
-        "calendrier", "date limite", "transfert", "équivalence",
+        "réinscription", "réinscrire", "préinscription", "dossier", "pièces",
+        "calendrier", "date limite",
         "carte étudiant", "bourse", "logement", "cité universitaire",
         "orientation", "restauration", "bibliothèque",
         "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens",
@@ -285,6 +299,22 @@ def check_question_relevance(question: str) -> str:
     ]
     for kw in keywords_uam:
         if kw in question_lower:
+            return "PERTINENT"
+
+    # "université", "niger", "niamey", "équivalence", "transfert" nécessitent
+    # un contexte UAM explicite (trop larges seuls : hôtels, élections, ministère…)
+    uam_geo_patterns = [
+        r"universit[eé].{0,60}(uam|abdou moumouni|niamey|niger)",
+        r"(niamey|niger).{0,60}(uam|universit[eé]|campus|[eé]tudiant|inscription|formation|facult[eé])",
+        r"(uam|abdou moumouni|campus).{0,60}(niamey|niger)",
+        r"(formation|inscription|[eé]tudier|admission).{0,40}(niamey|niger)\b",
+        r"([eé]quivalence|transfert).{0,60}(uam|abdou moumouni|niamey|niger|facult[eé]|inscription)",
+        # Restaurant universitaire UAM (≠ restaurants commerciaux à Niamey)
+        r"restaurant.{0,40}(uam|campus|universit|[eé]tudiant)",
+        r"repas.{0,40}(campus|universit|[eé]tudiant|uam)",
+    ]
+    for pattern in uam_geo_patterns:
+        if re.search(pattern, question_lower):
             return "PERTINENT"
 
     # Questions d'étudiants externes / étrangers voulant rejoindre l'UAM
@@ -298,8 +328,10 @@ def check_question_relevance(question: str) -> str:
         r"venant d[''']une autre universit[eé]",
         r"universi[t]?[eé] [eé]trang[eè]re",
         r"reconnaiss?ance (de|du|des) dipl[ôo]me",
-        r"[eé]quivalence (de|du|des) dipl[ôo]me",
-        r"visa [eé]tudiant", r"titre de s[eé]jour",
+        # Équivalence et visa : requièrent explicitement le contexte UAM/Niger
+        r"[eé]quivalence (de|du|des) dipl[ôo]me.{0,60}(uam|niger|niamey|abdou moumouni)",
+        r"visa [eé]tudiant.{0,60}(uam|niger|niamey|abdou moumouni)",
+        r"titre de s[eé]jour",
         r"d[eé]p[oô]t de candidature", r"soumission de dossier",
         r"accord de partenariat", r"convention inter[-\s]?universit",
         r"cotutelle", r"co-?direction (de|de la) th[eè]se",
