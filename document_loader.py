@@ -152,6 +152,19 @@ def _write_index_meta(meta_path: str, meta: dict) -> None:
         logger.warning(f"Impossible d'écrire les métadonnées d'index: {e}")
 
 
+def _hash_faiss_files(persist_dir: str) -> Optional[str]:
+    """Calcule le SHA256 des fichiers binaires FAISS pour détecter toute altération."""
+    h = hashlib.sha256()
+    for fname in ("index.faiss", "index.pkl"):
+        fpath = os.path.join(persist_dir, fname)
+        if not os.path.exists(fpath):
+            return None
+        with open(fpath, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+    return h.hexdigest()
+
+
 def _get_embedding_signature(embeddings) -> str:
     for attr in ("model_name", "model", "model_id", "name", "deployment"):
         value = getattr(embeddings, attr, None)
@@ -215,20 +228,28 @@ def load_and_index_documents(pdf_directory: str, provider: LLMProvider) -> FAISS
                 and existing_meta.get("provider") == provider.value
                 and existing_meta.get("embedding") == embedding_signature
             ):
-                try:
-                    logger.info(f"Chargement de l'index vectoriel existant: {persist_dir}")
-                    print("  ♻️ Index vectoriel existant trouvé, chargement...")
+                # Vérification d'intégrité des fichiers binaires FAISS avant désérialisation
+                stored_hash = existing_meta.get("index_hash")
+                current_hash = _hash_faiss_files(persist_dir)
+                if stored_hash and current_hash != stored_hash:
+                    logger.warning(
+                        "Index FAISS altéré ou corrompu (hash invalide) — reconstruction en cours."
+                    )
+                else:
                     try:
-                        vectorstore = FAISS.load_local(
-                            persist_dir,
-                            embeddings,
-                            allow_dangerous_deserialization=True
-                        )
-                    except TypeError:
-                        vectorstore = FAISS.load_local(persist_dir, embeddings)
-                    return vectorstore
-                except Exception as e:
-                    logger.warning(f"Impossible de charger l'index existant: {e}. Recréation en cours.")
+                        logger.info(f"Chargement de l'index vectoriel existant: {persist_dir}")
+                        print("  ♻️ Index vectoriel existant trouvé, chargement...")
+                        try:
+                            vectorstore = FAISS.load_local(
+                                persist_dir,
+                                embeddings,
+                                allow_dangerous_deserialization=True
+                            )
+                        except TypeError:
+                            vectorstore = FAISS.load_local(persist_dir, embeddings)
+                        return vectorstore
+                    except Exception as e:
+                        logger.warning(f"Impossible de charger l'index existant: {e}. Recréation en cours.")
             else:
                 logger.info("Index vectoriel existant invalide ou obsolète, reconstruction en cours.")
         elif os.path.exists(index_path) and not existing_meta:
@@ -356,12 +377,14 @@ def load_and_index_documents(pdf_directory: str, provider: LLMProvider) -> FAISS
         if persist_dir:
             try:
                 vectorstore.save_local(persist_dir)
+                index_hash = _hash_faiss_files(persist_dir)
                 meta = {
                     "fingerprint": fingerprint,
                     "file_count": file_count,
                     "provider": provider.value,
                     "embedding": embedding_signature,
-                    "updated_at": datetime.now().isoformat()
+                    "updated_at": datetime.now().isoformat(),
+                    "index_hash": index_hash,
                 }
                 _write_index_meta(os.path.join(persist_dir, "index.meta.json"), meta)
                 logger.info(f"Index vectoriel persisté dans {persist_dir}")

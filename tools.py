@@ -13,6 +13,11 @@ from langchain_community.vectorstores import FAISS
 from langsmith import traceable
 from app_config import get_config
 from context_tracker import push_context, push_text
+try:
+    import grounding_capture as _gc
+    _GROUNDING_AVAILABLE = True
+except ImportError:
+    _GROUNDING_AVAILABLE = False
 from uam_structures import (
     get_structure_info,
     detect_structure_in_text,
@@ -54,6 +59,14 @@ _OFF_TOPIC_RE = [re.compile(p) for p in [
 # Vectorstore global avec protection thread-safe
 _vectorstore = None
 _vectorstore_lock = threading.Lock()
+
+# Statuts BD considérés comme "inscription validée" — centralisé ici pour éviter la dispersion.
+_STATUTS_INSCRIPTION_VALIDES: frozenset = frozenset({
+    "validé", "validee", "validated",
+    "actif", "active",
+    "inscrit", "inscrite", "enregistré", "enregistree",
+    "confirmed", "confirmé",
+})
 
 # user_id de session — stocké par thread pour éviter les collisions inter-sessions.
 # Appelez set_session_user_id() à l'initialisation de chaque session Streamlit.
@@ -106,22 +119,82 @@ def _normalize_query(query: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=256)
 def _cached_similarity_search(query_normalized: str, k: int) -> tuple:
-    """Recherche FAISS avec mise en cache LRU intra-session."""
+    """Recherche FAISS avec mise en cache LRU intra-session.
+
+    Appelle directement le vectorstore (sans push_context) pour éviter le double
+    enregistrement de contexte quand search_uam_knowledge appelle push_context après.
+    Non utilisé en mode grounding (bypassed dans search_uam_knowledge).
+    """
     if _vectorstore is None:
         return ()
-    docs = _rag_search(query_normalized, k=k)
+    docs = _vectorstore.similarity_search(query_normalized, k=k)
     return tuple(doc.page_content for doc in docs)
 
 
 def _rag_search(query: str, k: int = 5) -> list:
-    """Effectue une recherche FAISS et enregistre le contexte pour RAGAS."""
+    """Effectue une recherche FAISS et enregistre le contexte pour RAGAS.
+
+    En mode grounding (run gelé), utilise similarity_search_with_score
+    et journalise les chunks+scores via grounding_capture.
+    """
     if _vectorstore is None:
         return []
-    docs = _vectorstore.similarity_search(query, k=k)
+    if _GROUNDING_AVAILABLE and _gc.is_enabled():
+        docs_scores = _vectorstore.similarity_search_with_score(query, k=k)
+        _gc.log_retrieval(query, docs_scores)
+        docs = [d for d, _ in docs_scores]
+    else:
+        docs = _vectorstore.similarity_search(query, k=k)
     push_context([d.page_content for d in docs])
     return docs
+
+
+def _rag_response(query: str, not_found_msg: str = "Aucune information trouvée.", k: int = 5) -> str:
+    """Recherche RAG + formatage unifié. Utilisé par tous les outils de recherche simples."""
+    if _vectorstore is None:
+        return "Erreur: Base de connaissances non initialisée"
+    docs = _rag_search(query, k=k)
+    logger.debug(f"_rag_response — requête: '{query[:80]}' → {len(docs)} doc(s)")
+    if not docs:
+        return not_found_msg
+    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+
+
+def _search_filiere_faculty(
+    kw: str, filiere: str, faculty: str, not_found_tpl: str,
+    default_target: str = "les filières",
+) -> str:
+    """Helper pour les outils (filiere, faculty) → requête FAISS + message introuvable.
+
+    Construit la requête : kw+filière d'un côté, nom_complet+kw côté faculté.
+    not_found_tpl doit contenir {target} (ex: "Aucune info pour {target}").
+    """
+    parts = []
+    if filiere:
+        parts.append(f"{kw} {filiere}")
+    if faculty:
+        info = get_structure_info(faculty)
+        parts.append(f"{info['nom_complet'] if info else faculty} {kw}")
+    query = " ".join(parts) if parts else kw
+    target = filiere or faculty or default_target
+    return _rag_response(query, not_found_tpl.format(target=target))
+
+
+def _search_by_faculty_or_uam(kw: str, faculty: str, not_found_tpl: str) -> str:
+    """Helper pour les outils faculty-only : requête faculté précise ou UAM en général.
+
+    not_found_tpl doit contenir {target}.
+    """
+    if faculty:
+        info = get_structure_info(faculty)
+        nom = info["nom_complet"] if info else faculty
+        query = f"{nom} {kw}"
+    else:
+        query = f"{kw} UAM université"
+    target = faculty or "l'UAM"
+    return _rag_response(query, not_found_tpl.format(target=target))
 
 
 @tool
@@ -160,10 +233,15 @@ def search_uam_knowledge(query: str) -> str:
             query_expanded = f"{query} {' '.join(structure_names)}"
             logger.debug(f"Structures détectées: {[s['abreviation'] for s in detected_structures]}")
         
-        # Recherche sémantique avec cache LRU (évite les appels FAISS redondants)
+        # Recherche sémantique — cache LRU en production, bypass en mode grounding
         query_key = _normalize_query(query_expanded)
         k = config.vectorstore.similarity_search_k
-        page_contents = _cached_similarity_search(query_key, k)
+        if _GROUNDING_AVAILABLE and _gc.is_enabled():
+            docs_scores = _vectorstore.similarity_search_with_score(query_key, k=k)
+            _gc.log_retrieval(query_key, docs_scores)
+            page_contents = tuple(doc.page_content for doc, _ in docs_scores)
+        else:
+            page_contents = _cached_similarity_search(query_key, k)
         push_context(list(page_contents))
 
         if not page_contents:
@@ -542,9 +620,6 @@ def search_admission_requirements(level: str = "", faculty: str = "", filiere: s
     """
     Recherche les conditions d'admission et d'accès (par niveau, faculté ou filière).
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query_parts = ["conditions d'admission", "conditions d'accès", "critères", "admissibilité"]
     if level:
         query_parts.append(f"niveau {level}")
@@ -552,16 +627,8 @@ def search_admission_requirements(level: str = "", faculty: str = "", filiere: s
         query_parts.append(f"filière {filiere}")
     if faculty:
         structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(structure_info["nom_complet"])
-        else:
-            query_parts.append(faculty)
-
-    query = " ".join(query_parts)
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur les conditions d'admission trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+        query_parts.append(structure_info["nom_complet"] if structure_info else faculty)
+    return _rag_response(" ".join(query_parts), "Aucune information sur les conditions d'admission trouvée.")
 
 
 @tool
@@ -569,27 +636,13 @@ def search_required_documents(process: str = "inscription", level: str = "", fac
     """
     Recherche les pièces à fournir et documents requis (inscription/réinscription).
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
-    query_parts = [
-        "pièces à fournir", "documents requis", "dossier",
-        f"{process} université"
-    ]
+    query_parts = ["pièces à fournir", "documents requis", "dossier", f"{process} université"]
     if level:
         query_parts.append(f"niveau {level}")
     if faculty:
         structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(structure_info["nom_complet"])
-        else:
-            query_parts.append(faculty)
-
-    query = " ".join(query_parts)
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur les pièces à fournir trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+        query_parts.append(structure_info["nom_complet"] if structure_info else faculty)
+    return _rag_response(" ".join(query_parts), "Aucune information sur les pièces à fournir trouvée.")
 
 
 @tool
@@ -597,14 +650,10 @@ def search_registration_procedure(process: str = "inscription") -> str:
     """
     Recherche la procédure/les étapes d'inscription ou de réinscription.
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
-    query = f"procédure étapes {process} université UAM"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur la procédure d'inscription trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(
+        f"procédure étapes {process} université UAM",
+        "Aucune information sur la procédure d'inscription trouvée.",
+    )
 
 
 @tool
@@ -612,16 +661,10 @@ def search_registration_calendar(year: str = "") -> str:
     """
     Recherche le calendrier académique et les dates d'inscription.
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query = "calendrier académique dates d'inscription date limite"
     if year:
         query = f"{query} {year}"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur le calendrier d'inscription trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(query, "Aucune information sur le calendrier d'inscription trouvée.")
 
 
 @tool
@@ -629,14 +672,10 @@ def search_student_card() -> str:
     """
     Recherche les informations sur la carte d'étudiant (obtention, retrait, remplacement).
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
-    query = "carte étudiant badge étudiant obtention retrait remplacement"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur la carte d'étudiant trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(
+        "carte étudiant badge étudiant obtention retrait remplacement",
+        "Aucune information sur la carte d'étudiant trouvée.",
+    )
 
 
 @tool
@@ -644,14 +683,10 @@ def search_transfer_equivalence(topic: str = "transfert") -> str:
     """
     Recherche les démarches de transfert, équivalence ou changement de filière.
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
-    query = f"démarches {topic} équivalence changement de filière reprise d'études"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur le transfert/équivalence trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(
+        f"démarches {topic} équivalence changement de filière reprise d'études",
+        "Aucune information sur le transfert/équivalence trouvée.",
+    )
 
 
 @tool
@@ -659,16 +694,10 @@ def search_housing_and_services(service: str = "") -> str:
     """
     Recherche les informations sur la vie étudiante (logement, restauration, transport, bibliothèque).
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query = "logement cité universitaire restauration transport bibliothèque service social"
     if service:
         query = f"{query} {service}"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur la vie étudiante trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(query, "Aucune information sur la vie étudiante trouvée.")
 
 
 @tool
@@ -676,14 +705,10 @@ def search_scholarships() -> str:
     """
     Recherche les informations sur les bourses et aides financières.
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
-    query = "bourse bourses aide financière allocation étudiant"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur les bourses trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(
+        "bourse bourses aide financière allocation étudiant",
+        "Aucune information sur les bourses trouvée.",
+    )
 
 
 @tool
@@ -691,16 +716,10 @@ def search_contacts_services(service: str = "") -> str:
     """
     Recherche les contacts des services (scolarité, secrétariat, admissions, etc.).
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query = "contacts téléphone email adresse service scolarité secrétariat admissions"
     if service:
         query = f"{query} {service}"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information de contact trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(query, "Aucune information de contact trouvée.")
 
 
 @tool
@@ -708,18 +727,12 @@ def search_international_equivalence(level: str = "", country: str = "") -> str:
     """
     Recherche les procédures d'équivalence internationale et reconnaissance des diplômes étrangers.
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query = "équivalence internationale reconnaissance diplômes étrangers admission"
     if level:
         query = f"{query} niveau {level}"
     if country:
         query = f"{query} pays {country}"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur l'équivalence internationale trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(query, "Aucune information sur l'équivalence internationale trouvée.")
 
 
 @tool
@@ -727,16 +740,10 @@ def search_late_reenrollment(reason: str = "") -> str:
     """
     Recherche les règles et démarches pour une réinscription tardive.
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query = "réinscription tardive pénalités délais dérogation"
     if reason:
         query = f"{query} motif {reason}"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur la réinscription tardive trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(query, "Aucune information sur la réinscription tardive trouvée.")
 
 
 @tool
@@ -744,18 +751,12 @@ def search_internship_info(filiere: str = "", level: str = "") -> str:
     """
     Recherche les informations sur les stages (conditions, durée, procédure).
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query = "stage stages conditions durée convention procédure"
     if filiere:
         query = f"{query} filière {filiere}"
     if level:
         query = f"{query} niveau {level}"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur les stages trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+    return _rag_response(query, "Aucune information sur les stages trouvée.")
 
 
 @tool
@@ -763,22 +764,13 @@ def search_double_degree(filiere: str = "", faculty: str = "") -> str:
     """
     Recherche les informations sur les doubles diplômes ou parcours bi-diplômants.
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-
     query = "double diplôme double diplome bi-diplômant parcours double cursus"
     if filiere:
         query = f"{query} filière {filiere}"
     if faculty:
         structure_info = get_structure_info(faculty)
-        if structure_info:
-            query = f"{query} {structure_info['nom_complet']}"
-        else:
-            query = f"{query} {faculty}"
-    docs = _rag_search(query, k=5)
-    if not docs:
-        return "Aucune information sur les doubles diplômes trouvée."
-    return "\n\n---\n\n".join(doc.page_content[:800] for doc in docs)
+        query = f"{query} {structure_info['nom_complet'] if structure_info else faculty}"
+    return _rag_response(query, "Aucune information sur les doubles diplômes trouvée.")
 
 
 @tool
@@ -987,125 +979,57 @@ def get_user_preferences() -> str:
 def search_prerequisites(filiere: str = "", faculty: str = "") -> str:
     """
     Recherche les prérequis (pré-requis) nécessaires pour une filière ou une faculté.
-    
+
     Args:
         filiere: Nom de la filière (optionnel)
         faculty: Nom ou abréviation de la faculté (optionnel, ex: "FAST", "Faculté des Sciences")
-        
+
     Returns:
         Informations sur les prérequis
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"prérequis pré-requis conditions admission {filiere}")
-    if faculty:
-        # Détecter la structure pour obtenir le nom complet
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} prérequis pré-requis conditions admission")
-        else:
-            query_parts.append(f"{faculty} prérequis pré-requis conditions admission")
-    
-    query = " ".join(query_parts) if query_parts else "prérequis pré-requis conditions admission filière"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur les prérequis trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
-    
-    # Combiner les résultats
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "prérequis pré-requis conditions admission",
+        filiere, faculty,
+        "Aucune information sur les prérequis trouvée pour {target}",
+    )
 
 
 @tool
 def search_competences_requises(filiere: str = "", faculty: str = "") -> str:
     """
     Recherche les connaissances et compétences requises pour une filière.
-    
+
     Args:
         filiere: Nom de la filière (optionnel)
         faculty: Nom ou abréviation de la faculté (optionnel)
-        
+
     Returns:
         Informations sur les connaissances et compétences requises
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"compétences connaissances requises {filiere}")
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} compétences connaissances requises")
-        else:
-            query_parts.append(f"{faculty} compétences connaissances requises")
-    
-    query = " ".join(query_parts) if query_parts else "compétences connaissances requises filière"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur les compétences requises trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "compétences connaissances requises",
+        filiere, faculty,
+        "Aucune information sur les compétences requises trouvée pour {target}",
+    )
 
 
 @tool
 def search_cycles_et_duree(filiere: str = "", faculty: str = "") -> str:
     """
     Recherche les cycles disponibles et la durée d'études pour une filière.
-    
+
     Args:
         filiere: Nom de la filière (optionnel)
         faculty: Nom ou abréviation de la faculté (optionnel)
-        
+
     Returns:
         Informations sur les cycles (licence, master, doctorat) et leurs durées
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"cycles durée études licence master doctorat {filiere}")
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} cycles durée études licence master doctorat")
-        else:
-            query_parts.append(f"{faculty} cycles durée études licence master doctorat")
-    
-    query = " ".join(query_parts) if query_parts else "cycles durée études licence master doctorat"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur les cycles et durées trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "cycles durée études licence master doctorat",
+        filiere, faculty,
+        "Aucune information sur les cycles et durées trouvée pour {target}",
+    )
 
 
 @tool
@@ -1120,293 +1044,136 @@ def search_chronogramme(filiere: str = "", faculty: str = "") -> str:
     Returns:
         Informations sur le chronogramme, les modules et les heures de cours
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"chronogramme modules heures cours emploi temps programme {filiere}")
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} chronogramme modules heures cours emploi temps programme")
-        else:
-            query_parts.append(f"{faculty} chronogramme modules heures cours emploi temps programme")
-    
-    query = " ".join(query_parts) if query_parts else "chronogramme modules heures cours emploi temps programme"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur le chronogramme trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "chronogramme modules heures cours emploi temps programme",
+        filiere, faculty,
+        "Aucune information sur le chronogramme trouvée pour {target}",
+    )
 
 
 @tool
 def search_coefficients(filiere: str = "", faculty: str = "") -> str:
     """
     Recherche les coefficients des différents modules pour une filière.
-    
+
     Args:
         filiere: Nom de la filière (optionnel)
         faculty: Nom ou abréviation de la faculté (optionnel)
-        
+
     Returns:
         Informations sur les coefficients des modules
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"coefficients modules {filiere}")
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} coefficients modules")
-        else:
-            query_parts.append(f"{faculty} coefficients modules")
-    
-    query = " ".join(query_parts) if query_parts else "coefficients modules"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur les coefficients trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "coefficients modules",
+        filiere, faculty,
+        "Aucune information sur les coefficients trouvée pour {target}",
+    )
 
 
 @tool
 def search_professeurs(filiere: str = "", faculty: str = "") -> str:
     """
     Recherche les professeurs assignés aux différents modules et leurs qualifications.
-    
+
     Args:
         filiere: Nom de la filière (optionnel)
         faculty: Nom ou abréviation de la faculté (optionnel)
-        
+
     Returns:
         Informations sur les professeurs et leurs qualifications
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"professeurs enseignants corps professoral qualifications {filiere}")
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} professeurs enseignants corps professoral qualifications")
-        else:
-            query_parts.append(f"{faculty} professeurs enseignants corps professoral qualifications")
-    
-    query = " ".join(query_parts) if query_parts else "professeurs enseignants corps professoral qualifications"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur les professeurs trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "professeurs enseignants corps professoral qualifications",
+        filiere, faculty,
+        "Aucune information sur les professeurs trouvée pour {target}",
+    )
 
 
 @tool
 def search_debouches(filiere: str = "", faculty: str = "") -> str:
     """
     Recherche les débouchés professionnels et les possibilités d'embauche après les études.
-    
+
     Args:
         filiere: Nom de la filière (optionnel)
         faculty: Nom ou abréviation de la faculté (optionnel)
-        
+
     Returns:
         Informations sur les débouchés professionnels et les possibilités d'embauche
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"débouchés professionnels embauche emploi carrière métiers {filiere}")
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} débouchés professionnels embauche emploi carrière métiers")
-        else:
-            query_parts.append(f"{faculty} débouchés professionnels embauche emploi carrière métiers")
-    
-    query = " ".join(query_parts) if query_parts else "débouchés professionnels embauche emploi carrière métiers"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur les débouchés trouvée pour {filiere if filiere else faculty if faculty else 'les filières'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "débouchés professionnels embauche emploi carrière métiers",
+        filiere, faculty,
+        "Aucune information sur les débouchés trouvée pour {target}",
+    )
 
 
 @tool
 def search_reglement_interieur(faculty: str = "") -> str:
     """
     Recherche le règlement intérieur d'une faculté ou de l'université.
-    
+
     Args:
         faculty: Nom ou abréviation de la faculté (optionnel, si vide recherche le règlement général)
-        
+
     Returns:
         Informations sur le règlement intérieur
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query = f"{structure_info['nom_complet']} règlement intérieur règles discipline"
-        else:
-            query = f"{faculty} règlement intérieur règles discipline"
-    else:
-        query = "règlement intérieur UAM université règles discipline"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur le règlement intérieur trouvée pour {faculty if faculty else 'l\'UAM'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_by_faculty_or_uam(
+        "règlement intérieur règles discipline",
+        faculty,
+        "Aucune information sur le règlement intérieur trouvée pour {target}",
+    )
 
 
 @tool
 def search_organisation_corps_professoral(faculty: str = "") -> str:
     """
     Recherche l'organisation du corps professoral d'une faculté ou de l'université.
-    
+
     Args:
         faculty: Nom ou abréviation de la faculté (optionnel)
-        
+
     Returns:
         Informations sur l'organisation du corps professoral
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query = f"{structure_info['nom_complet']} organisation corps professoral structure enseignants"
-        else:
-            query = f"{faculty} organisation corps professoral structure enseignants"
-    else:
-        query = "organisation corps professoral UAM structure enseignants"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur l'organisation du corps professoral trouvée pour {faculty if faculty else 'l\'UAM'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_by_faculty_or_uam(
+        "organisation corps professoral structure enseignants",
+        faculty,
+        "Aucune information sur l'organisation du corps professoral trouvée pour {target}",
+    )
 
 
 @tool
 def search_organisation_corps_estudiantin(faculty: str = "") -> str:
     """
     Recherche l'organisation du corps estudiantin (associations étudiantes, clubs, etc.) d'une faculté ou de l'université.
-    
+
     Args:
         faculty: Nom ou abréviation de la faculté (optionnel)
-        
+
     Returns:
         Informations sur l'organisation du corps estudiantin
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query = f"{structure_info['nom_complet']} organisation corps estudiantin associations étudiantes clubs étudiants"
-        else:
-            query = f"{faculty} organisation corps estudiantin associations étudiantes clubs étudiants"
-    else:
-        query = "organisation corps estudiantin UAM associations étudiantes clubs étudiants"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur l'organisation du corps estudiantin trouvée pour {faculty if faculty else 'l\'UAM'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_by_faculty_or_uam(
+        "organisation corps estudiantin associations étudiantes clubs étudiants",
+        faculty,
+        "Aucune information sur l'organisation du corps estudiantin trouvée pour {target}",
+    )
 
 
 @tool
 def search_reclamations() -> str:
     """
     Recherche les différents types de réclamations possibles et comment les faire.
-    
+
     Returns:
         Informations sur les réclamations et les procédures pour les faire
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    query = "réclamations réclamation procédure comment faire démarche"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return "Aucune information sur les réclamations trouvée dans la base de connaissances."
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _rag_response(
+        "réclamations réclamation procédure comment faire démarche",
+        "Aucune information sur les réclamations trouvée dans la base de connaissances.",
+    )
 
 
 @tool
@@ -1421,33 +1188,12 @@ def search_avantages_universite(filiere: str = "", faculty: str = "") -> str:
     Returns:
         Informations sur les avantages de l'université
     """
-    if _vectorstore is None:
-        return "Erreur: Base de connaissances non initialisée"
-    
-    # Construire la requête de recherche
-    query_parts = []
-    if filiere:
-        query_parts.append(f"avantages université UAM {filiere} écoles instituts")
-    if faculty:
-        structure_info = get_structure_info(faculty)
-        if structure_info:
-            query_parts.append(f"{structure_info['nom_complet']} avantages université écoles instituts")
-        else:
-            query_parts.append(f"{faculty} avantages université écoles instituts")
-    
-    query = " ".join(query_parts) if query_parts else "avantages université UAM écoles instituts"
-    
-    # Recherche dans la base de connaissances
-    docs = _rag_search(query, k=5)
-    
-    if not docs:
-        return f"Aucune information sur les avantages trouvée pour {filiere if filiere else faculty if faculty else 'l\'université'}"
-    
-    results = []
-    for doc in docs:
-        results.append(doc.page_content[:800])
-    
-    return "\n\n---\n\n".join(results)
+    return _search_filiere_faculty(
+        "avantages université UAM écoles instituts",
+        filiere, faculty,
+        "Aucune information sur les avantages trouvée pour {target}",
+        default_target="l'université",
+    )
 
 
 @tool
@@ -1522,7 +1268,7 @@ def search_student_record(matricule: str, query_type: str = "inscription") -> st
     # Statut d'inscription
     statut = student.get("inscription_status") or student.get("status", "")
     if statut:
-        statut_label = "validée ✓" if statut.lower() in ("validé", "validee", "validated", "actif", "active") else statut
+        statut_label = "validée ✓" if statut.lower() in _STATUTS_INSCRIPTION_VALIDES else statut
         lines.append(f"\n**Statut d'inscription :** {statut_label}")
     else:
         lines.append("\n**Statut d'inscription :** non renseigné — contactez la scolarité pour confirmation.")

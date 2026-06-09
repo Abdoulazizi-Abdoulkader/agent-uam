@@ -20,6 +20,88 @@ from prompts import build_tool_system_prompt
 # Logger pour ce module
 logger = get_logger(__name__)
 
+# ── Données statiques profils (hors call_model pour lisibilité et testabilité) ─
+
+_PROFILE_HINTS: dict[str, str] = {
+    "CANDIDAT_MASTER": (
+        "\n\nPROFIL DÉTECTÉ : Candidat souhaitant intégrer un Master à l'UAM (venant d'un autre établissement).\n"
+        "→ Utilise search_external_student_master pour les conditions d'admission spécifiques.\n"
+        "→ Utilise search_required_documents pour le dossier à fournir.\n"
+        "→ Utilise search_international_equivalence si le candidat vient de l'étranger."
+    ),
+    "CANDIDAT_DOCTORAT": (
+        "\n\nPROFIL DÉTECTÉ : Candidat souhaitant faire une thèse / doctorat à l'UAM.\n"
+        "→ Utilise search_phd_admission pour les conditions d'admission en doctorat.\n"
+        "→ Utilise search_master_thesis_supervision pour trouver un directeur de thèse.\n"
+        "→ Mentionne les trois écoles doctorales (ED-SVT, ED-LASHS, ED-SET)."
+    ),
+    "ETUDIANT_ETRANGER": (
+        "\n\nPROFIL DÉTECTÉ : Étudiant étranger (hors Niger) souhaitant étudier à l'UAM.\n"
+        "→ Utilise search_foreign_student_procedures pour les démarches spécifiques.\n"
+        "→ Utilise search_international_equivalence pour la reconnaissance du diplôme.\n"
+        "→ Utilise search_housing_and_services pour le logement."
+    ),
+    "ETUDIANT_EXTERNE": (
+        "\n\nPROFIL DÉTECTÉ : Étudiant venant d'une autre université nigérienne.\n"
+        "→ Utilise search_transfer_equivalence pour le transfert/équivalence de crédits.\n"
+        "→ Utilise search_admission_requirements pour les conditions d'accès."
+    ),
+    "BACHELIER": (
+        "\n\nPROFIL DÉTECTÉ : Nouveau bachelier souhaitant s'inscrire à l'UAM.\n"
+        "→ Utilise search_formations pour les filières disponibles.\n"
+        "→ Utilise search_required_documents pour les pièces d'inscription.\n"
+        "→ Utilise generate_registration_checklist avec profile='nouveau'."
+    ),
+    "PROFESSIONNEL": (
+        "\n\nPROFIL DÉTECTÉ : Professionnel souhaitant reprendre des études (VAE/VAP).\n"
+        "→ Utilise search_recognition_prior_learning pour la validation des acquis.\n"
+        "→ Adapte la réponse à la formation continue."
+    ),
+    "PARENT": (
+        "\n\nPROFIL DÉTECTÉ : Parent s'informant pour son enfant.\n"
+        "→ Fournis des informations claires et rassurantes.\n"
+        "→ Oriente vers les contacts officiels pour les démarches formelles."
+    ),
+}
+
+_LENGTH_HINTS: dict[str, str] = {
+    "BACHELIER":         "\n\nLONGUEUR CIBLE : 80-120 mots. Utilise des listes à puces pour les étapes.",
+    "PARENT":            "\n\nLONGUEUR CIBLE : 60-90 mots. Sois rassurant et concis.",
+    "ETUDIANT_UAM":      "\n\nLONGUEUR CIBLE : 60-100 mots. Va droit au but.",
+    "CANDIDAT_MASTER":   "\n\nLONGUEUR CIBLE : 100-150 mots. Liste les conditions et pièces requises.",
+    "CANDIDAT_DOCTORAT": "\n\nLONGUEUR CIBLE : 100-150 mots. Mentionne les 3 écoles doctorales si pertinent.",
+    "ETUDIANT_ETRANGER": "\n\nLONGUEUR CIBLE : 100-150 mots. Inclus les étapes administratives clés.",
+    "PROFESSIONNEL":     "\n\nLONGUEUR CIBLE : 80-120 mots. Précise la procédure VAE/VAP applicable.",
+}
+
+_MAX_HISTORY = 20
+
+
+# ── Fonctions privées de construction du contexte ─────────────────────────────
+
+def _build_structures_context(question: str) -> str:
+    """Détecte les structures UAM dans la question et retourne un bloc de contexte."""
+    detected = detect_structure_in_text(question)
+    if not detected:
+        return ""
+    lines = [f"- {s['nom_complet']} ({s['abreviation']}) - {s['type'].capitalize()}"
+             for s in detected]
+    return "\n\nSTRUCTURES DÉTECTÉES DANS LA QUESTION :\n" + "\n".join(lines)
+
+
+def _build_profile_context(profile: str) -> str:
+    """Retourne le bloc de contexte profil + hint de longueur pour le prompt système."""
+    return _PROFILE_HINTS.get(profile, "") + _LENGTH_HINTS.get(profile, "")
+
+
+def _truncate_history(messages: list, max_size: int = _MAX_HISTORY) -> list:
+    """Tronque l'historique aux N derniers messages pour éviter le dépassement de tokens."""
+    if len(messages) > max_size:
+        logger.info(f"Troncature de l'historique : {len(messages)} → {max_size} messages")
+        return messages[-max_size:]
+    return messages
+
+
 # ==================== NŒUDS DU GRAPHE ====================
 
 @traceable
@@ -154,104 +236,31 @@ def should_continue(state: AgentState) -> Literal["tools", "end"]:
 
 @traceable(run_type="llm")
 def call_model(state: AgentState, llm_with_tools) -> AgentState:
-    """
-    Appelle le LLM avec les outils bindés pour générer une réponse ou appeler des outils.
-    Pattern amélioré selon LangGraph 1.0 avec prompt système pour guider l'utilisation des outils.
-    """
+    """Appelle le LLM avec les outils bindés pour générer une réponse ou appeler des outils."""
     messages = state["messages"]
-    
-    # Détecter les salutations et structures dans le dernier message
+
     last_message = messages[-1] if messages else None
-    question = last_message.content if (last_message and hasattr(last_message, 'content')) else ""
-    
-    # S'assurer que question est une chaîne de caractères
+    question = last_message.content if (last_message and hasattr(last_message, "content")) else ""
     if not isinstance(question, str):
         question = str(question)
-    
-    # Détecter les structures mentionnées pour enrichir le contexte
-    detected_structures = detect_structure_in_text(question)
-    structures_context = ""
-    if detected_structures:
-        structures_info = [
-            f"- {s['nom_complet']} ({s['abreviation']}) - {s['type'].capitalize()}"
-            for s in detected_structures
-        ]
-        structures_context = "\n\nSTRUCTURES DÉTECTÉES DANS LA QUESTION :\n" + "\n".join(structures_info)
 
-    # Récupérer le profil depuis l'état (détecté une seule fois dans route_and_store)
     profile = state.get("user_profile", "INCONNU")
-    profile_context = ""
-    profile_hints = {
-        "CANDIDAT_MASTER": (
-            "\n\nPROFIL DÉTECTÉ : Candidat souhaitant intégrer un Master à l'UAM (venant d'un autre établissement).\n"
-            "→ Utilise search_external_student_master pour les conditions d'admission spécifiques.\n"
-            "→ Utilise search_required_documents pour le dossier à fournir.\n"
-            "→ Utilise search_international_equivalence si le candidat vient de l'étranger."
-        ),
-        "CANDIDAT_DOCTORAT": (
-            "\n\nPROFIL DÉTECTÉ : Candidat souhaitant faire une thèse / doctorat à l'UAM.\n"
-            "→ Utilise search_phd_admission pour les conditions d'admission en doctorat.\n"
-            "→ Utilise search_master_thesis_supervision pour trouver un directeur de thèse.\n"
-            "→ Mentionne les trois écoles doctorales (ED-SVT, ED-LASHS, ED-SET)."
-        ),
-        "ETUDIANT_ETRANGER": (
-            "\n\nPROFIL DÉTECTÉ : Étudiant étranger (hors Niger) souhaitant étudier à l'UAM.\n"
-            "→ Utilise search_foreign_student_procedures pour les démarches spécifiques.\n"
-            "→ Utilise search_international_equivalence pour la reconnaissance du diplôme.\n"
-            "→ Utilise search_housing_and_services pour le logement."
-        ),
-        "ETUDIANT_EXTERNE": (
-            "\n\nPROFIL DÉTECTÉ : Étudiant venant d'une autre université nigérienne.\n"
-            "→ Utilise search_transfer_equivalence pour le transfert/équivalence de crédits.\n"
-            "→ Utilise search_admission_requirements pour les conditions d'accès."
-        ),
-        "BACHELIER": (
-            "\n\nPROFIL DÉTECTÉ : Nouveau bachelier souhaitant s'inscrire à l'UAM.\n"
-            "→ Utilise search_formations pour les filières disponibles.\n"
-            "→ Utilise search_required_documents pour les pièces d'inscription.\n"
-            "→ Utilise generate_registration_checklist avec profile='nouveau'."
-        ),
-        "PROFESSIONNEL": (
-            "\n\nPROFIL DÉTECTÉ : Professionnel souhaitant reprendre des études (VAE/VAP).\n"
-            "→ Utilise search_recognition_prior_learning pour la validation des acquis.\n"
-            "→ Adapte la réponse à la formation continue."
-        ),
-        "PARENT": (
-            "\n\nPROFIL DÉTECTÉ : Parent s'informant pour son enfant.\n"
-            "→ Fournis des informations claires et rassurantes.\n"
-            "→ Oriente vers les contacts officiels pour les démarches formelles."
-        ),
-    }
-    profile_context = profile_hints.get(profile, "")
+    structures_context = _build_structures_context(question)
+    profile_context    = _build_profile_context(profile)
+    system_prompt      = build_tool_system_prompt(structures_context + profile_context)
 
-    # Contrainte de longueur adaptée au profil
-    _length_hints = {
-        "BACHELIER":        "\n\nLONGUEUR CIBLE : 80-120 mots. Utilise des listes à puces pour les étapes.",
-        "PARENT":           "\n\nLONGUEUR CIBLE : 60-90 mots. Sois rassurant et concis.",
-        "ETUDIANT_UAM":     "\n\nLONGUEUR CIBLE : 60-100 mots. Va droit au but.",
-        "CANDIDAT_MASTER":  "\n\nLONGUEUR CIBLE : 100-150 mots. Liste les conditions et pièces requises.",
-        "CANDIDAT_DOCTORAT":"\n\nLONGUEUR CIBLE : 100-150 mots. Mentionne les 3 écoles doctorales si pertinent.",
-        "ETUDIANT_ETRANGER":"\n\nLONGUEUR CIBLE : 100-150 mots. Inclus les étapes administratives clés.",
-        "PROFESSIONNEL":    "\n\nLONGUEUR CIBLE : 80-120 mots. Précise la procédure VAE/VAP applicable.",
-    }
-    profile_context += _length_hints.get(profile, "")
+    detected_structures = detect_structure_in_text(question)
+    logger.debug(
+        f"call_model — profil: {profile} "
+        f"| structures: {[s['abreviation'] for s in detected_structures]} "
+        f"| prompt système: {len(system_prompt)} chars"
+    )
 
-    system_prompt = build_tool_system_prompt(structures_context + profile_context)
-    
-    # Ajouter le prompt système au début des messages s'il n'y en a pas déjà
-    if not messages or not isinstance(messages[0], SystemMessage):
-        messages_with_system = [SystemMessage(content=system_prompt)] + list(messages)
-    else:
-        messages_with_system = messages
-    
-    # Appeler le LLM avec les outils bindés
+    history = _truncate_history(list(messages))
+    messages_with_system = [SystemMessage(content=system_prompt)] + history
+
     response = llm_with_tools.invoke(messages_with_system)
-    
-    return {
-        **state,
-        "is_relevant": True,
-        "messages": [response]
-    }
+    return {**state, "is_relevant": True, "messages": [response]}
 
 
 

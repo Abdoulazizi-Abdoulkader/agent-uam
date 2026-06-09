@@ -64,7 +64,9 @@ def load_dataset(path: str) -> List[Dict[str, Any]]:
     samples = []
     with open(path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        for row in reader:
+        for i, row in enumerate(reader, 1):
+            if "question" not in row:
+                raise ValueError(f"Colonne 'question' absente du CSV ligne {i} : {list(row.keys())}")
             mots_cles_raw = row.get("mots_cles", "").strip()
             mots_cles = (
                 [kw.strip() for kw in mots_cles_raw.split("|") if kw.strip()]
@@ -1058,6 +1060,10 @@ def main():
         help="Provider LLM (seul 'openrouter' est supporté)"
     )
     parser.add_argument(
+        "--temperature", type=float, default=0.0, dest="temperature",
+        help="Température du LLM (défaut: 0 pour la reproductibilité)"
+    )
+    parser.add_argument(
         "--baseline",
         action="store_true",
         help="Exécute en mode baseline RAG séquentielle (sans graphe LangGraph)",
@@ -1100,7 +1106,7 @@ def main():
 
     # ── Initialisation ────────────────────────────────────────────────────
     print(f"\n{BOLD}► Initialisation…{RESET}")
-    llm        = initialize_llm(provider, config.llm.model_name)
+    llm        = initialize_llm(provider, config.llm.model_name, temperature=args.temperature)
     embeddings = initialize_embeddings(provider)
     # Le vectorstore n'est pas nécessaire en mode LLM seul
     if args.llm_only:

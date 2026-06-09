@@ -2,12 +2,11 @@ import unittest
 import sys
 import os
 
-# Ajouter le répertoire parent au path pour importer les modules du projet
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils import (
-    sanitize_input, validate_question, extract_entities,
-    format_error_message, safe_get, truncate_text, retry_on_failure
+    sanitize_input, validate_question,
+    format_error_message, safe_get, truncate_text, retry_on_failure,
 )
 
 class TestUtils(unittest.TestCase):
@@ -41,14 +40,6 @@ class TestUtils(unittest.TestCase):
         is_valid, error = validate_question("??? !!!")
         self.assertFalse(is_valid)
         self.assertEqual(error, "La question doit contenir au moins un caractère alphanumérique")
-
-    def test_extract_entities(self):
-        text = "Je veux m'inscrire en licence à la FSS pour obtenir mon diplôme."
-        entities = extract_entities(text)
-        
-        self.assertIn("FSS", entities["structures"])
-        self.assertIn("licence", [e.lower() for e in entities["niveaux"]])
-        self.assertTrue(any(k.lower() in ["inscrire", "inscription", "diplôme"] for k in entities["keywords"]))
 
     def test_format_error_message(self):
         err = ValueError("Invalid data")

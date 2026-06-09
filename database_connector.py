@@ -151,83 +151,82 @@ def _prepare_query(query: str, params: Optional[Dict[str, Any]]):
 
 def query_database(query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """
-    Exécute une requête SQL sur la base de données
-    
+    Exécute une requête SQL sur la base de données (thread-safe).
+
     Args:
         query: Requête SQL à exécuter
         params: Paramètres pour la requête (optionnel)
-        
+
     Returns:
         Liste de dictionnaires contenant les résultats
     """
     global _db_connection, _db_type
-    
+
     if _db_connection is None:
         _db_connection = get_db_connection()
-    
+
     if _db_connection is None:
         return []
-    
-    try:
-        if _db_type == DatabaseType.POSTGRESQL:
-            cursor = _db_connection.cursor()
-            prepared_query, prepared_params = _prepare_query(query, params)
-            if prepared_params:
-                cursor.execute(prepared_query, prepared_params)
-            else:
-                cursor.execute(prepared_query)
-            results = cursor.fetchall()
-            cursor.close()
-            # Convertir les RealDictRow en dictionnaires
-            return [dict(row) for row in results]
-            
-        elif _db_type == DatabaseType.MYSQL:
-            cursor = _db_connection.cursor(dictionary=True)
-            prepared_query, prepared_params = _prepare_query(query, params)
-            if prepared_params:
-                cursor.execute(prepared_query, prepared_params)
-            else:
-                cursor.execute(prepared_query)
-            results = cursor.fetchall()
-            cursor.close()
-            return results
-            
-        elif _db_type == DatabaseType.SQLITE:
-            cursor = _db_connection.cursor()
-            prepared_query, prepared_params = _prepare_query(query, params)
-            if prepared_params:
-                cursor.execute(prepared_query, prepared_params)
-            else:
-                cursor.execute(prepared_query)
-            results = cursor.fetchall()
-            cursor.close()
-            # Convertir les Row en dictionnaires
-            return [dict(row) for row in results]
-            
-        elif _db_type == DatabaseType.MONGODB:
-            # Pour MongoDB, la requête doit être un dictionnaire
-            if isinstance(query, dict):
-                collection_name = query.get("collection", "documents")
-                filter_query = query.get("filter", {})
-                projection = query.get("projection", None)
-                limit = query.get("limit", 100)
-                
-                collection = _db_connection[collection_name]
-                results = list(collection.find(filter_query, projection).limit(limit))
-                
-                # Convertir ObjectId en string pour la sérialisation JSON
-                for result in results:
-                    if "_id" in result:
-                        result["_id"] = str(result["_id"])
-                
+
+    with _db_lock:
+        try:
+            if _db_type == DatabaseType.POSTGRESQL:
+                cursor = _db_connection.cursor()
+                prepared_query, prepared_params = _prepare_query(query, params)
+                if prepared_params:
+                    cursor.execute(prepared_query, prepared_params)
+                else:
+                    cursor.execute(prepared_query)
+                results = cursor.fetchall()
+                cursor.close()
+                return [dict(row) for row in results]
+
+            elif _db_type == DatabaseType.MYSQL:
+                cursor = _db_connection.cursor(dictionary=True)
+                prepared_query, prepared_params = _prepare_query(query, params)
+                if prepared_params:
+                    cursor.execute(prepared_query, prepared_params)
+                else:
+                    cursor.execute(prepared_query)
+                results = cursor.fetchall()
+                cursor.close()
                 return results
-            else:
-                logger.warning("Pour MongoDB, la requête doit être un dictionnaire")
-                return []
-                
-    except Exception as e:
-        logger.error(f"Erreur lors de l'exécution de la requête : {e}", exc_info=True)
-        return []
+
+            elif _db_type == DatabaseType.SQLITE:
+                cursor = _db_connection.cursor()
+                prepared_query, prepared_params = _prepare_query(query, params)
+                if prepared_params:
+                    cursor.execute(prepared_query, prepared_params)
+                else:
+                    cursor.execute(prepared_query)
+                results = cursor.fetchall()
+                cursor.close()
+                return [dict(row) for row in results]
+
+            elif _db_type == DatabaseType.MONGODB:
+                if isinstance(query, dict):
+                    collection_name = query.get("collection", "documents")
+                    filter_query = query.get("filter", {})
+                    projection = query.get("projection", None)
+                    limit = query.get("limit", 100)
+
+                    collection = _db_connection[collection_name]
+                    results = list(collection.find(filter_query, projection).limit(limit))
+
+                    for result in results:
+                        if "_id" in result:
+                            result["_id"] = str(result["_id"])
+
+                    return results
+                else:
+                    logger.warning("Pour MongoDB, la requête doit être un dictionnaire")
+                    return []
+
+        except Exception as e:
+            logger.error(f"Erreur lors de l'exécution de la requête : {e}", exc_info=True)
+            return []
+
+    return []
 
 
 def search_formations_db(faculty: Optional[str] = None, level: Optional[str] = None) -> List[Dict[str, Any]]:

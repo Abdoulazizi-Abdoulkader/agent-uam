@@ -58,7 +58,7 @@ def validate_question(question: str) -> Tuple[bool, Optional[str]]:
         sanitized = sanitize_input(question, max_length=2000)
         
         # Vérifier qu'il y a au moins quelques caractères significatifs
-        if len(sanitized) < 2:
+        if len(sanitized) < 3:
             return False, "La question est trop courte"
         
         # Vérifier qu'il n'y a pas que des caractères spéciaux

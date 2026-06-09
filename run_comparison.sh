@@ -14,12 +14,16 @@ LIMIT_ARGS=""
 RAGAS_ARGS=""
 RAGAS_LIMIT_ARGS=""
 RAGAS_WORKERS_ARGS=""
-for arg in "$@"; do
-    case $arg in
-        --limit*)         LIMIT_ARGS="$arg" ;;
-        --no-ragas)       RAGAS_ARGS="--no-ragas" ;;
-        --ragas-limit*)   RAGAS_LIMIT_ARGS="$arg" ;;
-        --ragas-workers*) RAGAS_WORKERS_ARGS="$arg" ;;
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --limit=*)         LIMIT_ARGS="$1";                      shift ;;
+        --limit)           LIMIT_ARGS="--limit $2";              shift 2 ;;
+        --no-ragas)        RAGAS_ARGS="--no-ragas";              shift ;;
+        --ragas-limit=*)   RAGAS_LIMIT_ARGS="$1";                shift ;;
+        --ragas-limit)     RAGAS_LIMIT_ARGS="--ragas-limit $2";  shift 2 ;;
+        --ragas-workers=*) RAGAS_WORKERS_ARGS="$1";              shift ;;
+        --ragas-workers)   RAGAS_WORKERS_ARGS="--ragas-workers $2"; shift 2 ;;
+        *)                 shift ;;
     esac
 done
 

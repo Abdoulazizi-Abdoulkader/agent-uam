@@ -158,6 +158,8 @@ class AppConfig:
             issues.append("UAM_CHUNK_SIZE doit être > 0")
         if self.vectorstore.chunk_overlap < 0:
             issues.append("UAM_CHUNK_OVERLAP doit être >= 0")
+        if self.vectorstore.chunk_overlap >= self.vectorstore.chunk_size:
+            issues.append("UAM_CHUNK_OVERLAP doit être < UAM_CHUNK_SIZE")
         if self.vectorstore.similarity_search_k <= 0:
             issues.append("UAM_SIMILARITY_K doit être > 0")
 

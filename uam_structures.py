@@ -717,7 +717,7 @@ def get_structure_info(structure_name: str) -> Optional[Dict[str, Any]]:
                     **{k: v for k, v in info.items() if k not in ("nom_complet", "variantes")}
                 }
             for variant in info["variantes"]:
-                if variant.lower() == structure_name_lower or variant.lower() in structure_name_lower:
+                if variant.lower() == structure_name_lower:
                     return {
                         "type": category[:-1],
                         "abreviation": abbrev,
@@ -731,7 +731,7 @@ def get_structure_info(structure_name: str) -> Optional[Dict[str, Any]]:
         if abbrev.lower() == structure_name_lower:
             return {"type": "historique", "abreviation": abbrev, **info}
         for variant in info.get("variantes", []):
-            if variant.lower() == structure_name_lower or variant.lower() in structure_name_lower:
+            if variant.lower() == structure_name_lower:
                 return {"type": "historique", "abreviation": abbrev, **info}
 
     return None
