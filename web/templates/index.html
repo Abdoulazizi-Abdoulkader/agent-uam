@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ info.nom_complet }}</title>
+  <meta name="description" content="Site de l'{{ info.nom_complet }} : facultés, formations, inscription et assistant d'orientation.">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<a class="skip" href="#contenu">Aller au contenu</a>
+
+<!-- ══════════════ EN-TÊTE ══════════════ -->
+<header class="entete" id="entete">
+  <div class="conteneur entete__inner">
+    <a class="marque" href="#" aria-label="Accueil">
+      <span class="marque__sigle">UAM</span>
+      <span class="marque__nom">
+        <strong>Université Abdou Moumouni</strong>
+        <span>Niamey · Niger</span>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="#universite">L'Université</a>
+      <a href="#enseignement">Enseignement</a>
+      <a href="#formations">Formations</a>
+      <a href="#scolarite">Scolarité</a>
+      <a href="#recherche">Recherche</a>
+      <a href="#contact">Contact</a>
+    </nav>
+
+    <button class="btn btn--accent entete__chat" data-ouvre-chat>
+      <span aria-hidden="true">◆</span> Assistant
+    </button>
+
+    <button class="burger" aria-label="Ouvrir le menu" aria-expanded="false" data-burger>
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main id="contenu">
+
+<!-- ══════════════ HERO ══════════════ -->
+<section class="hero">
+  <div class="conteneur hero__inner">
+   <div class="hero__contenu">
+    <p class="eyebrow">Établissement public d'enseignement supérieur · depuis 1971</p>
+
+    <blockquote class="devise">
+      <p class="devise__texte">{{ devise.texte }}</p>
+      {% if devise.langue %}<p class="devise__langue">devise de l'université, en {{ devise.langue }}</p>{% endif %}
+    </blockquote>
+
+    <p class="hero__intro">{{ info.vision }}.</p>
+
+    <!-- Point d'entrée de l'assistant : le cœur de la page -->
+    <form class="demande" data-formulaire-hero autocomplete="off">
+      <label class="demande__label" for="question-hero">Une question sur l'UAM&nbsp;?</label>
+      <div class="demande__champ">
+        <input id="question-hero" type="text" name="question"
+               placeholder="Ex. : quels sont les frais d'inscription en Licence&nbsp;?"
+               maxlength="2000" required>
+        <button type="submit" class="btn btn--accent">Demander</button>
+      </div>
+      <p class="demande__aide">
+        Réponses fondées sur les documents officiels de l'université.
+      </p>
+    </form>
+
+    <ul class="suggestions" data-suggestions>
+      <li><button type="button">Comment s'inscrire en première année&nbsp;?</button></li>
+      <li><button type="button">Quels documents fournir pour l'inscription&nbsp;?</button></li>
+      <li><button type="button">Quelles formations propose la FAST&nbsp;?</button></li>
+      <li><button type="button">Comment candidater en Master&nbsp;?</button></li>
+    </ul>
+   </div>
+
+   <!-- Aperçu d'un échange réel : montre ce que fait l'assistant avant qu'on l'ouvre -->
+   <aside class="apercu" aria-label="Exemple d'échange avec l'assistant">
+     <p class="apercu__etiquette">Exemple d'échange</p>
+     <div class="apercu__fil">
+       <p class="apercu__moi">Quels sont les frais d'inscription en Licence&nbsp;?</p>
+       <div class="apercu__bot">
+         <p>Étudiants nigériens et ressortissants UEMOA&nbsp;: <strong>10 000 FCFA</strong>.</p>
+         <p>Hors UEMOA&nbsp;: de <strong>150 000</strong> à <strong>250 000 FCFA</strong> par an,
+            selon la faculté.</p>
+         <p class="apercu__meta">3 documents officiels consultés · 2,4 s</p>
+       </div>
+     </div>
+   </aside>
+  </div>
+</section>
+
+<!-- ══════════════ CHIFFRES ══════════════ -->
+<section class="chiffres" aria-label="L'université en chiffres">
+  <div class="conteneur chiffres__grille">
+    {% for c in chiffres %}
+    <div class="chiffre">
+      <span class="chiffre__valeur">{{ c.valeur }}</span>
+      <span class="chiffre__label">{{ c.label }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ══════════════ L'UNIVERSITÉ ══════════════ -->
+<section class="section" id="universite">
+  <div class="conteneur">
+    <p class="eyebrow">L'Université</p>
+    <h2 class="titre">Former les cadres du Niger depuis un demi-siècle</h2>
+
+    <div class="duo">
+      <div class="duo__texte">
+        <p class="chapeau">{{ info.statut }}</p>
+        <h3 class="sous-titre">Missions</h3>
+        <ul class="liste-cochee">
+          {% for m in info.missions %}<li>{{ m }}</li>{% endfor %}
+        </ul>
+        <h3 class="sous-titre">Valeurs</h3>
+        <ul class="etiquettes">
+          {% for v in info.valeurs %}<li>{{ v }}</li>{% endfor %}
+        </ul>
+      </div>
+
+      <!-- La chronologie est une vraie séquence : les dates portent l'information -->
+      <div class="duo__aside">
+        <h3 class="sous-titre">Repères historiques</h3>
+        <ol class="chrono">
+          {% for annee, evenement in historique.items() %}
+          <li class="chrono__item">
+            <span class="chrono__annee">{{ annee }}</span>
+            <span class="chrono__texte">{{ evenement }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ENSEIGNEMENT ══════════════ -->
+<section class="section section--sable" id="enseignement">
+  <div class="conteneur">
+    <p class="eyebrow">Enseignement</p>
+    <h2 class="titre">Facultés, instituts et écoles doctorales</h2>
+    <p class="chapeau">
+      {{ composantes | length }} composantes structurent l'enseignement et la recherche.
+      Cliquez sur une composante pour consulter sa fiche.
+    </p>
+
+    <div class="filtres" role="group" aria-label="Filtrer les composantes">
+      <button type="button" class="puce puce--on" data-filtre-type="tous">Toutes</button>
+      <button type="button" class="puce" data-filtre-type="facultes">Facultés</button>
+      <button type="button" class="puce" data-filtre-type="instituts">Instituts</button>
+      <button type="button" class="puce" data-filtre-type="ecoles">Écoles</button>
+    </div>
+
+    <div class="cartes" data-composantes>
+      {% for c in composantes %}
+      <article class="carte" data-type="{{ c.categorie }}" tabindex="0" role="button"
+               aria-label="Fiche de {{ c.nom_complet }}"
+               data-fiche="fiche-{{ c.sigle | replace('-', '') }}">
+        <span class="carte__code">{{ c.sigle }}</span>
+        <h3 class="carte__titre">{{ c.nom_complet }}</h3>
+        <p class="carte__type">{{ c.type_label }}</p>
+        {% if c.nb_etudiants %}
+        <p class="carte__donnee">
+          <strong>{{ "{:,}".format(c.nb_etudiants).replace(',', ' ') }}</strong> étudiants
+          {%- if c.annee_reference %} <span class="carte__annee">{{ c.annee_reference }}</span>{% endif %}
+        </p>
+        {% elif c.departements %}
+        <p class="carte__donnee"><strong>{{ c.departements | length }}</strong> départements</p>
+        {% endif %}
+        <span class="carte__lien">Consulter la fiche →</span>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Fiches détaillées des composantes -->
+{% for c in composantes %}
+<dialog class="fiche" id="fiche-{{ c.sigle | replace('-', '') }}">
+  <form method="dialog" class="fiche__fermer"><button aria-label="Fermer">✕</button></form>
+  <p class="fiche__code">{{ c.sigle }}</p>
+  <h3 class="fiche__titre">{{ c.nom_complet }}</h3>
+  <p class="fiche__type">{{ c.type_label }}</p>
+
+  {% if c.missions %}<p class="fiche__para"><strong>Missions.</strong> {{ c.missions }}</p>{% endif %}
+  {% if c.localisation %}<p class="fiche__para"><strong>Localisation.</strong> {{ c.localisation }}</p>{% endif %}
+  {% if c.historique %}<p class="fiche__para"><strong>Historique.</strong> {{ c.historique }}</p>{% endif %}
+
+  {% if c.effectifs %}
+  <h4 class="fiche__soustitre">Effectifs</h4>
+  <ul class="fiche__donnees">
+    {% for cle, valeur in c.effectifs.items() %}
+    <li><span>{{ cle | replace('_', ' ') | capitalize }}</span><strong>{{ valeur }}</strong></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if c.departements %}
+  <h4 class="fiche__soustitre">Départements ({{ c.departements | length }})</h4>
+  <ul class="fiche__liste">
+    {% for d in c.departements %}<li>{{ d }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if c.email or c.telephone %}
+  <p class="fiche__contact">
+    {% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}
+    {% if c.telephone %}<span>{{ c.telephone }}</span>{% endif %}
+  </p>
+  {% endif %}
+
+  <button type="button" class="btn btn--accent" data-ouvre-chat
+          data-question="Parle-moi de {{ c.nom_complet }} ({{ c.sigle }})">
+    Interroger l'assistant sur cette composante
+  </button>
+</dialog>
+{% endfor %}
+
+<!-- ══════════════ FORMATIONS ══════════════ -->
+<section class="section" id="formations">
+  <div class="conteneur">
+    <p class="eyebrow">Offre de formation</p>
+    <h2 class="titre">{{ formations | length }} formations référencées</h2>
+    <p class="chapeau">Système LMD : {{ lmd.licence }} · {{ lmd.master }} · {{ lmd.doctorat }}</p>
+
+    <div class="barre-filtres">
+      <label class="champ">
+        <span>Rechercher</span>
+        <input type="search" placeholder="Intitulé ou département…" data-recherche-formation>
+      </label>
+      <label class="champ">
+        <span>Composante</span>
+        <select data-filtre-composante>
+          <option value="">Toutes</option>
+          {% for s in filtres.composantes %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="champ">
+        <span>Niveau</span>
+        <select data-filtre-niveau>
+          <option value="">Tous</option>
+          {% for n in filtres.niveaux %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+        </select>
+      </label>
+      <p class="compteur" data-compteur-formations>{{ formations | length }} résultats</p>
+    </div>
+
+    <div class="tableau-enveloppe">
+      <table class="tableau" data-table-formations>
+        <thead>
+          <tr>
+            <th scope="col">Niveau</th>
+            <th scope="col">Intitulé</th>
+            <th scope="col">Département</th>
+            <th scope="col">Composante</th>
+            <th scope="col" class="num">Capacité</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in formations %}
+          <tr data-composante="{{ f.composante }}" data-niveau="{{ f.niveau }}"
+              data-texte="{{ (f.intitule ~ ' ' ~ f.departement) | lower }}">
+            <td><span class="niveau">{{ f.niveau }}</span></td>
+            <td>{{ f.intitule }}</td>
+            <td>{{ f.departement }}</td>
+            <td><span class="sigle">{{ f.composante }}</span></td>
+            <td class="num">{{ f.capacite_accueil or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="vide" data-vide-formations hidden>Aucune formation ne correspond à ces critères.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ SCOLARITÉ ══════════════ -->
+<section class="section section--sable" id="scolarite">
+  <div class="conteneur">
+    <p class="eyebrow">Scolarité</p>
+    <h2 class="titre">S'inscrire à l'UAM</h2>
+
+    <div class="duo">
+      <div class="duo__texte">
+        <h3 class="sous-titre">Procédure d'inscription</h3>
+        <!-- Étapes numérotées : la procédure est bien une séquence ordonnée -->
+        <ol class="etapes">
+          {% for etape in inscription.procedure %}
+          <li class="etape">
+            <span class="etape__num">{{ "%02d" | format(loop.index) }}</span>
+            <span>{{ etape }}</span>
+          </li>
+          {% endfor %}
+        </ol>
+
+        <h3 class="sous-titre">Conditions d'accès</h3>
+        <ul class="conditions">
+          {% for cle, valeur in inscription.conditions.items() %}
+          <li>
+            <span class="niveau">{{ cle | replace('_', ' ') | upper }}</span>
+            <span>{{ valeur }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+
+        <p class="note"><strong>Calendrier.</strong> {{ inscription.calendrier }}</p>
+      </div>
+
+      <div class="duo__aside">
+        <h3 class="sous-titre">Frais {% if frais %}<span class="annee">{{ frais[0].annee_reference }}</span>{% endif %}</h3>
+        <div class="tableau-enveloppe">
+          <table class="tableau tableau--compact">
+            <thead>
+              <tr>
+                <th scope="col">Niveau</th>
+                <th scope="col">Public</th>
+                <th scope="col">Composante</th>
+                <th scope="col" class="num">Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in frais %}
+              <tr>
+                <td><span class="niveau">{{ f.niveau }}</span></td>
+                <td>{{ f.public }}</td>
+                <td>
+                  {%- if f.composante_sigle %}<span class="sigle">{{ f.composante_sigle }}</span>
+                  {%- else %}<span class="discret">toutes</span>{% endif -%}
+                </td>
+                <td class="num">
+                  {% if f.montant_indicatif %}
+                    {{ "{:,}".format(f.montant_indicatif).replace(',', ' ') }} {{ f.devise }}
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          Montants indicatifs issus des documents officiels. Pour votre situation précise,
+          <button type="button" class="lien-bouton" data-ouvre-chat
+                  data-question="Quels sont les frais d'inscription qui s'appliquent à mon cas ?">interrogez l'assistant</button>.
+        </p>
+
+        <h3 class="sous-titre">Bourses</h3>
+        <ul class="liste-cochee">
+          {% for cle, valeur in inscription.bourses.items() %}
+          <li><strong>{{ cle | capitalize }}.</strong> {{ valeur }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ RECHERCHE ══════════════ -->
+<section class="section" id="recherche">
+  <div class="conteneur">
+    <p class="eyebrow">Recherche &amp; coopération</p>
+    <h2 class="titre">Domaines prioritaires</h2>
+
+    <div class="duo">
+      <div class="duo__texte">
+        <ul class="domaines">
+          {% for d in recherche.domaines_prioritaires %}<li>{{ d }}</li>{% endfor %}
+        </ul>
+      </div>
+      <div class="duo__aside">
+        <h3 class="sous-titre">Partenaires</h3>
+        <ul class="etiquettes">
+          {% for p in recherche.partenaires %}<li>{{ p }}</li>{% endfor %}
+        </ul>
+        <h3 class="sous-titre">Centres d'excellence</h3>
+        <ul class="liste-cochee">
+          {% for cle, centre in info.centres_excellence.items() %}
+          <li><strong>{{ cle }}.</strong> {{ centre.nom }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ CONTACT ══════════════ -->
+<section class="section section--sable" id="contact">
+  <div class="conteneur">
+    <p class="eyebrow">Contact</p>
+    <h2 class="titre">Nous joindre</h2>
+
+    <div class="contacts">
+      <div class="contact-bloc">
+        <h3 class="sous-titre">Rectorat</h3>
+        <p>{{ info.adresse_postale }}</p>
+        <p>{{ info.adresse_physique }}</p>
+        <p><a href="tel:{{ info.telephone | replace(' ', '') }}">{{ info.telephone }}</a></p>
+        <p><a href="mailto:rectorat@uam.edu.ne">rectorat@uam.edu.ne</a></p>
+      </div>
+      <div class="contact-bloc">
+        <h3 class="sous-titre">Services en ligne</h3>
+        <ul class="liste-liens">
+          <li><a href="{{ contacts.site_officiel }}" rel="noopener" target="_blank">Site officiel</a></li>
+          <li><a href="{{ contacts.page_inscription }}" rel="noopener" target="_blank">Préinscription</a></li>
+          <li><a href="{{ info.webmail }}" rel="noopener" target="_blank">Webmail</a></li>
+          <li><a href="{{ contacts.cvtheque }}" rel="noopener" target="_blank">CVthèque</a></li>
+        </ul>
+      </div>
+      <div class="contact-bloc contact-bloc--accent">
+        <h3 class="sous-titre">Assistant d'orientation</h3>
+        <p>Disponible à toute heure pour vos questions sur les formations, l'inscription et la vie étudiante.</p>
+        <button type="button" class="btn btn--accent" data-ouvre-chat>Poser une question</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ══════════════ PIED DE PAGE ══════════════ -->
+<footer class="pied">
+  <div class="conteneur pied__inner">
+    <div>
+      <p class="pied__marque">{{ info.nom_complet }}</p>
+      <p class="pied__devise">« {{ devise.texte }} »</p>
+    </div>
+    <p class="pied__legal">
+      {{ info.adresse_postale }} · {{ info.telephone }}<br>
+      Assistant conversationnel — prototype de recherche fondé sur les documents officiels
+      de l'université. Les informations font foi après confirmation auprès de la scolarité.
+    </p>
+  </div>
+</footer>
+
+<!-- ══════════════ ASSISTANT ══════════════ -->
+<button class="bulle" data-ouvre-chat aria-label="Ouvrir l'assistant">
+  <span aria-hidden="true">◆</span>
+</button>
+
+<aside class="chat" id="chat" aria-label="Assistant d'orientation" hidden>
+  <header class="chat__entete">
+    <div>
+      <p class="chat__titre">Assistant d'orientation</p>
+      <p class="chat__soustitre">Université Abdou Moumouni</p>
+    </div>
+    <div class="chat__actions">
+      <button class="chat__action" data-nouvelle-conversation
+              aria-label="Démarrer une nouvelle conversation" title="Nouvelle conversation">↻</button>
+      <button class="chat__fermer" data-ferme-chat aria-label="Fermer l'assistant">✕</button>
+    </div>
+  </header>
+
+  <div class="chat__fil" data-fil aria-live="polite"></div>
+
+  <!-- Contenu initial du fil, réutilisé à chaque nouvelle conversation -->
+  <template data-accueil>
+    <div class="msg msg--bot">
+      <p>Bonjour. Je réponds à vos questions sur les formations, l'inscription, les frais
+         et la vie étudiante à l'UAM, à partir des documents officiels de l'université.</p>
+    </div>
+    <ul class="chat__suggestions" data-suggestions>
+      <li><button type="button">Comment s'inscrire en première année&nbsp;?</button></li>
+      <li><button type="button">Quels sont les frais d'inscription en Licence&nbsp;?</button></li>
+      <li><button type="button">Quelles formations propose la FAST&nbsp;?</button></li>
+      <li><button type="button">Comment candidater en Master&nbsp;?</button></li>
+    </ul>
+  </template>
+
+  <form class="chat__saisie" data-formulaire-chat autocomplete="off">
+    <input type="text" name="question" placeholder="Votre question…" maxlength="2000" required
+           aria-label="Votre question">
+    <button type="submit" aria-label="Envoyer">→</button>
+  </form>
+</aside>
+
+<div class="voile" data-voile hidden></div>
+
+<script src="/static/chat.js" defer></script>
+</body>
+</html>
