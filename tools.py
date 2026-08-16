@@ -2,6 +2,7 @@
 Outils (Tools) pour l'agent conversationnel UAM
 Tous les outils disponibles pour la recherche et l'interaction
 """
+import contextvars
 import json
 import re
 import threading
@@ -68,18 +69,23 @@ _STATUTS_INSCRIPTION_VALIDES: frozenset = frozenset({
     "confirmed", "confirmé",
 })
 
-# user_id de session — stocké par thread pour éviter les collisions inter-sessions.
-# Appelez set_session_user_id() à l'initialisation de chaque session Streamlit.
-_thread_local = threading.local()
+# user_id de session, isolé par contexte d'exécution pour éviter les collisions
+# inter-sessions. Un ContextVar (et non un threading.local) est nécessaire car le
+# ToolNode exécute les outils dans un pool de threads : ces threads héritent du
+# contexte de l'appelant, ce qu'un stockage par thread ne permet pas.
+# Appelez set_session_user_id() au début de chaque requête ou session.
+_session_user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "uam_session_user_id", default=None
+)
 
 
 def set_session_user_id(user_id: str) -> None:
-    """Fixe l'identifiant de session pour le thread courant (appelé côté Streamlit)."""
-    _thread_local.user_id = user_id
+    """Fixe l'identifiant de session pour le contexte d'exécution courant."""
+    _session_user_id.set(user_id)
 
 
 def _get_session_user_id() -> str | None:
-    return getattr(_thread_local, "user_id", None)
+    return _session_user_id.get()
 
 # Import du module de connexion à la base de données
 try:
@@ -90,6 +96,9 @@ try:
         search_schedules_db,
         search_fees_db,
         search_news_announcements_db,
+        get_statistics_db,
+        get_official_stats_db,
+        search_student_courses_db,
         query_database
     )
     _db_available = is_database_available()
@@ -467,63 +476,95 @@ def calculate_fees(level: str, faculty: str = "") -> str:
             db_results = search_fees_db(level=level, faculty=faculty_abbrev, year=current_year)
             
             if db_results:
-                results_parts.append("💰 FRAIS DE SCOLARITÉ (BASE DE DONNÉES) :")
+                results_parts.append(f"💰 FRAIS D'INSCRIPTION — {level.upper()} (tarifs officiels UAM) :")
                 results_parts.append("")
-                for fee in db_results[:10]:  # Limiter à 10 résultats
-                    fee_info = []
-                    if "level" in fee:
-                        fee_info.append(f"📋 {fee['level']}")
-                    if "type_inscription" in fee:
-                        fee_info.append(f"   Type : {fee['type_inscription']}")
-                    total_frais = 0
-                    if "frais_inscription" in fee and fee["frais_inscription"]:
-                        total_frais += fee["frais_inscription"]
-                        fee_info.append(f"   Frais d'inscription : {fee['frais_inscription']:,} FCFA")
-                    if "frais_scolarite" in fee and fee["frais_scolarite"]:
-                        total_frais += fee["frais_scolarite"]
-                        fee_info.append(f"   Frais de scolarité : {fee['frais_scolarite']:,} FCFA")
-                    if "frais_labo" in fee and fee["frais_labo"]:
-                        total_frais += fee["frais_labo"]
-                        fee_info.append(f"   Frais de laboratoire : {fee['frais_labo']:,} FCFA")
-                    if total_frais > 0:
-                        fee_info.append(f"   💵 TOTAL : {total_frais:,} FCFA")
-                    if "periode" in fee:
-                        fee_info.append(f"   Période : {fee['periode']}")
-                    
-                    results_parts.append("\n".join(fee_info))
+                # Séparer UEMOA et hors UEMOA
+                from collections import defaultdict
+                by_nat: dict = defaultdict(list)
+                for fee in db_results:
+                    by_nat[fee.get("nationalite", "uemoa")].append(fee)
+
+                # UEMOA : montant unique
+                if "uemoa" in by_nat:
+                    results_parts.append("  📋 Étudiants nigériens & zone UEMOA :")
+                    for fee in by_nat["uemoa"]:
+                        ind = fee.get("montant_indicatif")
+                        results_parts.append(f"    • {ind:,} FCFA")
                     results_parts.append("")
+
+                # Hors UEMOA : regrouper les facultés par montant
+                if "hors_uemoa" in by_nat:
+                    results_parts.append("  📋 Étudiants hors zone UEMOA :")
+                    # Regrouper par montant → liste de composantes
+                    by_amount: dict = defaultdict(list)
+                    for fee in by_nat["hors_uemoa"]:
+                        comp = fee.get("composante_sigle") or ""
+                        ind = fee.get("montant_indicatif", 0)
+                        if comp:
+                            by_amount[ind].append(comp)
+                    if by_amount:
+                        for montant in sorted(by_amount.keys()):
+                            composantes = ", ".join(sorted(set(by_amount[montant])))
+                            results_parts.append(f"    • {composantes} : {montant:,} FCFA / an")
+                    else:
+                        # Pas de composante précisée → montant unique
+                        for fee in by_nat["hors_uemoa"]:
+                            ind = fee.get("montant_indicatif", 0)
+                            results_parts.append(f"    • {ind:,} FCFA / an")
+                    results_parts.append("")
+
+                source_label = "officielle" if any(f.get("source") == "officiel_uam" for f in db_results) else "indicative"
+                if source_label == "officielle":
+                    results_parts.append("📄 Source : Service Central de la Scolarité (Formalités d'admission).")
+                else:
+                    results_parts.append("⚠️ Montants indicatifs — contactez le secrétariat de votre faculté.")
+                results_parts.append("Zone UEMOA : Niger, Bénin, Côte d'Ivoire, Togo, Burkina Faso, Sénégal, Mali, Guinée Bissau.")
         except Exception as e:
             logger.warning(f"Erreur lors de la recherche des frais en base de données : {e}")
 
-    # 2. Tarifs de base (fallback si pas de BD ou pas de résultats)
+    # 2. Tarifs officiels (fallback si BDD indisponible)
+    # Source : Formalités_d_admission.txt — tarifs officiels d'inscription UAM
     if not results_parts:
-        fees_base = {
-            "licence": {
-                "base": 50000,  # FCFA
-                "description": "Frais de scolarité pour la Licence"
-            },
-            "master": {
-                "base": 75000,  # FCFA
-                "description": "Frais de scolarité pour le Master"
-            },
-            "doctorat": {
-                "base": 100000,  # FCFA
-                "description": "Frais de scolarité pour le Doctorat"
-            }
-        }
-        
         level_lower = level.lower()
-        
-        if level_lower in fees_base:
-            info = fees_base[level_lower]
-            results_parts.append(f" {info['description']}: {info['base']:,} FCFA par an")
-            if faculty:
-                results_parts.append(f"Faculté: {faculty}")
-            results_parts.append("\n Note: Ces tarifs sont indicatifs. Veuillez contacter le service de scolarité pour les tarifs exacts.")
+        if level_lower in ("licence", "l1", "l2", "l3"):
+            results_parts.append("💰 FRAIS D'INSCRIPTION EN LICENCE (tarifs officiels UAM) :")
+            results_parts.append("")
+            results_parts.append("  📋 Étudiants nigériens & zone UEMOA")
+            results_parts.append("    • Inscription : 10 000 FCFA")
+            results_parts.append("")
+            results_parts.append("  📋 Étudiants hors zone UEMOA (annuel) :")
+            results_parts.append("    • FA, FAST : 250 000 FCFA")
+            results_parts.append("    • FLSH, ENS, FSEG, FSJP : 150 000 FCFA")
+            results_parts.append("    • FSS (Santé, 1ère–6ème année) : 200 000 FCFA")
+        elif level_lower in ("master", "m1", "m2"):
+            results_parts.append("💰 FRAIS D'INSCRIPTION EN MASTER (tarifs officiels UAM) :")
+            results_parts.append("")
+            results_parts.append("  📋 Étudiants nigériens & zone UEMOA")
+            results_parts.append("    • Inscription : 50 000 FCFA")
+            results_parts.append("")
+            results_parts.append("  📋 Étudiants hors zone UEMOA :")
+            results_parts.append("    • Toutes facultés : 250 000 FCFA")
+        elif level_lower == "doctorat":
+            results_parts.append("💰 FRAIS D'INSCRIPTION EN DOCTORAT (tarifs officiels UAM) :")
+            results_parts.append("")
+            results_parts.append("  📋 Étudiants nigériens & zone UEMOA")
+            results_parts.append("    • Inscription : 50 000 FCFA")
+            results_parts.append("")
+            results_parts.append("  📋 Étudiants hors zone UEMOA :")
+            results_parts.append("    • FA, FAST, FLSH, ENS, FSEG, FSJP : 250 000 FCFA")
+            results_parts.append("    • FSS (Santé, 7ème année – thèse) : 400 000 FCFA")
         else:
-            return f"Niveau '{level}' non reconnu. Niveaux disponibles: licence, master, doctorat"
-    
-    return "\n".join(results_parts)
+            return f"Niveau '{level}' non reconnu. Niveaux disponibles : licence, master, doctorat"
+        if faculty:
+            results_parts.append(f"\n  • Faculté concernée : {faculty}")
+        results_parts.append("\nZone UEMOA : Niger, Bénin, Côte d'Ivoire, Togo, Burkina Faso, Sénégal, Mali, Guinée Bissau.")
+        results_parts.append("⚠️ Dépôt du dossier au Service Central de la Scolarité (ENS).")
+
+    result = "\n".join(results_parts)
+    # Capture pour RAGAS : la grille tarifaire (codée en dur ou issue de la BD) est
+    # la source factuelle de la réponse — sans ce push, faithfulness la voit "non soutenue".
+    push_text(result)
+    return result
 
 
 @tool
@@ -813,7 +854,9 @@ def generate_registration_checklist(
         checklist.append(" Ajouter : documents d'équivalence et traduction certifiée si requis")
 
     checklist.append(" Besoin de détails ? Demandez les pièces ou la procédure exacte.")
-    return "\n".join(checklist)
+    result = "\n".join(checklist)
+    push_text(result)
+    return result
 
 
 @tool
@@ -934,7 +977,9 @@ def list_all_structures() -> str:
     Returns:
         Liste complète des structures de l'UAM
     """
-    return list_all_structures_internal()
+    result = list_all_structures_internal()
+    push_text(result)
+    return result
 
 
 @tool
@@ -1200,11 +1245,16 @@ def search_avantages_universite(filiere: str = "", faculty: str = "") -> str:
 def search_student_record(matricule: str, query_type: str = "inscription") -> str:
     """
     Consulte le dossier d'un étudiant par son matricule dans la base de données UAM.
-    Permet de vérifier le statut d'inscription, les paiements et les résultats.
+    Permet de vérifier le statut d'inscription, les paiements, les résultats et les cours inscrits.
 
     Args:
         matricule: Numéro de matricule de l'étudiant (ex: UAM240001)
-        query_type: Type de consultation — "inscription" | "paiement" | "resultats" | "general"
+        query_type: Type de consultation —
+            "inscription" : statut d'inscription uniquement
+            "paiement"    : montants payés et frais
+            "resultats"   : notes et crédits ECTS
+            "cours"       : liste des UEs inscrites ce semestre
+            "general"     : toutes les informations disponibles
 
     Returns:
         Informations sur le dossier de l'étudiant avec statut d'inscription, montants FCFA, notes, ECTS.
@@ -1305,11 +1355,134 @@ def search_student_record(matricule: str, query_type: str = "inscription") -> st
             else:
                 lines.append(f"  {notes_raw}")
 
+    # Cours inscrits (UEs de la formation)
+    if query_type in ("cours", "general"):
+        try:
+            cours = search_student_courses_db(matricule)
+        except Exception as e:
+            logger.error(f"Erreur récupération cours pour {matricule}: {e}")
+            cours = []
+        if cours:
+            lines.append("\n**Cours inscrits cette année :**")
+            sem_courant = None
+            for c in cours:
+                sem = c.get("semestre")
+                if sem != sem_courant:
+                    sem_courant = sem
+                    lines.append(f"\n  *Semestre {sem}*")
+                code   = sanitize_input(c.get("code_ue", ""), max_length=20)
+                titre  = sanitize_input(c.get("intitule", ""), max_length=80)
+                ects   = c.get("credits_ects", "?")
+                statut = c.get("statut_ue", "")
+                statut_label = " ✓" if statut == "valide" else (" ⏳" if statut == "en_cours" else "")
+                lines.append(f"  • {code} — {titre} ({ects} ECTS){statut_label}")
+        else:
+            lines.append("\nAucun cours trouvé pour cette inscription. Contactez la scolarité.")
+
     lines.append(
         "\nPour toute contestation ou information complémentaire, contactez le service de scolarité "
         "de votre faculté ou la Scolarité Centrale (Tél : +227 20 74 06 61)."
     )
-    return "\n".join(lines)
+    result = "\n".join(lines)
+    push_text(result)
+    return result
+
+
+@tool
+def search_statistics_uam(faculty: str = "", level: str = "", year: str = "2024-2025") -> str:
+    """
+    Donne les statistiques de l'UAM : effectifs étudiants par composante/niveau ET
+    nombre d'enseignants-chercheurs, PAT et vacataires issus des données officielles.
+    Utiliser pour : "Combien d'étudiants à la FAST ?", "Combien d'enseignants-chercheurs ?",
+    "Effectif total UAM ?", "Combien d'inscrits en L1 ?".
+
+    Args:
+        faculty: Sigle de la composante (FAST, FLSH, FA, FSEG, FSJP…) — vide = toutes
+        level:   Niveau (L1, L2, L3, M1, M2…) — vide = tous
+        year:    Année académique pour les inscriptions courantes (défaut : 2024-2025)
+    """
+    if not _db_available:
+        return (
+            "La base de données n'est pas disponible pour les statistiques.\n"
+            "Contactez la Direction des Études et des Stages (DES) de l'UAM : +227 20 74 06 61."
+        )
+
+    from collections import defaultdict
+    lines = []
+
+    # ── Partie 1 : inscriptions courantes (table inscriptions) ─────────────────
+    try:
+        rows = get_statistics_db(
+            faculty=faculty.strip() or None,
+            level=level.strip() or None,
+            year=year.strip() or "2024-2025",
+        )
+    except Exception as e:
+        logger.error(f"Erreur BDD statistiques inscriptions: {e}")
+        rows = []
+
+    if rows:
+        lines.append(f"**Inscriptions — Année {year}**\n")
+        by_faculty: dict = defaultdict(list)
+        for r in rows:
+            by_faculty[f"{r.get('faculty','?')} — {r.get('faculty_name','?')}"].append(
+                (r.get("level", "?"), int(r.get("effectif", 0)))
+            )
+        total_global = 0
+        for fac_label, niveaux in sorted(by_faculty.items()):
+            sous_total = sum(n for _, n in niveaux)
+            total_global += sous_total
+            lines.append(f"- **{fac_label}** : {sous_total} étudiant(s)")
+            if len(niveaux) > 1 or level:
+                for niv, nb in niveaux:
+                    lines.append(f"    • {niv} : {nb}")
+        if not faculty:
+            lines.append(f"\n**Total inscriptions {year} : {total_global} étudiant(s)**")
+
+    # ── Partie 2 : statistiques officielles (enseignants-chercheurs, effectifs historiques) ─
+    try:
+        official = get_official_stats_db(faculty=faculty.strip() or None)
+    except Exception as e:
+        logger.error(f"Erreur BDD statistiques officielles: {e}")
+        official = []
+
+    if official:
+        if lines:
+            lines.append("")
+        lines.append("**Données officielles (source : documents UAM)**\n")
+        for o in official:
+            fac   = o.get("faculty", "?")
+            fname = o.get("faculty_name", "?")
+            annee = o.get("annee_reference", "?")
+            nb_e  = o.get("nb_etudiants")
+            nb_ec = o.get("nb_enseignants_chercheurs")
+            rang_a= o.get("dont_rang_a")
+            vacat = o.get("nb_vacataires")
+            pat   = o.get("nb_pat")
+
+            entry = [f"- **{fac} — {fname}** ({annee}) :"]
+            if nb_e  is not None: entry.append(f"    • Étudiants : {nb_e:,}")
+            if nb_ec is not None:
+                ec_detail = f" (dont {rang_a} rang A)" if rang_a else ""
+                entry.append(f"    • Enseignants-chercheurs : {nb_ec}{ec_detail}")
+            if vacat is not None: entry.append(f"    • Vacataires : {vacat}")
+            if pat   is not None: entry.append(f"    • PAT : {pat}")
+            lines.extend(entry)
+
+    if not lines:
+        target = faculty.upper() if faculty else "l'UAM"
+        return (
+            f"Aucune statistique trouvée pour {target}.\n"
+            "Contactez la scolarité ou la Direction des Études de l'UAM : +227 20 74 06 61."
+        )
+
+    lines.append(
+        "\n*Inscriptions courantes : base scolarité UAM. "
+        "Données officielles : documents UAM (info_UAM.md, rapport 2022-2023).*"
+    )
+    result = "\n".join(lines)
+    push_text(result)
+    return result
 
 
 @tool
@@ -1356,8 +1529,10 @@ def search_latest_news(limit: int = 5, category: str = "") -> str:
             
             results_parts.append("\n".join(ann_info))
             results_parts.append("")
-        
-        return "\n".join(results_parts)
+
+        result = "\n".join(results_parts)
+        push_text(result)
+        return result
         
     except Exception as e:
         return f"Erreur lors de la récupération des actualités : {e}"
@@ -1414,8 +1589,10 @@ def get_schedules_from_db(faculty: str = "", filiere: str = "", level: str = "")
             results_parts.append("\n".join(sched_info))
             results_parts.append("")
         
-        return "\n".join(results_parts)
-        
+        result = "\n".join(results_parts)
+        push_text(result)
+        return result
+
     except Exception as e:
         return f"Erreur lors de la récupération des horaires : {e}"
 
@@ -1738,6 +1915,9 @@ def search_phd_admission(
         "• ED-LASHS – École Doctorale Lettres, Arts, Sciences Humaines et Sociales\n"
         "• ED-SET  – École Doctorale des Sciences Exactes et Techniques\n"
     )
+    # Préambule statique = source factuelle (noms des écoles doctorales) à capturer
+    # pour RAGAS ; les chunks FAISS sont déjà poussés par _rag_search.
+    push_text(doctoral_schools_info)
 
     if not docs:
         return (
@@ -1797,6 +1977,8 @@ def search_foreign_student_procedures(
         "5. Vous enregistrer à la Direction des Affaires Étudiantes (DAE) pour le logement\n\n"
         "📞 Pour plus d'informations, contactez la Direction des Relations Internationales de l'UAM.\n"
     )
+    # Démarches statiques = source factuelle à capturer pour RAGAS.
+    push_text(static_info)
 
     if not docs:
         return static_info
@@ -1903,6 +2085,8 @@ def search_master_thesis_supervision(
         "📞 Pour les thèses en cotutelle internationale : contactez la Direction des Relations "
         "Internationales de l'UAM.\n"
     )
+    # Guide statique = source factuelle à capturer pour RAGAS.
+    push_text(guidance)
 
     if not docs:
         return guidance
@@ -2030,6 +2214,7 @@ def get_tools():
             search_latest_news,
             get_schedules_from_db,
             search_student_record,
+            search_statistics_uam,
         ])
     
     return tools

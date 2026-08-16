@@ -2,7 +2,6 @@
 Initialisation du LLM et des embeddings — provider OpenRouter uniquement
 """
 import os
-import threading
 from typing import Optional
 
 from langsmith import traceable
@@ -11,8 +10,6 @@ from app_config import get_config
 from logger_config import get_logger
 
 logger = get_logger(__name__)
-
-_openrouter_lock = threading.Lock()
 
 DEFAULT_MODEL = "openai/gpt-4o-mini"
 
@@ -58,6 +55,7 @@ def initialize_llm(
         "temperature": final_temperature,
         "api_key": api_key,
         "base_url": "https://openrouter.ai/api/v1",
+        "timeout": config.llm.timeout,
         "default_headers": {
             "HTTP-Referer": os.getenv("OPENROUTER_APP_URL", "https://github.com/agent-uam"),
             "X-Title": os.getenv("OPENROUTER_APP_NAME", "Agent UAM"),
@@ -66,20 +64,10 @@ def initialize_llm(
     if config.llm.max_tokens:
         llm_kwargs["max_tokens"] = config.llm.max_tokens
 
-    # langchain-openai peut chercher OPENAI_API_KEY même quand api_key est fourni
-    # → on la positionne temporairement sous verrou pour la thread-safety
-    with _openrouter_lock:
-        original = os.environ.get("OPENAI_API_KEY")
-        os.environ["OPENAI_API_KEY"] = api_key
-        try:
-            llm = ChatOpenAI(**llm_kwargs)
-        finally:
-            if original is not None:
-                os.environ["OPENAI_API_KEY"] = original
-            else:
-                os.environ.pop("OPENAI_API_KEY", None)
+    # api_key est passé directement au constructeur — pas besoin de toucher os.environ
+    llm = ChatOpenAI(**llm_kwargs)
 
-    logger.info(f"LLM OpenRouter initialisé : {final_model}")
+    logger.info(f"LLM OpenRouter initialisé : {final_model} (timeout={config.llm.timeout}s)")
     return llm
 
 

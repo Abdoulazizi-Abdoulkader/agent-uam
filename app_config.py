@@ -31,7 +31,7 @@ class DatabaseConfig:
     db_name: str = "uam_db"
     db_user: str = "postgres"
     db_password: str = ""
-    db_path: str = "./uam_database.db"
+    db_path: str = "./database/scolarite_uam.db"
     connection_string: Optional[str] = None
     
     @classmethod
@@ -44,7 +44,7 @@ class DatabaseConfig:
             db_name=os.getenv("UAM_DB_NAME", "uam_db"),
             db_user=os.getenv("UAM_DB_USER", "postgres"),
             db_password=os.getenv("UAM_DB_PASSWORD", ""),
-            db_path=os.getenv("UAM_DB_PATH", "./uam_database.db"),
+            db_path=os.getenv("UAM_DB_PATH", "./database/scolarite_uam.db"),
             connection_string=os.getenv("UAM_DB_CONNECTION_STRING")
         )
 

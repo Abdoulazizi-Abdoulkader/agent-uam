@@ -1,6 +1,7 @@
 """
 Nœuds du graphe LangGraph pour l'agent conversationnel UAM
 """
+import logging
 from langchain_core.messages import AIMessage, SystemMessage
 from typing import Literal
 from langsmith import traceable
@@ -74,7 +75,9 @@ _LENGTH_HINTS: dict[str, str] = {
     "PROFESSIONNEL":     "\n\nLONGUEUR CIBLE : 80-120 mots. Précise la procédure VAE/VAP applicable.",
 }
 
-_MAX_HISTORY = 20
+# 12 messages ≈ 6 échanges question/réponse : assez pour les questions de suivi
+# (« et pour le Master ? ») une fois les résultats d'outils purgés par _compress_history.
+_MAX_HISTORY = 12
 
 
 # ── Fonctions privées de construction du contexte ─────────────────────────────
@@ -94,12 +97,56 @@ def _build_profile_context(profile: str) -> str:
     return _PROFILE_HINTS.get(profile, "") + _LENGTH_HINTS.get(profile, "")
 
 
+def _compress_history(messages: list, max_size: int = _MAX_HISTORY) -> list:
+    """Allège l'historique envoyé au LLM avant de le tronquer.
+
+    Les résultats d'outils ne servent qu'au tour qui les a produits : une fois la
+    réponse rédigée, l'information utile s'y trouve déjà. Les conserver ferait payer
+    le même contexte à chaque question — un seul résultat de recherche documentaire
+    pèse ~1 500 tokens, et l'état LangGraph les accumule indéfiniment.
+
+    On ne purge donc que les **tours passés** : tout ce qui suit le dernier message
+    utilisateur est laissé intact, car pendant la boucle ReAct le LLM doit voir les
+    résultats des outils qu'il vient d'appeler.
+
+    Les ToolMessage et les AIMessage porteurs de tool_calls sont retirés **ensemble** :
+    l'API attend qu'un message d'assistant annonçant des appels d'outils soit suivi de
+    leurs résultats, retirer les uns sans les autres provoquerait une erreur 400.
+    """
+    from langchain_core.messages import HumanMessage, ToolMessage
+
+    # Début du tour courant = dernier message utilisateur
+    debut_tour = 0
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            debut_tour = i
+            break
+
+    passe, tour_courant = messages[:debut_tour], messages[debut_tour:]
+
+    allege = [
+        m for m in passe
+        if not isinstance(m, ToolMessage) and not getattr(m, "tool_calls", None)
+    ]
+    retires = len(passe) - len(allege)
+    if retires:
+        logger.debug(f"Historique allégé : {retires} messages d'outils retirés des tours passés")
+
+    historique = allege + tour_courant
+
+    if len(historique) > max_size:
+        logger.info(f"Troncature de l'historique : {len(historique)} → {max_size} messages")
+        # On tronque par la gauche sans jamais entamer le tour courant
+        garde = max(max_size - len(tour_courant), 0)
+        historique = allege[-garde:] + tour_courant if garde else tour_courant
+
+    return historique
+
+
+# Conservé pour compatibilité : evaluate.py et les tests importent encore ce nom.
 def _truncate_history(messages: list, max_size: int = _MAX_HISTORY) -> list:
-    """Tronque l'historique aux N derniers messages pour éviter le dépassement de tokens."""
-    if len(messages) > max_size:
-        logger.info(f"Troncature de l'historique : {len(messages)} → {max_size} messages")
-        return messages[-max_size:]
-    return messages
+    """Alias historique de `_compress_history`."""
+    return _compress_history(messages, max_size)
 
 
 # ==================== NŒUDS DU GRAPHE ====================
@@ -111,7 +158,11 @@ def route_and_store(state: AgentState) -> AgentState:
     et le sous-type dans routing_context pour éviter toute re-détection en aval.
     """
     def _result(hint: str, context: str = "", profile: str = "") -> AgentState:
-        return {**state, "routing_hint": hint, "routing_context": context, "user_profile": profile}
+        # Ne renvoyer QUE les champs modifiés. Réexpédier `messages` (via {**state})
+        # le ferait repasser dans le réducteur `add` d'AgentState, qui concatène :
+        # l'historique doublerait à chaque question (1 → 2 → 4 → … → 83 608 messages
+        # observés en session réelle). LangGraph fusionne le reste de l'état seul.
+        return {"routing_hint": hint, "routing_context": context, "user_profile": profile}
 
     try:
         if not state["messages"]:
@@ -141,7 +192,11 @@ def route_and_store(state: AgentState) -> AgentState:
             return _result("handle_special_case", f"DIRECT_STRUCTURE:{question_stripped}")
 
         # ── 2. Nature conversationnelle ────────────────────────────────────────
-        greeting_type = detect_greeting.invoke({"message": question})
+        # NB : on appelle .func (la fonction regex pure sous-jacente) plutôt que
+        # .invoke() pour éviter ~2 ms de surcoût LangChain (validation Pydantic +
+        # span LangSmith) par appel — non négligeable sur ce chemin de routage
+        # exécuté à chaque message. Ces détecteurs restent exposés au LLM via get_tools().
+        greeting_type = detect_greeting.func(message=question)
 
         if greeting_type == "FAREWELL":
             logger.debug("Fin de conversation → handle_special_case")
@@ -156,15 +211,15 @@ def route_and_store(state: AgentState) -> AgentState:
             return _result("agent")
 
         # ── 3. Frustration / confusion ─────────────────────────────────────────
-        sentiment = detect_frustration_or_confusion.invoke({"message": question})
+        sentiment = detect_frustration_or_confusion.func(message=question)
         if sentiment in ("FRUSTRATION", "CONFUSION", "REPETITION"):
             logger.debug(f"Sentiment ({sentiment}) → handle_special_case")
             return _result("handle_special_case", sentiment)
 
         # ── 4. Profil utilisateur spécial ──────────────────────────────────────
-        profile = detect_user_profile.invoke({"message": question})
+        profile = detect_user_profile.func(message=question)
         if profile in ("CANDIDAT_MASTER", "CANDIDAT_DOCTORAT", "ETUDIANT_ETRANGER"):
-            relevance = check_question_relevance.invoke({"question": question})
+            relevance = check_question_relevance.func(question=question)
             if relevance == "HORS_SUJET":
                 logger.debug(f"Profil ({profile}) mais question hors UAM → reject_query")
                 return _result("reject_query", profile=profile)
@@ -172,7 +227,7 @@ def route_and_store(state: AgentState) -> AgentState:
             return _result("agent", profile=profile)
 
         # ── 5. Pertinence UAM ───────────────────────────────────────────────────
-        relevance = check_question_relevance.invoke({"question": question})
+        relevance = check_question_relevance.func(question=question)
         if relevance == "PERTINENT" or greeting_type == "BOTH":
             logger.debug("Question pertinente → agent")
             return _result("agent", profile=profile)
@@ -237,6 +292,7 @@ def should_continue(state: AgentState) -> Literal["tools", "end"]:
 @traceable(run_type="llm")
 def call_model(state: AgentState, llm_with_tools) -> AgentState:
     """Appelle le LLM avec les outils bindés pour générer une réponse ou appeler des outils."""
+    from langchain_core.messages import AIMessage as _AIMessage
     messages = state["messages"]
 
     last_message = messages[-1] if messages else None
@@ -249,18 +305,36 @@ def call_model(state: AgentState, llm_with_tools) -> AgentState:
     profile_context    = _build_profile_context(profile)
     system_prompt      = build_tool_system_prompt(structures_context + profile_context)
 
-    detected_structures = detect_structure_in_text(question)
-    logger.debug(
-        f"call_model — profil: {profile} "
-        f"| structures: {[s['abreviation'] for s in detected_structures]} "
-        f"| prompt système: {len(system_prompt)} chars"
-    )
+    # Détection de structures déjà effectuée par _build_structures_context ci-dessus :
+    # on ne la relance que si le niveau DEBUG est réellement actif.
+    if logger.isEnabledFor(logging.DEBUG):
+        detected = detect_structure_in_text(question)
+        logger.debug(
+            f"call_model — profil: {profile} "
+            f"| structures: {[s['abreviation'] for s in detected]} "
+            f"| prompt système: {len(system_prompt)} chars"
+        )
 
-    history = _truncate_history(list(messages))
+    history = _compress_history(list(messages))
     messages_with_system = [SystemMessage(content=system_prompt)] + history
 
-    response = llm_with_tools.invoke(messages_with_system)
-    return {**state, "is_relevant": True, "messages": [response]}
+    try:
+        config = get_config()
+        response = llm_with_tools.invoke(
+            messages_with_system,
+            config={"timeout": config.llm.timeout},
+        )
+    except Exception as e:
+        logger.error(f"call_model — erreur LLM ({type(e).__name__}): {e}", exc_info=True)
+        fallback = (
+            "Je rencontre une difficulté technique momentanée. "
+            "Veuillez réessayer dans quelques instants. "
+            "Si le problème persiste, contactez le service de scolarité de l'UAM directement."
+        )
+        response = _AIMessage(content=fallback)
+
+    # Champs modifiés uniquement — voir la note dans route_and_store._result
+    return {"is_relevant": True, "messages": [response]}
 
 
 
@@ -305,7 +379,7 @@ def handle_special_case(state: AgentState) -> AgentState:
                 f"Désolé, je n'ai pas trouvé d'informations sur la structure « {abbrev} ».\n"
                 "Veuillez vérifier l'abréviation ou contacter la scolarité de l'UAM."
             )
-        return {**state, "response": response, "is_relevant": True, "messages": [AIMessage(content=response)]}
+        return {"response": response, "is_relevant": True, "messages": [AIMessage(content=response)]}
 
     if routing_context == "FAREWELL":
         response = (
@@ -363,7 +437,6 @@ def handle_special_case(state: AgentState) -> AgentState:
         )
 
     return {
-        **state,
         "response": response,
         "is_relevant": True,
         "messages": [AIMessage(content=response)],
@@ -390,7 +463,6 @@ def reject_query(state: AgentState) -> AgentState:
         "Avez-vous une question concernant l'UAM ? Je serai ravi de vous aider !"
     )
     return {
-        **state,
         "response": response,
         "is_relevant": False,
         "messages": [AIMessage(content=response)],

@@ -3,7 +3,7 @@ Interface utilisateur pour le chatbot UAM
 """
 import uuid
 import time
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langsmith import traceable
 from app_config import LLMProvider
 from llm_utils import initialize_llm
@@ -53,42 +53,11 @@ def run_chatbot(pdf_directory: str, provider: LLMProvider, model_name: Optional[
         "configurable": {"thread_id": thread_id},
         "recursion_limit": app_config.max_tool_iterations * 3 + 10
     }
-    
-    # Message système initial accueillant
-    system_message = SystemMessage(
-        content="""Bonjour et bienvenue ! 👋
 
-Je suis l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM). 
-
-Je suis là pour vous accompagner et répondre à toutes vos questions concernant :
-- 📋 Les facultés, écoles et instituts de l'UAM
-- 🎓 Les formations et filières disponibles
-- 📝 Les conditions d'admission et les pièces d'inscription
-- 🏢 Les démarches administratives (diplômes, attestations, relevés, etc.)
-- ⏰ Les horaires et services
-- 📞 Les contacts des différents services
-
-N'hésitez pas à me poser vos questions ! Je comprends aussi les abréviations comme FAST, FLSH, ENS, etc.
-
-Comment puis-je vous aider aujourd'hui ?"""
-    )
-    
-    # Initialiser l'état avec le message système
-    initial_state = {
-        "messages": [system_message],
-        "question": "",
-        "is_relevant": False,
-        "context": "",
-        "response": "",
-        "need_clarification": False,
-        "user_id": thread_id,
-        "user_preferences": {},
-        "tool_iterations": 0
-    }
-    
-    # Mettre à jour l'état initial dans le graphe
-    agent.invoke(initial_state, config)
-    
+    # Pas d'invocation initiale du graphe : le message d'accueil est purement
+    # affiché ci-dessous. Le faire passer dans le graphe traiterait le texte
+    # d'accueil comme une question utilisateur (routage + LLM superflus). Le
+    # prompt système est de toute façon réinjecté à chaque tour dans call_model.
     print("🤖 Assistant: Bonjour et bienvenue ! 👋")
     print("              Je suis l'assistant virtuel officiel de l'Université Abdou Moumouni de Niamey (UAM).")
     print()
