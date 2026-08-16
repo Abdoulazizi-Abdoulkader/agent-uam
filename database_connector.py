@@ -3,12 +3,9 @@ Module de connexion à la base de données UAM
 Permet d'interroger une base de données pour obtenir des informations à jour
 """
 
-import os
 import re
 import threading
-from typing import Optional, Dict, List, Any, Union
-from datetime import datetime
-import json
+from typing import Optional, Dict, List, Any
 from app_config import get_config
 from logger_config import get_logger
 
@@ -73,8 +70,7 @@ def get_db_connection():
             
         elif db_type == DatabaseType.MYSQL:
             import mysql.connector
-            from mysql.connector import Error
-            
+
             _db_connection = mysql.connector.connect(
                 host=config.database.db_host,
                 port=int(config.database.db_port or "3306"),

@@ -3,7 +3,7 @@ Baseline RAG séquentielle : retrieve → generate, sans graphe LangGraph,
 sans ReAct, sans outils spécialisés. Sert de point de comparaison pour
 isoler la contribution du graphe d'états dans les métriques d'évaluation.
 """
-from typing import Any, Dict, List
+from typing import Any, Dict
 from langchain_core.messages import HumanMessage, SystemMessage
 from logger_config import get_logger
 

@@ -1,15 +1,12 @@
-from typing import Annotated, TypedDict, Literal, Sequence, Dict, Any, Union
+from typing import Annotated, TypedDict, Sequence
 from operator import add
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, AIMessage
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.tools import tool
 from agent_uam import (
     search_uam_knowledge,
-    get_faculty_info,
     set_vectorstore,
     UAM_STRUCTURES,
-    get_structure_info,
     detect_structure_in_text
 )
 

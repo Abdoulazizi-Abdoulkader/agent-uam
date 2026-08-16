@@ -8,14 +8,11 @@ Usage:
     python human_eval.py --input human_eval_filled.csv
 """
 
-import os
-import sys
 import csv
-import json
 import argparse
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 
 GREEN  = "\033[92m"
 YELLOW = "\033[93m"

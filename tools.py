@@ -27,7 +27,7 @@ from uam_structures import (
 )
 from memory import _user_memory
 from logger_config import get_logger
-from utils import sanitize_input, retry_on_failure, safe_get
+from utils import sanitize_input, retry_on_failure
 
 # Logger pour ce module
 logger = get_logger(__name__)
@@ -99,7 +99,6 @@ try:
         get_statistics_db,
         get_official_stats_db,
         search_student_courses_db,
-        query_database
     )
     _db_available = is_database_available()
 except ImportError:

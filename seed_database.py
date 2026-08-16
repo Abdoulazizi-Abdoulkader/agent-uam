@@ -14,7 +14,6 @@ import sqlite3
 import random
 import string
 from pathlib import Path
-from datetime import date, timedelta
 
 DB_PATH = Path(__file__).parent / "database" / "scolarite_uam.db"
 
