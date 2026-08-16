@@ -50,7 +50,6 @@ Ces règles s'appliquent à toutes les tâches sans exception. Les exigences de 
 | `tests/test_historique.py` | Caractérisation de `_compress_history` et contrat des nœuds |
 | `tests/test_agent_service.py` | Caractérisation de `answer()` et isolation des sessions |
 | `tests/test_database_connector.py` | Caractérisation du connecteur sur base réelle |
-| `tests/conftest.py` | Doubles partagés : faux vectorstore, faux LLM |
 | `tests/test_persistance.py` | Survie de l'historique à la reconstruction du graphe |
 | `WHATSAPP_FAISABILITE.md` | Analyse de faisabilité du canal WhatsApp |
 
@@ -425,7 +424,7 @@ Attendu : `32 passed` puis `imports ok`.
 C'est le garde-fou du découpage de la tâche 11. Il doit être écrit maintenant, sur `tools.py` monolithique, et passer **sans modification** après le découpage.
 
 **Files:**
-- Create: `tests/test_inventaire_outils.py`, `tests/conftest.py`
+- Create: `tests/test_inventaire_outils.py`
 
 **Interfaces:**
 - Consumes: `tools.get_tools()`, `tools._db_available`
@@ -531,54 +530,7 @@ print(len(noms)); [print(' ', n) for n in noms]
 "
 ```
 
-- [ ] **Step 3: Créer les doubles partagés**
-
-```python
-# tests/conftest.py
-"""Doubles partagés par la suite de tests.
-
-Aucun test n'appelle le LLM ni ne charge le vrai index FAISS : la suite doit
-tourner hors ligne, sans clé d'API, en moins de dix secondes.
-"""
-import os
-import sys
-from unittest.mock import MagicMock
-
-import pytest
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-
-@pytest.fixture
-def faux_document():
-    """Fabrique un faux Document LangChain au contenu choisi."""
-    def _fabrique(contenu: str):
-        doc = MagicMock()
-        doc.page_content = contenu
-        doc.metadata = {"source": "test"}
-        return doc
-    return _fabrique
-
-
-@pytest.fixture
-def faux_vectorstore(faux_document):
-    """Vectorstore FAISS factice retournant un document unique."""
-    vs = MagicMock()
-    vs.similarity_search.return_value = [faux_document("Contenu de test UAM.")]
-    return vs
-
-
-@pytest.fixture
-def faux_llm():
-    """LLM factice retournant toujours la même réponse, sans tool_calls."""
-    from langchain_core.messages import AIMessage
-
-    llm = MagicMock()
-    llm.invoke.return_value = AIMessage(content="Réponse de test.")
-    return llm
-```
-
-- [ ] **Step 4: Vérifier la suite complète**
+- [ ] **Step 3: Vérifier la suite complète**
 
 ```bash
 venv/bin/python -m pytest tests/ -q
@@ -586,10 +538,12 @@ venv/bin/python -m pytest tests/ -q
 
 Attendu : `39 passed` (32 existants + 7 nouveaux).
 
-- [ ] **Step 5: Commit**
+Ne pas créer de `tests/conftest.py` : chaque fichier de test construit ses propres doubles au plus près de son usage, et les fichiers existants font déjà leur propre `sys.path.insert`. Un conftest de fixtures partagées n'aurait aucun consommateur.
+
+- [ ] **Step 4: Commit**
 
 ```bash
-git add tests/test_inventaire_outils.py tests/conftest.py
+git add tests/test_inventaire_outils.py
 git commit -m "test: inventaire des outils, garde-fou du découpage de tools.py"
 ```
 
