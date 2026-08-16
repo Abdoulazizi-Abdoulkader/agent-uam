@@ -102,7 +102,7 @@ Les deux bases `scolarite_uam.db` diffèrent : celle de `database/` (juin, 58
 
 ### Le package `tools/`
 
-```
+```text
 tools/
   __init__.py        réexporte get_tools, set_vectorstore, set_session_user_id
                      et les 49 outils
@@ -286,6 +286,31 @@ passent.
    d'inscription en licence ? », « Que propose la FAST ? » et « Comment se
    réinscrire en retard ? ». Le critère est qu'aucune réponse ne soit vide, ne
    contienne de trace d'erreur, ni ne s'écarte du sujet de la question.
+
+## Échéance et arbitrage
+
+Le chantier doit être terminé en **15 jours maximum à compter du 2026-08-16**,
+soit au plus tard le **2026-08-31**.
+
+Le périmètre est dimensionné pour cette durée : cinq des sept phases sont
+mécaniques, et le code réellement modifié représente environ 5 000 lignes. Le
+seul poste imprévisible est la phase 4, dont le volume ne sera connu qu'après
+l'audit de la phase 0.
+
+**Règle d'arbitrage.** Si la phase 2 n'est pas close au 2026-08-24, le périmètre
+est réduit dans cet ordre, du moins coûteux au plus coûteux à abandonner :
+
+1. La phase 6 est avancée et traitée immédiatement — c'est un document, il ne
+   dépend d'aucune autre phase et son absence serait la plus regrettable.
+2. Le filet de la phase 2 est restreint aux seules zones que la phase 3
+   déplace : l'inventaire des outils et les outils déterministes. Les tests de
+   routage, de compression d'historique et du service sont reportés.
+3. La phase 3 est abandonnée en dernier recours. Le découpage de `tools.py` est
+   la seule phase dont le bénéfice est purement structurel : sans elle, le code
+   reste fonctionnel, simplement moins lisible.
+
+Les phases 4 et 5 ne sont jamais sacrifiées : ce sont les seules dont le jury
+verra le résultat.
 
 ## Risques
 
