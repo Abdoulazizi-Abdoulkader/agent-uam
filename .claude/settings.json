@@ -3,27 +3,20 @@
     "allow": [
       "Bash(source venv/bin/activate)",
       "Bash(pip install:*)",
-      "Bash(python3 -c ' *)",
-      "Bash(./venv/bin/python -c ' *)",
       "Bash(./venv/bin/python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d['response'][:250]\\)\")",
       "Bash(curl -sN -X POST localhost:8000/api/chat/stream -H 'Content-Type: application/json' -d '{\"question\":\"Merci beaucoup !\",\"session_id\":\"flux-3\"}')",
       "Bash(curl -sN -X POST localhost:8000/api/chat/stream -H 'Content-Type: application/json' -d '{\"question\":\"Quelle est la recette du couscous ?\",\"session_id\":\"flux-4\"}')",
       "Bash(./venv/bin/python -m unittest discover tests)",
       "Bash(awk '/^2026-08-05 21:4[0-9]/' logs/errors_20260805.log)",
       "Bash(timeout 300 venv/bin/python -m pytest tests/ -q)",
+      "Bash(venv/bin/python -m pytest tests/ -q)",
       "Bash(venv/bin/python /tmp/claude-1000/-home-aaaky-Bureau-UAM-App-agent-uam/e0a05724-6f04-40c2-8d3d-525485088af9/scratchpad/audit_ast.py)",
-      "Bash(venv/bin/python -)",
-      "Bash(git commit -m ' *)",
       "Bash(/home/aaaky/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/subagent-driven-development/scripts/sdd-workspace docs/superpowers/plans/2026-08-16-nettoyage-refactorisation.md)",
       "Bash(/home/aaaky/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/subagent-driven-development/scripts/task-brief docs/superpowers/plans/2026-08-16-nettoyage-refactorisation.md 1)",
-      "Bash(venv/bin/python -m pytest tests/ -q)",
       "Bash(/home/aaaky/.claude/plugins/cache/claude-plugins-official/superpowers/6.3.0/skills/subagent-driven-development/scripts/task-brief docs/superpowers/plans/2026-08-16-nettoyage-refactorisation.md 2)",
-      "Bash(sed -E 's/=\\(.{0,12}\\).*/=\\\\1…/')",
       "Bash(grep -nE \"sk-or-v1-[A-Za-z0-9]|EAA[A-Za-z0-9]{20,}|ghp_|AIza\" .env.example)",
       "Bash(git check-ignore *)",
-      "Bash(git restore *)",
-      "Bash(git commit *)",
-      "Bash(echo \"clean=$?\")"
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "/home/aaaky/.claude/projects/-home-aaaky-Bureau-UAM-App-agent-uam"
