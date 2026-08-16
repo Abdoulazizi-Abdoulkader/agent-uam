@@ -1917,6 +1917,209 @@ git commit -m "docs: analyse de faisabilité du canal WhatsApp"
 
 ---
 
+### Task 16: Branchement des métriques système
+
+Tâche ajoutée le 2026-08-16, après la tâche 2. L'audit a établi que `record_system_metrics` et `get_latest_system_metrics` (`metrics.py:123,144`) sont mortes : la table `metrics_system` contient 0 ligne quand `metrics_questions` en contient 72. L'utilisateur a choisi de les **brancher** plutôt que de les supprimer — les mesures CPU et mémoire alimenteront le chapitre évaluation de son mémoire.
+
+**Ordonnancement :** à exécuter après la tâche 13 (persistance), dont elle est indépendante. Elle ne touche ni `tools/` ni `graph_nodes.py`, donc elle n'entre en conflit avec aucune autre tâche.
+
+**Files:**
+- Modify: `metrics.py`, `api/agent_service.py`, `api/main.py`
+- Test: `tests/test_metrics_systeme.py`
+
+**Interfaces:**
+- Consumes: `metrics.record_question(user_id, question, is_relevant, response_time_ms)` — le point d'appel existant dans `api/agent_service.py::_record`
+- Produces: `metrics.record_system_metrics()` appelée à chaque question traitée ; `metrics.get_latest_system_metrics() -> Optional[Dict[str, float]]` retournant désormais aussi la clé `process_memory_mb`
+
+**Pourquoi une colonne de plus.** `psutil.virtual_memory()` mesure la RAM de la machine entière, ce qui ne dit rien de l'agent. Pour un mémoire, la grandeur qui compte est la mémoire résidente du processus — le modèle d'embeddings HuggingFace pèse à lui seul environ 1 Go. La table étant vide, l'ajout de colonne est sans risque de migration.
+
+- [ ] **Step 1: Écrire le test, qui doit échouer**
+
+```python
+# tests/test_metrics_systeme.py
+"""Les métriques système doivent être réellement collectées."""
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+
+@pytest.fixture
+def base_metrics(tmp_path, monkeypatch):
+    """Isole metrics.py sur une base jetable."""
+    import app_config
+    import metrics
+
+    monkeypatch.setenv("UAM_METRICS_DB", str(tmp_path / "metrics_test.db"))
+    app_config.reset_for_tests() if hasattr(app_config, "reset_for_tests") else None
+    monkeypatch.setattr(metrics, "_conn", None)
+    monkeypatch.setattr(app_config, "_config", None)
+    return metrics
+
+
+class TestCollecteSysteme:
+
+    def test_la_table_porte_la_memoire_du_processus(self, base_metrics):
+        conn = base_metrics._get_connection()
+        colonnes = {r[1] for r in conn.execute("PRAGMA table_info(metrics_system)")}
+        assert "process_memory_mb" in colonnes
+
+    def test_un_enregistrement_cree_une_ligne(self, base_metrics):
+        base_metrics.record_system_metrics()
+        conn = base_metrics._get_connection()
+        assert conn.execute("SELECT COUNT(*) FROM metrics_system").fetchone()[0] == 1
+
+    def test_la_memoire_du_processus_est_plausible(self, base_metrics):
+        """Le processus pytest occupe forcément plus de 1 Mo et moins de 100 Go."""
+        base_metrics.record_system_metrics()
+        derniere = base_metrics.get_latest_system_metrics()
+        assert derniere is not None
+        assert 1.0 < derniere["process_memory_mb"] < 100_000.0
+
+    def test_les_quatre_grandeurs_sont_retournees(self, base_metrics):
+        base_metrics.record_system_metrics()
+        derniere = base_metrics.get_latest_system_metrics()
+        assert set(derniere) == {
+            "cpu_percent", "memory_percent", "memory_used_mb", "process_memory_mb",
+        }
+
+    def test_aucune_ligne_donne_none(self, base_metrics):
+        assert base_metrics.get_latest_system_metrics() is None
+```
+
+- [ ] **Step 2: Vérifier que le test échoue**
+
+```bash
+venv/bin/python -m pytest tests/test_metrics_systeme.py -v
+```
+
+Attendu : échecs sur `process_memory_mb` absent de la table et du dictionnaire retourné.
+
+- [ ] **Step 3: Ajouter la colonne et mesurer le processus**
+
+Dans `metrics.py`, à la fin de `_ensure_tables`, après le `CREATE TABLE IF NOT EXISTS metrics_system` :
+
+```python
+    # Colonne ajoutée après coup : les bases existantes ne l'ont pas.
+    colonnes = {row[1] for row in cursor.execute("PRAGMA table_info(metrics_system)")}
+    if "process_memory_mb" not in colonnes:
+        cursor.execute("ALTER TABLE metrics_system ADD COLUMN process_memory_mb REAL")
+```
+
+Puis remplacer le corps de `record_system_metrics` :
+
+```python
+def record_system_metrics() -> None:
+    """Enregistre l'utilisation CPU et mémoire, machine et processus.
+
+    `memory_used_mb` mesure la machine entière ; `process_memory_mb` mesure la
+    mémoire résidente de ce processus — la seule grandeur qui dise ce que coûte
+    l'agent lui-même, modèle d'embeddings compris.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return
+
+    processus = psutil.Process()
+    cpu = psutil.cpu_percent(interval=None)
+    mem = psutil.virtual_memory()
+    rss_mb = processus.memory_info().rss / (1024 * 1024)
+
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO metrics_system
+        (cpu_percent, memory_percent, memory_used_mb, process_memory_mb, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (cpu, mem.percent, mem.used / (1024 * 1024), rss_mb, datetime.now().isoformat())
+    )
+    conn.commit()
+```
+
+Et dans `get_latest_system_metrics`, ajouter la colonne au `SELECT` et à la valeur retournée :
+
+```python
+        cursor.execute(
+            "SELECT cpu_percent, memory_percent, memory_used_mb, process_memory_mb "
+            "FROM metrics_system ORDER BY id DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if row:
+            return {
+                "cpu_percent": round(row["cpu_percent"], 1),
+                "memory_percent": round(row["memory_percent"], 1),
+                "memory_used_mb": round(row["memory_used_mb"], 1),
+                "process_memory_mb": round(row["process_memory_mb"] or 0.0, 1),
+            }
+```
+
+- [ ] **Step 4: Vérifier que le test passe**
+
+```bash
+venv/bin/python -m pytest tests/test_metrics_systeme.py -v
+```
+
+Attendu : 5 tests au vert. Note : le premier appel à `psutil.cpu_percent(interval=None)` retourne toujours `0.0` faute de mesure de référence — c'est normal et sans conséquence, les appels suivants sont significatifs. Ne pas ajouter d'`interval` non nul : cela bloquerait le thread pendant la mesure.
+
+- [ ] **Step 5: Appeler la collecte à chaque question**
+
+Dans `api/agent_service.py`, fonction `_record`, ajouter l'appel à côté de `record_question`, dans le même bloc protégé :
+
+```python
+        record_question(session_id, question, is_relevant, elapsed_ms)
+        record_system_metrics()
+```
+
+Compléter l'import existant depuis `metrics` pour y inclure `record_system_metrics`.
+
+- [ ] **Step 6: Exposer les mesures sur /health**
+
+Dans `api/main.py`, la route `health` : ajouter les dernières métriques système à la réponse, sans faire échouer la route si elles sont absentes.
+
+```python
+    from metrics import get_latest_system_metrics
+    systeme = get_latest_system_metrics()
+    # ... ajouter au dictionnaire de réponse : "systeme": systeme
+```
+
+Ce branchement fait cesser la mort de `get_latest_system_metrics`, qui était l'autre moitié du problème.
+
+- [ ] **Step 7: Vérifier de bout en bout**
+
+```bash
+venv/bin/python -m pytest tests/ -q
+./run_api.sh 8010 &
+sleep 45
+curl -s -X POST localhost:8010/api/chat -H 'Content-Type: application/json' \
+  -d '{"question":"Quels sont les frais en licence ?","session_id":"metrics-1"}' > /dev/null
+curl -s localhost:8010/health
+echo
+kill %1
+venv/bin/python -c "
+import sqlite3
+c = sqlite3.connect('metrics.db')
+print('lignes metrics_system :', c.execute('SELECT COUNT(*) FROM metrics_system').fetchone()[0])
+for r in c.execute('SELECT cpu_percent, memory_used_mb, process_memory_mb FROM metrics_system ORDER BY id DESC LIMIT 3'):
+    print('  ', r)
+"
+```
+
+Attendu : `/health` retourne les mesures, `metrics_system` n'est plus vide, et `process_memory_mb` est de l'ordre du gigaoctet une fois le modèle d'embeddings chargé.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add metrics.py api/agent_service.py api/main.py tests/test_metrics_systeme.py
+git commit -m "feat(metrics): collecte effective des métriques système, mémoire du processus comprise"
+```
+
+---
+
 ## Vérification finale
 
 À exécuter après la tâche 15, avant de clore le chantier.
