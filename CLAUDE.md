@@ -22,6 +22,8 @@ pip install -r requirements.txt
 
 # Activer l'environnement virtuel
 source venv/bin/activate
+
+venv/bin/python -m pytest tests/ -q   # Lancer la suite de tests
 ```
 
 ## Configuration requise
@@ -68,8 +70,7 @@ graph_nodes.py — nœuds du graphe :
     ↓
 tool_node.py (ToolNode) — exécute les outils appelés par le LLM
     ↓
-tools.py — 49 outils @tool pour recherche sémantique FAISS, infos facultés, frais, etc.
-           (45 toujours actifs + 4 conditionnels à la base de données — voir audit_outils.md)
+tools.py — 49 outils @tool pour recherche sémantique FAISS, infos facultés, frais, etc. (45 toujours actifs + 4 conditionnels à la base de données)
 ```
 
 ### Modules clés
@@ -158,7 +159,7 @@ Le vectorstore est initialisé une fois dans `document_loader.py` et stocké com
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `UAM_LLM_PROVIDER` | `llama_groq` | Provider LLM |
+| `UAM_LLM_PROVIDER` | `openrouter` | Provider LLM |
 | `UAM_LLM_MODEL` | selon provider | Nom du modèle |
 | `UAM_LLM_TEMPERATURE` | `0.3` | Température |
 | `UAM_DOCUMENTS_DIR` | `./documents_uam` | Dossier documents |

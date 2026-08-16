@@ -164,8 +164,7 @@ python test_setup.py               # vérification de l'installation
 ### Initialisation de la base de données
 
 ```bash
-python setup_database.py          # crée database/scolarite_uam.db avec le schéma
-python seed_database.py           # peuple la BD avec des données de test
+python seed_database.py           # crée les tables et peuple database/scolarite_uam.db avec des données de test
 ```
 
 ---
@@ -335,8 +334,7 @@ composantes (9)
 ### Peuplement / réinitialisation
 
 ```bash
-python setup_database.py    # (ré)initialise le schéma
-python seed_database.py     # insère les données de test (idempotent)
+python seed_database.py     # (ré)initialise le schéma et insère les données de test (idempotent)
 ```
 
 ---

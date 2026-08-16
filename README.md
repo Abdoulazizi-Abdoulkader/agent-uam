@@ -340,7 +340,7 @@ agent-uam/
 ├── metrics.py                # Métriques d'utilisation
 ├── export_utils.py           # Export PDF / JSON
 ├── database_connector.py     # Connecteur base de données optionnel
-├── setup_database.py         # Script d'initialisation de la BD
+├── seed_database.py          # Script de peuplement de database/scolarite_uam.db
 │
 ├── evaluate.py               # Évaluation automatisée (3 modes)
 ├── baseline_rag.py           # Baseline RAG séquentielle (retrieve → generate)
