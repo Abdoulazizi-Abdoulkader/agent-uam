@@ -647,23 +647,3 @@ def is_database_available() -> bool:
     
     return _db_connection is not None
 
-
-def close_db_connection():
-    """Ferme la connexion à la base de données"""
-    global _db_connection, _db_type
-    
-    if _db_connection is not None:
-        try:
-            if _db_type == DatabaseType.POSTGRESQL or _db_type == DatabaseType.MYSQL:
-                _db_connection.close()
-            elif _db_type == DatabaseType.SQLITE:
-                _db_connection.close()
-            elif _db_type == DatabaseType.MONGODB:
-                _db_connection.client.close()
-            
-            _db_connection = None
-            _db_type = None
-            logger.info("Connexion à la base de données fermée")
-        except Exception as e:
-            logger.warning(f"Erreur lors de la fermeture de la connexion : {e}")
-

@@ -238,15 +238,3 @@ def get_config() -> AppConfig:
                 instance.validate()
                 _config = instance
     return _config
-
-
-def reload_config() -> AppConfig:
-    """Recharge la configuration depuis les variables d'environnement."""
-    global _config
-    with _config_lock:
-        instance = AppConfig.from_env()
-        instance.setup()
-        instance.validate()
-        _config = instance
-    logger.info("Configuration rechargée")
-    return _config
