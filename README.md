@@ -168,7 +168,30 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## Utilisation
 
-### Interface web (recommandé)
+### Site institutionnel avec assistant intégré (recommandé)
+
+```bash
+./run_api.sh
+# Ouvrir http://localhost:8000
+```
+
+Site web de l'université — facultés, 135 formations, procédure d'inscription et frais —
+avec l'assistant accessible en permanence depuis un panneau latéral. Les contenus sont
+tirés de `uam_structures.py` et de `database/scolarite_uam.db`.
+
+| Route | Rôle |
+|---|---|
+| `GET /` | le site |
+| `GET /#assistant` | le site, assistant déjà ouvert |
+| `POST /api/chat` | `{question, session_id}` → `{response, sources, elapsed_ms}` |
+| `POST /api/chat/stream` | même chose en Server-Sent Events (réponse affichée au fil de l'eau) |
+| `GET /health` | état du service |
+| `/webhook/whatsapp` | canal WhatsApp — voir [WHATSAPP.md](WHATSAPP.md) |
+
+Le modèle d'embeddings et l'index FAISS sont chargés une seule fois au démarrage
+(5 à 15 s), puis partagés par toutes les requêtes.
+
+### Interface Streamlit (outil de travail)
 
 ```bash
 source venv/bin/activate
@@ -181,6 +204,11 @@ Ou via le script :
 ```bash
 ./run_streamlit.sh
 ```
+
+### WhatsApp
+
+L'agent répond aussi sur WhatsApp via l'API Business Cloud de Meta.
+Mise en route pas à pas : [WHATSAPP.md](WHATSAPP.md).
 
 ### Mode console (CLI)
 

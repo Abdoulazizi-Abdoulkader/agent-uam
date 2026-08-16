@@ -55,6 +55,10 @@ evaluation/**/*.json
 dataset_evaluation.csv
 *.tex
 
+# ── Artefacts de grounding / comparaison générés à l'exécution ───────────────
+grounding_log.json
+responses_frozen.csv
+
 # ── IDE et outils locaux ──────────────────────────────────────────────────────
 .vscode/
 .idea/
@@ -74,3 +78,6 @@ Thumbs.db
 *.tmp
 *.bak
 *.cache
+
+# Espace de travail des plans superpowers (scratch, non versionné)
+.superpowers/

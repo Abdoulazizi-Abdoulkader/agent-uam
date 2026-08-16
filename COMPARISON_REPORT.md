@@ -1,5 +1,5 @@
 # Rapport comparatif : LLM seul vs RAG séquentielle vs Agent LangGraph
-> Généré le 09/06/2026 à 17:40
+> Généré le 16/06/2026 à 13:53
 
 ## Méthodologie
 
@@ -15,10 +15,10 @@
 
 | Métrique | LLM seul | RAG séquentielle | Agent LangGraph |
 |---|---|---|---|
-| Exactitude | 0.8980 | 0.7551 | 0.9490 |
+| Exactitude | 0.9184 | 0.7551 | 0.9490 |
 | Précision | 1.0000 | 0.7551 | 0.9481 |
-| Rappel | 0.8649 | 1.0000 | 0.9865 |
-| F1-Score | 0.9275 | 0.8605 | 0.9669 |
+| Rappel | 0.8919 | 1.0000 | 0.9865 |
+| F1-Score | 0.9429 | 0.8605 | 0.9669 |
 
 ### Qualité des réponses (RAGAS)
 
@@ -27,22 +27,22 @@
 
 | Métrique | LLM seul | RAG séquentielle | Agent LangGraph |
 |---|---|---|---|
-| Faithfulness | \* — | 0.5612 | 0.2808 |
-| Answer Relevancy | \* — | 0.4547 | 0.5419 |
+| Faithfulness | \* — | 0.4962 | 0.2788 |
+| Answer Relevancy | \* — | 0.4450 | 0.6071 |
 
 ### Ancrage factuel (Keyword Recall)
 
 | Métrique | LLM seul | RAG séquentielle | Agent LangGraph |
 |---|---|---|---|
-| Recall moyen | 0.5180 | 0.2625 | 0.6428 |
+| Recall moyen | 0.5251 | 0.2642 | 0.6496 |
 
 ### Performance système
 
 | Métrique | LLM seul | RAG séquentielle | Agent LangGraph |
 |---|---|---|---|
-| Latence moyenne (ms) | 2450.4000 | 1936.8000 | 4821.0000 |
-| Latence P90 (ms) | 4089 | 3174 | 8546 |
-| Longueur moy. réponse (mots) | 56.1000 | 32.3000 | 68.1000 |
+| Latence moyenne (ms) | 1751.3000 | 1384.0000 | 3591.0000 |
+| Latence P90 (ms) | 2307 | 2143 | 6366 |
+| Longueur moy. réponse (mots) | 56.4000 | 32.0000 | 71.2000 |
 | Taux d'erreur | 0.0000 | 0.0000 | 0.0000 |
 
 ## Interprétation

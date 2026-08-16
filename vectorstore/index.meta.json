@@ -1,7 +1,0 @@
-{
-  "fingerprint": "8e29d27c8ff90a6d9fea1de9e8700f0ae4cdbd9fc97b2139d1912f7f50f5727e",
-  "file_count": 14,
-  "provider": "openrouter",
-  "embedding": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-  "updated_at": "2026-05-22T15:27:05.707816"
-}
