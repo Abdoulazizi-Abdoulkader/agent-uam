@@ -280,6 +280,143 @@ def seed(db_path: Path = DB_PATH) -> None:
                 (iid_050023, ue_id),
             )
 
+    # ── Table frais_formations (tarifs officiels UAM — Formalités_d_admission.txt) ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS frais_formations (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            niveau              TEXT    NOT NULL,
+            type_frais          TEXT    NOT NULL,
+            nationalite         TEXT    NOT NULL DEFAULT 'uemoa',
+            composante_sigle    TEXT    NOT NULL DEFAULT '',
+            montant_min         INTEGER,
+            montant_max         INTEGER,
+            montant_indicatif   INTEGER NOT NULL,
+            devise              TEXT    NOT NULL DEFAULT 'FCFA',
+            annee_reference     TEXT    NOT NULL DEFAULT '2024-2025',
+            notes               TEXT,
+            source              TEXT    NOT NULL DEFAULT 'officiel_uam',
+            UNIQUE(niveau, type_frais, nationalite, composante_sigle, annee_reference)
+        )
+    """)
+    # Purger les anciennes données (catégories cedeao/nigerien/hors_cedeao remplacées)
+    cur.execute("DELETE FROM frais_formations")
+
+    # Source : Formalités_d_admission.txt — tarifs officiels d'inscription UAM
+    # Catégories : uemoa = Nigériens + ressortissants UEMOA (Bénin, CI, Togo, BF, Sénégal, Mali, GB)
+    #              hors_uemoa = tous les autres, tarifs variables par faculté
+    frais_data = [
+        # (niveau, type_frais, nationalite, composante_sigle, montant_min, montant_max, montant_indicatif, notes, source)
+
+        # ── Étudiants UEMOA (nigériens + zone UEMOA) ─────────────────────────
+        ("Licence",  "inscription", "uemoa", "",  10000,  10000,  10000,
+            "Nigériens et ressortissants UEMOA – 1ère année Licence", "officiel_uam"),
+        ("Master",   "inscription", "uemoa", "",  50000,  50000,  50000,
+            "Nigériens et ressortissants UEMOA – Master",             "officiel_uam"),
+        ("Doctorat", "inscription", "uemoa", "",  50000,  50000,  50000,
+            "Nigériens et ressortissants UEMOA – Doctorat",           "officiel_uam"),
+
+        # ── Étudiants hors UEMOA — FA et FAST ───────────────────────────────
+        ("Licence",  "inscription", "hors_uemoa", "FA",   250000, 250000, 250000,
+            "Hors UEMOA – Faculté d'Agronomie (annuel)",              "officiel_uam"),
+        ("Master",   "inscription", "hors_uemoa", "FA",   250000, 250000, 250000,
+            "Hors UEMOA – Faculté d'Agronomie",                       "officiel_uam"),
+        ("Doctorat", "inscription", "hors_uemoa", "FA",   250000, 250000, 250000,
+            "Hors UEMOA – Faculté d'Agronomie",                       "officiel_uam"),
+        ("Licence",  "inscription", "hors_uemoa", "FAST", 250000, 250000, 250000,
+            "Hors UEMOA – Faculté des Sciences et Techniques (annuel)","officiel_uam"),
+        ("Master",   "inscription", "hors_uemoa", "FAST", 250000, 250000, 250000,
+            "Hors UEMOA – FAST",                                      "officiel_uam"),
+        ("Doctorat", "inscription", "hors_uemoa", "FAST", 250000, 250000, 250000,
+            "Hors UEMOA – FAST",                                      "officiel_uam"),
+
+        # ── Étudiants hors UEMOA — FLSH, ENS, FSEG, FSJP ───────────────────
+        ("Licence",  "inscription", "hors_uemoa", "FLSH", 150000, 150000, 150000,
+            "Hors UEMOA – FLSH (annuel)",                             "officiel_uam"),
+        ("Master",   "inscription", "hors_uemoa", "FLSH", 250000, 250000, 250000,
+            "Hors UEMOA – FLSH",                                      "officiel_uam"),
+        ("Doctorat", "inscription", "hors_uemoa", "FLSH", 250000, 250000, 250000,
+            "Hors UEMOA – FLSH",                                      "officiel_uam"),
+        ("Licence",  "inscription", "hors_uemoa", "ENS",  150000, 150000, 150000,
+            "Hors UEMOA – École Normale Supérieure (annuel)",         "officiel_uam"),
+        ("Master",   "inscription", "hors_uemoa", "ENS",  250000, 250000, 250000,
+            "Hors UEMOA – ENS",                                       "officiel_uam"),
+        ("Doctorat", "inscription", "hors_uemoa", "ENS",  250000, 250000, 250000,
+            "Hors UEMOA – ENS",                                       "officiel_uam"),
+        ("Licence",  "inscription", "hors_uemoa", "FSEG", 150000, 150000, 150000,
+            "Hors UEMOA – FSEG (annuel)",                             "officiel_uam"),
+        ("Master",   "inscription", "hors_uemoa", "FSEG", 250000, 250000, 250000,
+            "Hors UEMOA – FSEG",                                      "officiel_uam"),
+        ("Doctorat", "inscription", "hors_uemoa", "FSEG", 250000, 250000, 250000,
+            "Hors UEMOA – FSEG",                                      "officiel_uam"),
+        ("Licence",  "inscription", "hors_uemoa", "FSJP", 150000, 150000, 150000,
+            "Hors UEMOA – FSJP (annuel)",                             "officiel_uam"),
+        ("Master",   "inscription", "hors_uemoa", "FSJP", 250000, 250000, 250000,
+            "Hors UEMOA – FSJP",                                      "officiel_uam"),
+        ("Doctorat", "inscription", "hors_uemoa", "FSJP", 250000, 250000, 250000,
+            "Hors UEMOA – FSJP",                                      "officiel_uam"),
+
+        # ── Étudiants hors UEMOA — FSS (Santé) ──────────────────────────────
+        ("Licence",  "inscription", "hors_uemoa", "FSS",  200000, 200000, 200000,
+            "Hors UEMOA – FSS Santé (1ère à 6ème année, annuel)",     "officiel_uam"),
+        ("Doctorat", "inscription", "hors_uemoa", "FSS",  400000, 400000, 400000,
+            "Hors UEMOA – FSS Santé (7ème année – thèse)",            "officiel_uam"),
+    ]
+
+    for niv, tf, nat, comp, mn, mx, ind, notes, src in frais_data:
+        cur.execute(
+            """INSERT OR IGNORE INTO frais_formations
+               (niveau, type_frais, nationalite, composante_sigle,
+                montant_min, montant_max, montant_indicatif, notes, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (niv, tf, nat, comp, mn, mx, ind, notes, src),
+        )
+
+    # ── Table statistiques_composantes (données officielles issues de info_UAM.md) ─
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS statistiques_composantes (
+            id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+            composante_id              INTEGER NOT NULL,
+            annee_reference            TEXT    NOT NULL,
+            nb_etudiants               INTEGER,
+            nb_enseignants_chercheurs  INTEGER,
+            dont_rang_a                INTEGER,
+            nb_vacataires              INTEGER,
+            nb_pat                     INTEGER,
+            source                     TEXT DEFAULT 'officiel',
+            FOREIGN KEY (composante_id) REFERENCES composantes(id),
+            UNIQUE(composante_id, annee_reference)
+        )
+    """)
+
+    # Correspondance sigle → id composante
+    def cid(sigle: str) -> int:
+        cur.execute("SELECT id FROM composantes WHERE sigle=?", (sigle,))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    # Données extraites de documents_uam/info_UAM.md (chiffres 2021-2022 / 2022-2023)
+    stats_officielles = [
+        # (sigle, annee, nb_etu, nb_ec, rang_a, vacataires, pat)
+        ("FAST", "2021-2022", 3188, 114, 54, None, 79),
+        ("FSS",  "2021-2022", 4344,  77, None, None, 52),
+        ("FA",   "2021-2022", 1058,  38, None,  80,  44),
+        ("FLSH", "2021-2022", 6500,  80, None, None, None),
+        ("FSEG", "2022-2023", 7200, 100, None, None, None),
+        ("FSJP", "2022-2023", 6800,  60, None, None, None),
+    ]
+
+    for sigle, annee, nb_etu, nb_ec, rang_a, vacat, pat in stats_officielles:
+        c_id = cid(sigle)
+        if c_id is None:
+            continue
+        cur.execute(
+            """INSERT OR IGNORE INTO statistiques_composantes
+               (composante_id, annee_reference, nb_etudiants, nb_enseignants_chercheurs,
+                dont_rang_a, nb_vacataires, nb_pat, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'officiel_uam_md')""",
+            (c_id, annee, nb_etu, nb_ec, rang_a, vacat, pat),
+        )
+
     conn.commit()
     conn.close()
     print("Peuplement terminé.")

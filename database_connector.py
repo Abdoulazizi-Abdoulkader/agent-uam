@@ -458,10 +458,52 @@ def search_fees_db(level: Optional[str] = None,
             "limit": 50
         })
     else:
-        # La table 'scolarite' n'existe pas dans scolarite_uam.db.
-        # Les frais sont gérés par les données statiques de tools.py.
-        # On retourne [] pour que l'agent bascule sur le fallback RAG/statique.
-        return []
+        # SQLite : interroger la table frais_formations
+        conn = get_db_connection()
+        if conn is None:
+            return []
+        try:
+            cur = conn.cursor()
+            query = "SELECT * FROM frais_formations WHERE 1=1"
+            params: list = []
+            if level:
+                lvl = level.strip().capitalize()
+                # Accepter "licence"/"L1"/"L2"/"L3" → "Licence", "master"/"M1"/"M2" → "Master"
+                if lvl.upper() in ("L1", "L2", "L3"):
+                    lvl = "Licence"
+                elif lvl.upper() in ("M1", "M2"):
+                    lvl = "Master"
+                query += " AND LOWER(niveau) = LOWER(?)"
+                params.append(lvl)
+            if faculty:
+                query += " AND (composante_sigle = '' OR UPPER(composante_sigle) = UPPER(?))"
+                params.append(faculty)
+            query += " ORDER BY niveau, type_frais, nationalite"
+            cur.execute(query, params)
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+            # Renommer les colonnes pour compatibilité avec calculate_fees
+            result = []
+            for row in rows:
+                result.append({
+                    "level": row.get("niveau", ""),
+                    "type_inscription": row.get("type_frais", ""),
+                    "nationalite": row.get("nationalite", "uemoa"),
+                    "composante_sigle": row.get("composante_sigle", ""),
+                    "frais_inscription": row.get("montant_indicatif") if row.get("type_frais") == "inscription" else None,
+                    "frais_scolarite": row.get("montant_indicatif") if row.get("type_frais") == "scolarite" else None,
+                    "frais_labo": None,
+                    "montant_min": row.get("montant_min"),
+                    "montant_max": row.get("montant_max"),
+                    "montant_indicatif": row.get("montant_indicatif"),
+                    "devise": row.get("devise", "FCFA"),
+                    "notes": row.get("notes", ""),
+                    "source": row.get("source", "officiel_uam"),
+                    "annee_reference": row.get("annee_reference", "2024-2025"),
+                })
+            return result
+        except Exception:
+            return []
 
 
 def search_news_announcements_db(limit: int = 10, 
@@ -492,6 +534,107 @@ def search_news_announcements_db(limit: int = 10,
         # La table 'announcements' n'existe pas dans scolarite_uam.db.
         # On retourne [] — l'agent bascule sur les documents RAG pour les actualités.
         return []
+
+
+def get_official_stats_db(
+    faculty: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Retourne les statistiques officielles (étudiants + enseignants-chercheurs + PAT)
+    depuis la table statistiques_composantes, issue des documents officiels UAM.
+
+    Args:
+        faculty: Sigle de la composante — None = toutes
+    """
+    query = """
+        SELECT
+            c.sigle            AS faculty,
+            c.nom_complet      AS faculty_name,
+            s.annee_reference,
+            s.nb_etudiants,
+            s.nb_enseignants_chercheurs,
+            s.dont_rang_a,
+            s.nb_vacataires,
+            s.nb_pat,
+            s.source
+        FROM statistiques_composantes s
+        JOIN composantes c ON c.id = s.composante_id
+        WHERE 1=1
+    """
+    params: Dict[str, Any] = {}
+    if faculty:
+        query += " AND UPPER(c.sigle) = :faculty"
+        params["faculty"] = faculty.upper()
+    query += " ORDER BY c.sigle, s.annee_reference DESC"
+    return query_database(query, params)
+
+
+def get_statistics_db(
+    faculty: Optional[str] = None,
+    level: Optional[str] = None,
+    year: str = "2024-2025",
+) -> List[Dict[str, Any]]:
+    """
+    Retourne les effectifs d'étudiants inscrits, agrégés par composante et/ou niveau.
+
+    Args:
+        faculty: Sigle de la composante (FAST, FLSH…) — None = toutes
+        level:   Niveau (L1, L2, L3, M1, M2…) — None = tous
+        year:    Année académique (défaut : 2024-2025)
+    """
+    query = """
+        SELECT
+            c.sigle            AS faculty,
+            c.nom_complet      AS faculty_name,
+            f.niveau           AS level,
+            COUNT(i.id)        AS effectif
+        FROM inscriptions i
+        JOIN formations   f ON f.id = i.formation_id
+        JOIN departements d ON d.id = f.departement_id
+        JOIN composantes  c ON c.id = d.composante_id
+        WHERE i.annee_academique = :year
+    """
+    params: Dict[str, Any] = {"year": year}
+    if faculty:
+        query += " AND UPPER(c.sigle) = :faculty"
+        params["faculty"] = faculty.upper()
+    if level:
+        query += " AND LOWER(f.niveau) = :level"
+        params["level"] = level.lower()
+    query += " GROUP BY c.sigle, c.nom_complet, f.niveau ORDER BY c.sigle, f.niveau"
+    return query_database(query, params)
+
+
+def search_student_courses_db(
+    student_id: str,
+    year: str = "2024-2025",
+) -> List[Dict[str, Any]]:
+    """
+    Retourne les unités d'enseignement (cours) auxquelles un étudiant est inscrit,
+    avec le statut et la note finale si disponibles.
+
+    Args:
+        student_id: Matricule de l'étudiant (ex: UAM050023)
+        year:       Année académique (défaut : 2024-2025)
+    """
+    query = """
+        SELECT
+            ue.code_ue,
+            ue.intitule,
+            ue.credits_ects,
+            ue.semestre,
+            ue.type_ue,
+            COALESCE(r.statut_ue, 'non_renseigne') AS statut_ue,
+            r.note_finale
+        FROM etudiants e
+        JOIN inscriptions          i  ON i.etudiant_id  = e.id
+        JOIN unites_enseignement   ue ON ue.formation_id = i.formation_id
+        LEFT JOIN resultats        r  ON r.ue_id = ue.id AND r.inscription_id = i.id
+        WHERE e.matricule          = :student_id
+          AND i.annee_academique   = :year
+        ORDER BY ue.semestre, ue.id
+    """
+    return query_database(query, {"student_id": student_id.upper(), "year": year})
 
 
 def is_database_available() -> bool:
