@@ -22,7 +22,8 @@
       "Bash(grep -nE \"sk-or-v1-[A-Za-z0-9]|EAA[A-Za-z0-9]{20,}|ghp_|AIza\" .env.example)",
       "Bash(git check-ignore *)",
       "Bash(git restore *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(echo \"clean=$?\")"
     ],
     "additionalDirectories": [
       "/home/aaaky/.claude/projects/-home-aaaky-Bureau-UAM-App-agent-uam"
