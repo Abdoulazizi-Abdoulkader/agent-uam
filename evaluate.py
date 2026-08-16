@@ -14,8 +14,11 @@ import sys
 import csv
 import json
 import time
+import re
 import argparse
 import warnings
+import unicodedata
+from difflib import SequenceMatcher
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
@@ -348,12 +351,68 @@ def compute_rouge_metrics(results: List[Dict]) -> Dict[str, float]:
 # 5. KEYWORD RECALL (ancrage factuel par mots-clés)
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Seuil de similarité fuzzy (difflib) pour rattraper les dérivations proches
+# (ex: "université"/"universitaire" = 0.87) sans matcher de vrais écarts de
+# vocabulaire (ex: "service"/"secrétariat" = 0.44). Calibré empiriquement.
+_KW_FUZZY_THRESHOLD = 0.85
+
+# Mots-outils ignorés dans les mots-clés multi-mots (ex: "acte de naissance").
+_KW_STOPWORDS = {
+    "de", "du", "des", "la", "le", "les", "et", "ou", "un", "une",
+    "a", "au", "aux", "d", "l", "en", "dans", "pour", "sur",
+}
+
+
+def _kw_normalize(text: str) -> str:
+    """Minuscules + suppression des accents + ponctuation → espaces."""
+    text = unicodedata.normalize("NFKD", str(text).lower())
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", text)).strip()
+
+
+def _kw_token_match(kw_tok: str, resp_tokens: List[str]) -> bool:
+    """Un token de mot-clé matche un token de réponse par égalité, sous-chaîne
+    bidirectionnelle (flexions/pluriels) ou similarité fuzzy ≥ seuil.
+    Les tokens courts (< 4 car., ex: acronymes UAM/ENS) exigent l'égalité exacte
+    pour éviter les faux positifs."""
+    for t in resp_tokens:
+        if kw_tok == t:
+            return True
+        if len(kw_tok) >= 4 and len(t) >= 4:
+            if kw_tok in t or t in kw_tok:
+                return True
+            if SequenceMatcher(None, kw_tok, t).ratio() >= _KW_FUZZY_THRESHOLD:
+                return True
+    return False
+
+
+def _keyword_present(keyword: str, resp_norm: str, resp_tokens: List[str]) -> bool:
+    """Vrai si le mot-clé (normalisé) est présent dans la réponse.
+
+    Matching robuste insensible à la casse, aux accents et aux flexions :
+    1. Phrase exacte/contiguë (gère les mots-clés multi-mots et l'égalité).
+    2. Sinon, tous les tokens de contenu du mot-clé doivent matcher (cf. _kw_token_match).
+    """
+    k = _kw_normalize(keyword)
+    if not k:
+        return False
+    if k in resp_norm:  # phrase contiguë ou mot-clé mono-token présent tel quel
+        return True
+    content = [w for w in k.split() if w not in _KW_STOPWORDS and len(w) >= 2]
+    if not content:
+        return False
+    return all(_kw_token_match(w, resp_tokens) for w in content)
+
+
 def compute_keyword_recall(results: List[Dict]) -> Dict[str, Any]:
     """
     Calcule le keyword recall : proportion de mots-clés attendus présents dans la réponse.
 
     S'applique uniquement aux entrées du dataset qui disposent d'une colonne
-    ``mots_cles`` (liste non vide).  La recherche est insensible à la casse.
+    ``mots_cles`` (liste non vide).  Le matching est insensible à la casse, aux
+    accents et aux flexions courantes (pluriels, dérivations proches via fuzzy),
+    afin d'éviter les faux négatifs du matching par sous-chaîne exacte
+    (ex: "déposé" comptait comme absent pour le mot-clé "dépôt").
 
     Retourne un dict vide si aucune entrée n'a de mots-clés définis.
     """
@@ -365,8 +424,9 @@ def compute_keyword_recall(results: List[Dict]) -> Dict[str, Any]:
         if not mots_cles or not r.get("response") or r.get("error"):
             continue
 
-        response_lower = r["response"].lower()
-        found = sum(1 for kw in mots_cles if kw.lower() in response_lower)
+        resp_norm = _kw_normalize(r["response"])
+        resp_tokens = resp_norm.split()
+        found = sum(1 for kw in mots_cles if _keyword_present(kw, resp_norm, resp_tokens))
         recall = found / len(mots_cles)
         scores.append(recall)
 
@@ -461,6 +521,13 @@ def _build_ragas_llm(agent_llm):
         return agent_llm
 
 
+# Catégories exclues du calcul RAGAS : Faithfulness et Answer Relevancy n'ont pas
+# de sens sur des messages conversationnels sans contenu factuel (« Bonjour »).
+# hors_sujet est déjà exclu via expected_relevant=False, mais on le liste pour
+# robustesse si la pertinence attendue venait à changer.
+_RAGAS_EXCLUDED_CATEGORIES = {"conversation_simple", "hors_sujet"}
+
+
 def compute_ragas_metrics(
     results: List[Dict],
     llm,
@@ -506,19 +573,33 @@ def compute_ragas_metrics(
         print(f"  {YELLOW}⚠ Impossible d'initialiser le LLM RAGAS : {e}{RESET}")
         return {}
 
-    n_total       = len(results)
-    n_expected    = sum(1 for r in results if r["expected_relevant"])
-    n_with_resp   = sum(1 for r in results if r["expected_relevant"] and r["response"])
-    n_with_ctx    = sum(1 for r in results if r["expected_relevant"] and r["response"] and r["retrieved_docs"])
-    n_no_error    = sum(1 for r in results if r["expected_relevant"] and r["response"] and r["retrieved_docs"] and not r["error"])
+    def _ragas_eligible(r: Dict) -> bool:
+        """Pertinent, avec réponse + contexte, sans erreur, hors catégories conversationnelles."""
+        return bool(
+            r["expected_relevant"]
+            and r["response"]
+            and r["retrieved_docs"]
+            and not r["error"]
+            and r.get("category") not in _RAGAS_EXCLUDED_CATEGORIES
+        )
 
-    valid = [
-        r for r in results
-        if r["expected_relevant"]
-        and r["response"]
-        and r["retrieved_docs"]
-        and not r["error"]
-    ]
+    n_total       = len(results)
+    n_expected    = sum(1 for r in results if r["expected_relevant"]
+                        and r.get("category") not in _RAGAS_EXCLUDED_CATEGORIES)
+    n_with_resp   = sum(1 for r in results if r["expected_relevant"] and r["response"]
+                        and r.get("category") not in _RAGAS_EXCLUDED_CATEGORIES)
+    n_with_ctx    = sum(1 for r in results if r["expected_relevant"] and r["response"]
+                        and r["retrieved_docs"]
+                        and r.get("category") not in _RAGAS_EXCLUDED_CATEGORIES)
+    n_excluded    = sum(1 for r in results if r["expected_relevant"]
+                        and r.get("category") in _RAGAS_EXCLUDED_CATEGORIES)
+    n_no_error    = sum(1 for r in results if _ragas_eligible(r))
+
+    valid = [r for r in results if _ragas_eligible(r)]
+
+    if n_excluded:
+        print(f"  {YELLOW}RAGAS : {n_excluded} exemple(s) conversationnel(s) exclu(s) "
+              f"({', '.join(sorted(_RAGAS_EXCLUDED_CATEGORIES))}){RESET}")
 
     if n_expected == 0:
         print(f"  {YELLOW}⚠ RAGAS ignoré : aucun exemple avec retrieved_docs (mode LLM seul ?){RESET}")

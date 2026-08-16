@@ -1,0 +1,560 @@
+﻿id,category,expected_relevant,question,ground_truth,response,verdict_factuel,exactitude,completude,clarte,utilite,notes
+66,multi_etape,True,Quelle est la différence entre un Master 1 et un Master 2 à l'UAM ?,"À l'UAM, le Master 1 est la première année du cycle Master (M1), et le Master 2 est la deuxième et dernière année (M2). Le M2 est le diplôme terminal du cycle Master et constitue le prérequis pour l'inscription en Doctorat.","Le Master à l'UAM se divise en deux niveaux : Master 1 et Master 2.
+
+- **Master 1** : D'une durée d'un an, il est accessible aux titulaires d'une licence (Bac +3). Il prépare généralement à des compétences professionnelles ou à une spécialisation en recherche.
+
+- **Master 2** : Également d'une durée d'un an, il est destiné aux titulaires d'un Master 1 ou d'un diplôme équivalent (Bac +4). Ce niveau approfondit les connaissances et compétences, souvent en vue d'une insertion professionnelle ou d'une poursuite en doctorat.
+
+Chaque niveau est organisé en semestres avec des unités d'enseignement spécifiques.",,,,,,
+19,formations_facultes,True,Que propose la Faculté d'Agronomie de l'UAM ?,"La Faculté d'Agronomie (FA) forme des ingénieurs agronomes en 5 ans et propose des Masters en phytotechnie, économie rurale, gestion des sols et eaux, nutrition humaine et productions animales. Elle compte 1 058 étudiants et accueille des centres d'excellence régionaux (CRESA, CERPP).","La Faculté d'Agronomie (FA) de l'UAM propose plusieurs formations, notamment :
+
+- **Master de Recherche en Géosciences de l'Environnement** : axé sur la gestion durable des écosystèmes et l'évaluation environnementale des projets.
+- **Master de Recherche et Professionnel en Géoresources** : forme des spécialistes en géologie, minéralogie et gestion des ressources naturelles.
+
+La faculté vise à former des professionnels capables de contribuer à la recherche et à la gestion des ressources environnementales et géologiques.",,,,,,
+37,instituts_ecoles,True,À quoi sert l'Institut des Radio-Isotopes de l'UAM ?,"L'IRI (Institut des Radio-Isotopes) conduit des recherches sur les applications pacifiques des radio-isotopes dans les domaines de la santé, l'agriculture et l'environnement. Il est situé sur le campus de l'UAM à Niamey.","L'Institut des Radio-Isotopes (IRI) de l'UAM a pour mission principale la recherche, la formation et la fourniture de services dans les applications pacifiques des techniques nucléaires. Ses activités incluent :
+
+- **Médecine nucléaire** : formation en dosimétrie et radioprotection.
+- **Hydrologie isotopique** : datation et caractérisation des eaux.
+- **Agriculture** : techniques d'amélioration des plantes et nutrition animale.
+- **Environnement** : suivi des polluants et sédimentologie.
+- **Industrie** : contrôle non destructif.
+
+L'IRI collabore avec des organismes internationaux comme l'AIEA pour promouvoir la radioprotection et la sûreté nucléaire.",,,,,,
+9,inscription_master_doctorat,True,Comment s'inscrire en Master à l'UAM ?,"L'accès en Master à l'UAM est sélectif. Vous devez être titulaire d'une licence dans le domaine correspondant et déposer un dossier comprenant : lettre de motivation, relevés de notes, CV et éventuellement une lettre de recommandation. Les candidatures sont examinées par une commission pédagogique.","Pour s'inscrire en Master à l'UAM, il faut suivre ces étapes :
+
+1. **Conditions d'accès** :
+   - Être titulaire d'une Licence ou d'un diplôme équivalent.
+   - Avoir une moyenne générale minimale de 11/20 (varie selon les filières).
+
+2. **Dossier d'inscription** à déposer au Service Central de la Scolarité (ENS) :
+   - Demande manuscrite adressée au Recteur, précisant trois filières par ordre de préférence.
+   - Extrait d'acte de naissance ou jugement supplétif.
+   - Certificat de nationalité.
+   - Copie légalisée du diplôme requis.
+   - Copie du relevé de notes.
+   - Deux photos d'identité.
+   - Certificat médical (pour études médicales).
+   - Attestation de travail (pour professionnels).
+
+La sélection des dossiers se fait au niveau de chaque faculté ou école.",,,,,,
+8,inscription_reinscription,True,Quelle est la procédure de réinscription pour les étudiants en cours de cycle ?,"La réinscription se fait chaque début d'année universitaire : remplissez le formulaire de réinscription disponible au secrétariat, joignez votre relevé de notes, réglez les frais, et obtenez la validation du directeur des études de votre composante.","La procédure de réinscription pour les étudiants en cours de cycle à l'UAM inclut les étapes suivantes :
+
+- **Conditions** :
+  - Être déjà inscrit à l'UAM l'année précédente.
+  - Être en règle vis-à-vis de la scolarité (pas de dettes).
+  - Ne pas avoir été exclu pour des raisons disciplinaires.
+  - Avoir sa carte d'étudiant de l'année précédente.
+  - Avoir payé l'intégralité des frais de réinscription.
+
+- **Documents requis** :
+  - Carte d'étudiant de l'année précédente.
+  - Reçu de paiement des frais de réinscription.
+
+La réinscription doit être effectuée dans les délais fixés par l'université, généralement en septembre-octobre.",,,,,,
+59,localisation,True,Où se trouve la FSEG ?,"La FSEG (Faculté des Sciences Économiques et de Gestion) est située sur le campus universitaire de l'UAM, BP 12 220, Niamey — Niger.","La Faculté des Sciences Économiques et de Gestion (FSEG) est située sur le campus universitaire de l'Université Abdou Moumouni à Niamey, Niger. Son adresse postale est BP 12 220, Niamey. La FSEG forme des cadres en économie, gestion, finance et comptabilité, et a été créée en 2016 suite à la scission de l'ancienne Faculté des Sciences Économiques et Juridiques.",,,,,,
+71,multi_etape,True,"Je veux faire de la recherche en agriculture durable, quelle ED à l'UAM ?","Pour la recherche en agriculture durable, l'ED-SVT (École Doctorale Sciences de la Vie et de la Terre) est la plus adaptée. Elle couvre l'agronomie, les sciences du sol, l'écologie et l'environnement, en lien avec la Faculté d'Agronomie (FA).","Pour faire de la recherche en agriculture durable à l'UAM, vous pouvez vous orienter vers l'École Doctorale des Sciences de la Vie et de la Terre (ED-SVT). Cette école couvre des disciplines telles que l'agronomie, l'environnement et l'écologie, et est associée à des facultés comme la FA (Faculté d'Agronomie) et la FAST (Faculté des Sciences et Techniques). 
+
+L'ED-SVT propose des spécialités en sciences agronomiques et en productions végétales, ce qui est pertinent pour votre domaine d'intérêt.",,,,,,
+60,profils_specialises,True,"Je suis chercheur étranger, je veux faire une thèse en cotutelle avec l'UAM","Pour une thèse en cotutelle avec l'UAM, contactez l'école doctorale compétente selon votre domaine (ED-SVT, ED-LASHS ou ED-SET) et trouvez un directeur de thèse à l'UAM. Une convention de cotutelle est établie entre les deux établissements.","Pour faire une thèse en cotutelle avec l'UAM, il est essentiel de suivre certaines démarches :
+
+1. Obtenir une lettre d'acceptation de la faculté souhaitée.
+2. Demander un visa étudiant auprès de l'ambassade du Niger dans votre pays.
+3. Faire valider votre diplôme par le Ministère de l'Éducation du Niger.
+4. Déposer votre dossier d'inscription à la scolarité de la faculté.
+5. Vous enregistrer à la Direction des Affaires Étudiantes pour le logement.
+
+L'UAM a des partenariats avec plusieurs universités internationales, facilitant ainsi les cotutelles. Pour plus d'informations, contactez la Direction des Relations Internationales de l'UAM.",,,,,,
+44,instituts_ecoles,True,"Je veux faire un doctorat en mathématiques, quelle école doctorale choisir ?","Pour un doctorat en mathématiques à l'UAM, l'École Doctorale Sciences Exactes et Techniques (ED-SET) est la plus appropriée. Elle couvre les mathématiques, la physique, la chimie, l'informatique et les sciences de l'ingénieur, en lien avec la FAST.","Pour un doctorat en mathématiques à l'UAM, l'École Doctorale des Sciences Exactes et Techniques (ED-SET) est la plus appropriée. Elle couvre les domaines des sciences exactes, y compris les mathématiques. 
+
+Les trois écoles doctorales de l'UAM sont :
+- **ED-SVT** : Sciences de la Vie et de la Terre
+- **ED-LASHS** : Lettres, Arts, Sciences Humaines et Sociales
+- **ED-SET** : Sciences Exactes et Techniques
+
+Pour trouver un directeur de thèse, identifiez votre domaine de recherche, consultez la liste des enseignants-chercheurs de l'ED-SET, et soumettez un pré-projet de recherche.",,,,,,
+40,instituts_ecoles,True,Quelles formations propose l'ENS ?,"L'ENS (École Normale Supérieure) de l'UAM forme les professeurs de l'enseignement secondaire via la préparation au CAPES. Elle dispense une formation pédagogique et disciplinaire dans diverses matières (sciences, lettres, langues...).","L'École Normale Supérieure (ENS) propose les formations suivantes :
+
+- **L1** :
+  - Didactique des Sciences
+  - Sciences de l'Éducation
+
+- **L2** :
+  - Didactique des Sciences
+  - Sciences de l'Éducation
+
+- **L3** :
+  - Didactique des Sciences
+  - Sciences de l'Éducation
+
+- **M1** :
+  - Didactique des Sciences
+  - Sciences de l'Éducation
+
+- **M2** :
+  - Didactique des Sciences
+  - Sciences de l'Éducation
+
+Ces formations couvrent les niveaux Licence et Master dans les domaines de la didactique et des sciences de l'éducation.",,,,,,
+16,formations_facultes,True,FAST,"La FAST (Faculté des Sciences et Techniques) ouverte en 1971, propose des formations en mathématiques, informatique, physique, chimie et biologie aux niveaux Licence, Master et Doctorat. Elle compte 3 188 étudiants et 114 enseignants-chercheurs répartis en 7 départements.","Bonjour ! Voici les informations sur **Faculté des Sciences et Techniques** (FAST) :
+
+**Type :** Faculté
+
+**Localisation :** Campus universitaire de l'UAM, Niamey — Niger.
+
+**Historique :** Octobre 1971 : Ouverte sous le nom « École Supérieure des Sciences ». 1974 : Devient « École des Sciences » (décret N°74-108). 1980 : Transformation en Faculté avec 5 départements. 2010 : Prend le nom « Faculté des Sciences et Techniques ». 2007-2008 : Adoption pionnière du LMD.
+
+N'hésitez pas à me poser d'autres questions sur l'UAM !",,,,,,
+65,consultation_bdd,True,Combien d'étudiants sont inscrits en L1 à la FAST cette année ?,,Il y a 8 étudiants inscrits en L1 à la FAST pour l'année académique 2024-2025.,,,,,,
+57,localisation,True,Où est située la Faculté d'Agronomie ?,"La Faculté d'Agronomie est située sur le campus universitaire de l'UAM, rive droite du fleuve Niger, sur la voie menant à l'Hôpital National Lamordé, après le Restaurant universitaire, en face de la FLSH.","La Faculté d'Agronomie (FA) est située à l'Université Abdou Moumouni de Niamey, au Niger. Son adresse postale est BP 10662, Niamey, Niger. Pour toute information complémentaire, vous pouvez les contacter par téléphone au (227) 20 31 50 72 ou par fax au (227) 20 31 58 62.",,,,,,
+31,consultation_bdd,True,"Mon matricule est UAM240001, est-ce que mon inscription est validée ?",,"Votre inscription est validée. Pour toute contestation ou information complémentaire, contactez le service de scolarité de votre faculté ou la Scolarité Centrale au +227 20 74 06 61.",,,,,,
+53,effectifs,True,Combien d'étudiants sont inscrits à la Faculté d'Agronomie ?,"La Faculté d'Agronomie (FA) accueille 1 058 étudiants (données 2021-2022), dont 100 en Master et 30 en Doctorat avec cotutelles. Elle compte 38 enseignants permanents et 80 vacataires, ainsi que 44 personnels administratifs.","Pour l'année académique 2024-2025, la Faculté d'Agronomie (FA) compte 4 étudiants inscrits, répartis comme suit :
+
+- L2 : 1 étudiant
+- L3 : 3 étudiants
+
+Pour des données antérieures, en 2021-2022, la faculté comptait 1,058 étudiants.",,,,,,
+30,profils_specialises,True,Je suis professionnel et je souhaite reprendre mes études à l'UAM,"Les professionnels souhaitant reprendre leurs études à l'UAM s'inscrivent selon leur niveau de diplôme : en Licence pour les bacheliers, en Master pour les titulaires d'une licence. Présentez-vous au service des inscriptions avec vos diplômes, un acte de naissance et vos justificatifs professionnels pour évaluer les modalités d'admission.","Pour reprendre vos études à l'UAM en tant que professionnel, vous pouvez envisager des formations ouvertes et à distance, notamment au niveau licence et master. Ces formations sont adaptées aux professionnels et permettent un accompagnement pédagogique. Les examens se déroulent en présentiel. 
+
+Il est conseillé de consulter le site web de l'UAM pour plus d'informations sur les programmes spécifiques, les conditions d'admission et les modalités d'inscription.",,,,,,
+49,historique,True,Comment la FSEG et la FSJP ont-elles été créées ?,"La FSEG et la FSJP sont issues de la scission de l'ancienne FSEJ (Faculté des Sciences Économiques et Juridiques) en 2016, par décret n°2016-308/PRN/MESR/I du 29 juin 2016. Cette réforme a créé deux entités distinctes : l'une pour les sciences économiques et de gestion, l'autre pour le droit et la politique.","La Faculté des Sciences Économiques et de Gestion (FSEG) et la Faculté des Sciences Juridiques et Politiques (FSJP) ont été créées en 2016 par un décret qui a scindé l'ancienne Faculté des Sciences Économiques et Juridiques (FSEJ). 
+
+- **FSEG** : Elle a hérité des missions de formation en économie et gestion, poursuivant l'évolution de l'Ecole des Sciences Économiques et Juridiques, fondée en 1980 et érigée en faculté en 1984.
+  
+- **FSJP** : Elle se concentre sur la formation en droit et sciences politiques, également issue de la FSEJ.
+
+Les deux facultés ont démarré leurs activités à la rentrée académique 2016-2017.",,,,,,
+52,effectifs,True,Combien d'enseignants-chercheurs compte la FAST ?,"La FAST dispose de 114 enseignants-chercheurs, dont 54 de rang A (24 Professeurs Titulaires et 30 Maîtres de Conférences). Elle emploie également 79 personnels administratifs et techniques (PAT).","La Faculté des Sciences et Techniques (FAST) compte 114 enseignants-chercheurs, dont 54 au rang A.",,,,,,
+67,multi_etape,True,"Pour un doctorat en biologie, quelle école doctorale et quels prérequis ?","Pour un doctorat en biologie à l'UAM, rejoignez l'ED-SVT (École Doctorale Sciences de la Vie et de la Terre). Prérequis : Master 2 en biologie ou domaine connexe, directeur de thèse dans une faculté associée (FAST ou FSS), et projet de recherche validé.","Pour un doctorat en biologie à l'UAM, l'école doctorale concernée est l'**ED-SVT** (École Doctorale des Sciences de la Vie et de la Terre). 
+
+Les prérequis pour l'admission incluent généralement :
+- Un diplôme de Master en biologie ou dans un domaine connexe.
+- La validation des semestres requis dans le parcours de Master.
+- Un projet de recherche validé et un encadrant identifié.
+
+Il est conseillé de consulter directement l'école doctorale pour des détails spécifiques sur les conditions d'admission et les documents nécessaires.",,,,,,
+20,formations_facultes,True,Quelles filières proposent la FSEG et la FSJP à l'UAM ?,"La FSEG propose des filières en économie, gestion et finance. La FSJP propose des filières en droit privé, droit public et sciences politiques. Les deux facultés sont issues de la scission de l'ancienne FSEJ (décret n°2016-308 du 29 juin 2016).","Les filières proposées par la Faculté des Sciences Économiques et de Gestion (FSEG) à l'UAM sont :
+
+- **L1** : Finance, Gestion, Économie
+- **L2** : Finance, Gestion, Économie
+- **L3** : Finance, Gestion, Économie
+- **M1** : Finance, Gestion, Économie
+- **M2** : Finance, Gestion, Économie
+
+Les filières de la Faculté des Sciences Juridiques et Politiques (FSJP) incluent :
+
+- **L1** : Droit Privé, Droit Public, Sciences Politiques
+- **L2** : Droit Privé, Droit Public, Sciences Politiques
+- **L3** : Droit Privé, Droit Public, Sciences Politiques
+- **M1** : Droit Privé, Droit Public, Sciences Politiques
+- **M2** : Droit Privé, Droit Public, Sciences Politiques",,,,,,
+21,formations_facultes,True,Que propose la Faculté des Sciences de la Santé ?,"La FSS (Faculté des Sciences de la Santé) propose des formations en médecine, pharmacie, soins infirmiers et sciences biomédicales, aux niveaux Licence, Master et Doctorat. Elle compte 4 344 étudiants et 77 enseignants-chercheurs.","La Faculté des Sciences de la Santé (FSS) a pour mission de promouvoir la santé individuelle, familiale et collective, ainsi que de former le personnel sanitaire. Elle comprend plusieurs départements :
+
+- Médecine et Spécialités Médicales
+- Chirurgie et Spécialités Chirurgicales
+- Sciences Fondamentales et Mixtes
+- Santé Publique
+- Sciences Physico-Chimiques et Pharmaceutiques
+- Sciences Biologiques Appliquées
+
+La FSS propose des formations variées, notamment des diplômes d'études spécialisées et des masters professionnels dans des domaines tels que la pédiatrie et la chirurgie-gynécologie-obstétrique.",,,,,,
+41,instituts_ecoles,True,Quelles sont les écoles doctorales de l'UAM ?,"L'UAM dispose de 3 écoles doctorales : ED-SVT (Sciences de la Vie et de la Terre), ED-LASHS (Lettres, Arts, Sciences Humaines et Sociales) et ED-SET (Sciences Exactes et Techniques). Chaque école doctorale regroupe plusieurs facultés et instituts.","L'Université Abdou Moumouni de Niamey dispose de trois écoles doctorales :
+
+1. **ED-SVT** — École Doctorale Sciences de la Vie et de la Terre
+   - Disciplines : agronomie, biologie, sciences de la santé, sciences de la terre, environnement, écologie.
+   - Facultés/instituts associés : FA, FAST, FSS, IRI.
+
+2. **ED-LASHS** — École Doctorale Lettres, Arts, Sciences Humaines et Sociales
+   - Disciplines : lettres, langues, linguistique, histoire, géographie humaine, sociologie, anthropologie, philosophie, psychologie, sciences de l'éducation.
+   - Facultés/instituts associés : FLSH, ENS, IRSH.
+
+3. **ED-SET** — École Doctorale Sciences Exactes et Techniques.",,,,,,
+51,effectifs,True,Combien d'étudiants sont inscrits à la FAST ?,"La FAST compte 3 188 étudiants (données 2021-2022) répartis sur tous les niveaux : 1 210 en L1, 682 en L2, 475 en L3, 366 en M1, 253 en M2 et 202 en Doctorat.","Pour l'année académique 2024-2025, la Faculté des Sciences et Techniques (FAST) compte 13 étudiants inscrits, répartis comme suit :
+
+- L1 : 8
+- L3 : 3
+- M2 : 2
+
+Pour l'année 2021-2022, la FAST comptait 3,188 étudiants.",,,,,,
+3,inscription_premiere,True,Où est-ce que je dépose mon dossier d'inscription ?,"Le dossier d'inscription se dépose au service des inscriptions de l'UAM, situé sur le campus universitaire de Niamey. Se renseigner auprès du secrétariat de la faculté choisie pour connaître le guichet exact et les horaires de dépôt.","Le dossier d'inscription doit être déposé au secrétariat de la faculté ou de l'école où vous souhaitez vous inscrire. Les périodes d'inscription se déroulent généralement en septembre-octobre. Assurez-vous d'apporter tous les documents requis, tels que l'original du diplôme du Baccalauréat, le relevé de notes, et d'autres pièces justificatives. Pour des informations spécifiques, il est conseillé de contacter directement le secrétariat de votre faculté.",,,,,,
+56,localisation,True,Où se trouve la FLSH ?,"La FLSH (Faculté des Lettres et Sciences Humaines) est située sur le campus universitaire de l'UAM, BP 418, Niamey — Niger.","La Faculté des Lettres et Sciences Humaines (FLSH) est située à l'Université Abdou Moumouni de Niamey, au Niger. Elle accueille des chercheurs et étudiants, tant nationaux qu'internationaux, et se concentre sur les sciences humaines et sociales. Les activités de recherche de la FLSH portent sur divers domaines, notamment l'islam, l'aménagement urbain, et les langues nationales.",,,,,,
+64,consultation_bdd,True,Est-ce que j'ai des arriérés de frais de scolarité ? Matricule UAM010014.,,"Vous avez payé un montant de 15,000 FCFA. Votre statut d'inscription est ""en attente"". Pour toute contestation ou information complémentaire, contactez le service de scolarité de votre faculté ou la Scolarité Centrale au +227 20 74 06 61.",,,,,,
+54,effectifs,True,Combien d'étudiants sont inscrits à la FSS ?,La Faculté des Sciences de la Santé (FSS) est la plus grande composante de l'UAM avec 4 344 étudiants (2021-2022). Elle dispose de 77 enseignants-chercheurs et 52 personnels administratifs et techniques.,"Pour l'année académique 2024-2025, la Faculté des Sciences Sociales (FSS) compte 3 étudiants inscrits, répartis comme suit :
+
+- L1 : 1 étudiant
+- L2 : 1 étudiant
+- L3 : 1 étudiant
+
+Pour des données antérieures, en 2021-2022, la FSS comptait 4,344 étudiants.",,,,,,
+50,historique,True,Quand a été fondée la Faculté des Sciences de la Santé ?,La Faculté des Sciences de la Santé (FSS) a été créée le 1er octobre 1974 par décret N°74-262/PCMS/MEN/JS sous le nom « École des Sciences de la Santé ». Elle est transformée en Faculté des Sciences de la Santé en 1984.,"La date de fondation de la Faculté des Sciences de la Santé (FSS) n'est pas spécifiquement mentionnée dans les informations disponibles. Pour obtenir cette information précise, il est recommandé de contacter directement la faculté ou le service compétent de l'Université Abdou Moumouni de Niamey.",,,,,,
+24,frais,True,Les frais de scolarité sont-ils les mêmes pour toutes les facultés ?,"Non, les frais varient selon le niveau d'études : Licence 50 000 FCFA/an, Master 75 000 FCFA/an, Doctorat 100 000 FCFA/an (tarifs de base). Des frais supplémentaires (laboratoire, matériel) peuvent s'appliquer selon la spécialité. Contactez la Scolarité Centrale au +227 20 74 06 61 pour les montants exacts par faculté.","Les frais de scolarité varient selon les facultés et le statut des étudiants. Pour les étudiants nigériens et de la zone UEMOA, les frais sont de 10,000 FCFA. Pour les étudiants hors zone UEMOA, les frais annuels sont :
+
+- ENS, FLSH, FSEG, FSJP : 150,000 FCFA
+- FSS : 200,000 FCFA
+- FA, FAST : 250,000 FCFA
+
+Ces montants montrent que les frais ne sont pas uniformes pour toutes les facultés.",,,,,,
+58,localisation,True,Où est situé l'IRSH ?,"L'IRSH (Institut de Recherches en Sciences Humaines) est situé sur le campus de l'UAM, BP 318, Niamey — Niger.","L'Institut de Recherches en Sciences Humaines (IRSH) est situé à Niamey, au Niger. Il fait partie de l'Université Abdou Moumouni et se consacre à la recherche et à la formation dans le domaine des sciences humaines et sociales.",,,,,,
+26,contacts_services,True,Quels sont les horaires du service des inscriptions ?,Le service des inscriptions de l'UAM est généralement ouvert du lundi au vendredi de 7h30 à 15h30. Ces horaires peuvent être modifiés en période de rentrée universitaire. Confirmez auprès de la Scolarité Centrale au +227 20 74 06 61 avant votre déplacement.,Cette information précise n'apparaît pas dans ma base de connaissances. Contactez le service compétent pour la confirmer.,,,,,,
+17,formations_facultes,True,Quelles sont les écoles et instituts de l'UAM en dehors des facultés ?,"En dehors des 6 facultés, l'UAM comprend l'ENS (École Normale Supérieure), l'IRSH (Institut de Recherches en Sciences Humaines), l'IREM (Institut de Recherches en Enseignement des Mathématiques) et l'IRI (Institut des Radio-Isotopes).","Les écoles et instituts de l'UAM en dehors des facultés sont :
+
+**Instituts de recherche :**
+- Institut de Recherches en Sciences Humaines (IRSH)
+- Institut de Recherches en Enseignement des Mathématiques (IREM)
+- Institut des Radio-Isotopes (IRI)
+
+**Écoles :**
+- École Normale Supérieure (ENS)
+- École Doctorale Sciences de la Vie et de la Terre (ED-SVT)
+- École Doctorale Lettres, Arts, Sciences Humaines et Sociales (ED-LASHS)
+- École Doctorale Sciences Exactes et Techniques (ED-SET)",,,,,,
+34,consultation_bdd,True,Combien d'étudiants sont inscrits à l'UAM cette année ?,,"Pour l'année académique 2024-2025, l'Université Abdou Moumouni de Niamey compte un total de 35 étudiants inscrits. Voici la répartition par structure :
+
+- ENA : 3 étudiants
+- FA : 4 étudiants
+- FAST : 13 étudiants
+- FLSH : 4 étudiants
+- FSEG : 2 étudiants
+- FSJP : 4 étudiants
+- FSS : 3 étudiants
+- IRIM : 2 étudiants
+
+Ces données proviennent des documents officiels de l'UAM.",,,,,,
+23,frais,True,Combien coûte l'inscription en Master ?,Les frais de scolarité en Master à l'UAM s'élèvent à 75 000 FCFA par an (tarif de base). Ce montant peut inclure des frais additionnels selon la spécialisation. Contactez le service de scolarité de votre composante ou la Scolarité Centrale au +227 20 74 06 61 pour les tarifs exacts.,"Les frais d'inscription en Master à l'UAM sont les suivants :
+
+- Étudiants nigériens et de la zone UEMOA : 50,000 FCFA
+- Étudiants hors zone UEMOA : 250,000 FCFA par an pour les facultés ENS, FA, FAST, FLSH, FSEG, FSJP.",,,,,,
+48,historique,True,Quelle est l'origine de la Faculté d'Agronomie ?,"La Faculté d'Agronomie (FA) a été créée en 1974 sous le nom « École Supérieure d'Agronomie » (ESA). Elle prend le nom de Faculté d'Agronomie par ordonnance N°84-03 en 1984. En 1989, une spécialisation en protection de l'environnement est créée.",La Faculté d'Agronomie (FA) de l'Université Abdou Moumouni a pour mission de former des professionnels dans le domaine de l'agriculture et des sciences connexes. Elle vise à promouvoir la recherche et le développement durable des ressources agricoles. L'origine de cette faculté s'inscrit dans le besoin d'améliorer la production agricole et de répondre aux défis alimentaires du Niger. Elle contribue également à la formation de cadres capables de gérer les enjeux environnementaux liés à l'agriculture.,,,,,,
+25,contacts_services,True,Quel est le numéro de téléphone de l'UAM ?,"La Scolarité Centrale de l'UAM est joignable au +227 20 74 06 61, du lundi au vendredi de 7h30 à 15h30. Pour les secrétariats des facultés et instituts, contactez directement la composante concernée sur le campus universitaire de Niamey.",Le numéro de téléphone de la Scolarité Centrale de l'Université Abdou Moumouni de Niamey est le +227 20 74 06 61.,,,,,,
+63,consultation_bdd,True,"Mon matricule est UAM050023, quels cours suis-je inscrit ce semestre ?",,"Vous êtes inscrit aux cours suivants pour le semestre :
+
+*Semestre 1* :
+- INF101 — Introduction à l'Informatique (6 ECTS)
+- INF102 — Algorithmique I (6 ECTS)
+- MAT101 — Analyse Mathématique I (4 ECTS)
+- MAT102 — Algèbre I (4 ECTS)
+- PHY101 — Physique Générale (3 ECTS)
+- FRA101 — Techniques d'Expression Française (3 ECTS)
+- ANG101 — Anglais I (2 ECTS)
+
+*Semestre 2* :
+- INF103 — Programmation C (6 ECTS)
+- INF104 — Architecture des Ordinateurs (4 ECTS)
+- MAT103 — Analyse Mathématique II (4 ECTS)
+- MAT104 — Algèbre II (4 ECTS)
+- INF105 — Systèmes d'Exploitation (3 ECTS)
+- ANG102 — Anglais II (2 ECTS)",,,,,,
+7,inscription_reinscription,True,"Je suis en L2, quels documents pour me réinscrire ?","Pour une réinscription en L2, présentez votre carte d'étudiant de l'année précédente, votre relevé de notes du L1, des photos d'identité récentes et le justificatif de paiement des frais de réinscription. Le formulaire de réinscription est disponible au secrétariat de la faculté.","Pour vous réinscrire en L2, vous devez fournir les documents suivants :
+
+- Reçu de paiement des frais de réinscription (original)
+- Carte d'étudiant de l'année précédente
+- 2 photos d'identité récentes (format 4×4)
+- Fiche de réinscription dûment remplie (disponible au secrétariat ou en ligne)
+- Certificat médical de moins de 3 mois
+
+Si vous changez de filière ou de spécialité, des documents supplémentaires sont requis. En cas d'interruption d'études, une lettre explicative et un justificatif de l'interruption sont nécessaires.",,,,,,
+43,instituts_ecoles,True,Qu'est-ce que l'ED-LASHS ?,"L'ED-LASHS (École Doctorale Lettres, Arts, Sciences Humaines et Sociales) encadre les recherches doctorales en lettres, langues, linguistique, histoire, géographie, philosophie et sciences sociales. Elle est principalement rattachée à la FLSH et à l'IRSH.","L'École Doctorale Lettres, Arts, Sciences Humaines et Sociales (ED-LASHS) de l'Université Abdou Moumouni de Niamey se concentre sur la formation et la recherche dans divers domaines des sciences humaines et sociales. Elle propose des masters de recherche et professionnels dans des disciplines telles que :
+
+- Géographie
+- Lettres Modernes
+- Linguistique
+- Philosophie
+- Psychologie
+- Sociologie
+
+L'ED-LASHS vise à dynamiser la recherche et à contribuer au développement économique et social, tout en valorisant le patrimoine culturel national. Elle accueille également des chercheurs étrangers et dispose d'une bibliothèque riche de 30 000 volumes.",,,,,,
+62,profils_specialises,True,Je travaille et veux reprendre des études à l'UAM pour un Master,"Pour un Master à l'UAM en tant que professionnel, vous devez être titulaire d'une licence. Déposez un dossier de candidature au secrétariat de la composante choisie : licence, relevés de notes, CV et lettre de motivation. La sélection est assurée par une commission pédagogique. Les frais sont de 75 000 FCFA/an.","Pour reprendre des études à l'UAM en Master, vous devez :
+
+- Être titulaire d'une Licence ou d'un diplôme équivalent.
+- Avoir une moyenne générale minimale de 11/20 (peut varier selon les filières).
+- Soumettre un dossier comprenant une demande manuscrite, un extrait d'acte de naissance, un certificat de nationalité, une copie légalisée du diplôme requis, un relevé de notes, des photos d'identité, et un certificat médical si nécessaire.
+
+Les professionnels doivent également fournir une attestation de travail. La sélection se fait par chaque faculté ou école. Pour plus de détails, contactez le Service Central de la Scolarité.",,,,,,
+10,inscription_master_doctorat,True,Quelles sont les conditions pour entrer en Doctorat ?,"Pour s'inscrire en doctorat à l'UAM, il faut être titulaire d'un Master 2 (ou équivalent), trouver un directeur de thèse, élaborer un protocole de recherche et être admis par l'école doctorale compétente. L'inscription se fait auprès de l'école doctorale rattachée à la composante concernée.","Pour entrer en Doctorat à l'UAM, il faut :
+
+- Être titulaire d'un Master ou d'un diplôme équivalent.
+- Soumettre un dossier de candidature comprenant une demande manuscrite, un extrait d'acte de naissance, et un pré-projet de recherche.
+- Trouver un directeur de thèse parmi les enseignants-chercheurs de l'école doctorale choisie.
+
+Les trois Écoles Doctorales à l'UAM sont :
+- **ED-SVT** : Sciences de la Vie et de la Terre
+- **ED-LASHS** : Lettres, Arts, Sciences Humaines et Sociales
+- **ED-SET** : Sciences Exactes et Techniques
+
+Ces écoles gèrent la scolarité des doctorants et l'organisation de la formation doctorale.",,,,,,
+47,historique,True,Quand a été créée la FAST ?,"La Faculté des Sciences et Techniques (FAST) a été ouverte en octobre 1971 sous le nom « École Supérieure des Sciences ». Elle devient « École des Sciences » en 1974 (décret N°74-108), puis Faculté en 1980 avec 5 départements. Elle adopte le système LMD en 2007-2008.","La Faculté des Sciences et Techniques (FAST) a été créée en octobre 1971 sous le nom d'École Supérieure des Sciences. En 1974, elle est devenue l'École des Sciences, puis en 1980, elle a été transformée en faculté avec cinq départements. En 2010, elle a pris le nom de Faculté des Sciences et Techniques.",,,,,,
+22,frais,True,Quels sont les frais d'inscription en Licence ?,"Les frais de scolarité en Licence à l'UAM s'élèvent à 50 000 FCFA par an (tarif de base). Des frais additionnels peuvent s'appliquer selon la filière (laboratoire, matériel). Contactez le service de scolarité de votre faculté ou la Scolarité Centrale au +227 20 74 06 61 pour les tarifs actualisés.","Frais d'inscription en Licence :
+
+- Étudiants nigériens & zone UEMOA : 10,000 FCFA
+- Étudiants hors zone UEMOA :
+  - ENS, FLSH, FSEG, FSJP : 150,000 FCFA/an
+  - FSS : 200,000 FCFA/an
+  - FA, FAST : 250,000 FCFA/an
+
+Source : Service Central de la Scolarité.",,,,,,
+28,profils_specialises,True,"Je suis un étudiant étranger venant du Bénin, comment m'inscrire à l'UAM ?","Les étudiants étrangers doivent faire reconnaître leurs diplômes, fournir un dossier comprenant une équivalence de baccalauréat, une attestation de niveau de langue française, une copie du passeport et un visa étudiant. Se renseigner auprès du service des inscriptions pour les conditions spécifiques.","Pour vous inscrire à l'Université Abdou Moumouni de Niamey (UAM) en tant qu'étudiant étranger venant du Bénin, suivez ces étapes :
+
+1. **Admission** : Obtenez une lettre d'acceptation de la faculté souhaitée.
+2. **Visa** : Demandez un visa étudiant auprès de l'ambassade du Niger au Bénin.
+3. **Équivalence** : Faites valider votre diplôme par le Ministère de l'Éducation du Niger. Le dossier doit inclure une demande manuscrite, une copie légalisée du diplôme, des relevés de notes et des traductions si nécessaire.
+4. **Inscription** : Déposez votre dossier d'inscription à la scolarité de la faculté.
+5. **Logement** : Enregistrez-vous à la Direction des Affaires Étudiantes pour le logement.
+
+Les frais d'inscription pour les étrangers varient selon la faculté, par exemple, 150 000 FCFA pour la FLSH.",,,,,,
+11,inscription_master_doctorat,True,Quels documents pour postuler en Master à la FAST ?,"Pour postuler en Master à la FAST, fournissez : la licence dans le domaine concerné, les relevés de notes des années antérieures, une lettre de motivation, un CV et éventuellement une lettre de recommandation d'un enseignant. Déposez le dossier au secrétariat de la FAST avant la date limite.","Pour postuler en Master à la Faculté des Sciences et Techniques (FAST), les documents requis sont :
+
+- Une demande manuscrite adressée au Recteur de l'Université Abdou Moumouni.
+- Un extrait d'acte de naissance ou un jugement supplétif.
+- Un certificat de nationalité.
+- Une copie légalisée du diplôme requis ou d'un titre équivalent.
+- Une copie du relevé des notes obtenues.
+- Deux photos d'identité récentes.
+- Un certificat médical (pour les études médicales).
+- Une copie de l'attestation de travail (pour les professionnels).
+
+La sélection des dossiers se fait au niveau de la faculté.",,,,,,
+1,inscription_premiere,True,Comment s'inscrire pour la première fois à l'UAM ?,"Pour une première inscription à l'UAM, constituez votre dossier (baccalauréat, acte de naissance, certificat médical, photos d'identité, fiche de vœux) et déposez-le au service des inscriptions du campus. Le paiement des frais d'inscription est requis. Les délais sont fixés chaque année par l'administration.","Pour s'inscrire pour la première fois à l'UAM, suivez ces étapes :
+
+1. **Vérifiez les conditions d'admission** de la filière choisie.
+2. **Préparez les pièces requises** :
+   - Demande manuscrite au Recteur précisant trois filières par ordre de préférence.
+   - Extrait d'acte de naissance ou jugement supplétif.
+   - Certificat de nationalité.
+   - Copie légalisée du diplôme requis.
+   - Copie du relevé des notes.
+   - Deux photos d'identité.
+   - Certificat médical (pour les études médicales).
+   - Attestation de travail (pour les professionnels).
+3. **Déposez le dossier** au Service Central de la Scolarité à l'ENS.
+4. **Payez les frais d'inscription**.
+5. **Récupérez votre carte d'étudiant**.
+
+Les formations disponibles incluent des licences et des masters en Eaux et Forêts, Productions Animales et Végétales.",,,,,,
+69,multi_etape,True,"Je veux devenir enseignant du secondaire, quelle composante choisir ?","Pour devenir enseignant du secondaire, l'ENS (École Normale Supérieure) de l'UAM est la composante dédiée. Elle prépare au CAPES et propose une formation pédagogique et disciplinaire pour enseigner dans les collèges et lycées.","Pour devenir enseignant du secondaire à l'Université Abdou Moumouni, vous devez vous orienter vers l'École Normale Supérieure (ENS). Les formations disponibles incluent :
+
+- **Licence** : Formation de base pour les enseignants.
+- **Master** : Spécialisation en métiers de l'enseignement, avec des options pour devenir inspecteur ou conseiller pédagogique.
+
+Ces formations sont conçues pour préparer les futurs enseignants aux exigences du système éducatif.",,,,,,
+38,instituts_ecoles,True,Combien d'instituts de recherche compte l'UAM ?,"L'UAM compte 3 instituts de recherche : l'IRSH (Institut de Recherches en Sciences Humaines), l'IREM (Institut de Recherches en Enseignement des Mathématiques) et l'IRI (Institut des Radio-Isotopes).","L'Université Abdou Moumouni de Niamey compte trois instituts de recherche :
+
+- Institut de Recherches en Sciences Humaines (IRSH)
+- Institut de Recherches en Enseignement des Mathématiques (IREM)
+- Institut des Radio-Isotopes (IRI)",,,,,,
+70,multi_etape,True,Quelles langues étrangères peut-on étudier à la FLSH ?,"La FLSH propose des formations en langues étrangères : anglais, arabe, haoussa et d'autres langues selon les filières disponibles. Se renseigner auprès du secrétariat de la FLSH pour la liste exacte des langues enseignées.","À la Faculté des Lettres et Sciences Humaines (FLSH), il est possible d'étudier plusieurs langues étrangères dans le cadre des formations en Lettres Modernes et Linguistique. Les langues spécifiques proposées peuvent inclure :
+
+- Anglais
+- Français
+- Espagnol
+- Allemand
+- Arabe
+
+Ces langues sont intégrées dans les programmes de Licence, Master et Doctorat, permettant aux étudiants d'acquérir des compétences linguistiques et culturelles variées. Pour des informations plus précises sur les langues disponibles, il est conseillé de consulter le programme détaillé de la FLSH.",,,,,,
+61,profils_specialises,True,"Je suis titulaire d'un bac français, puis-je m'inscrire à l'UAM ?",Les titulaires d'un baccalauréat français peuvent s'inscrire à l'UAM. Vous devrez fournir une équivalence de votre diplôme et les documents habituels d'inscription. Contactez le service des inscriptions pour connaître les modalités spécifiques aux étudiants étrangers.,"Vous pouvez vous inscrire à l'UAM avec un bac français. Voici les formations disponibles :
+
+- L1 Eaux et Forêts
+- L1 Productions Animales
+- L1 Productions Végétales
+- L2 Eaux et Forêts
+- L2 Productions Animales
+- L2 Productions Végétales
+- L3 Eaux et Forêts
+- L3 Productions Animales
+- L3 Productions Végétales
+- M1 et M2 dans les mêmes spécialités
+
+Checklist pour l'inscription :
+
+1. Vérifier les conditions d'admission de la filière choisie.
+2. Préparer les pièces requises (acte de naissance, relevés de notes, etc.).
+3. Déposer le dossier ou suivre la procédure indiquée.
+4. Payer les frais d'inscription/scolarité.
+5. Récupérer la carte d'étudiant.",,,,,,
+27,contacts_services,True,Comment obtenir une attestation de scolarité ?,"Pour obtenir une attestation de scolarité, adressez une demande écrite au service de scolarité de votre faculté, en y joignant une copie de votre carte d'étudiant. Le délai de traitement varie selon les composantes. Ce document est délivré gratuitement.","Pour obtenir une attestation de scolarité à l'Université Abdou Moumouni de Niamey, il faut se rendre au service de scolarité. Il est nécessaire de présenter une pièce d'identité et, éventuellement, d'autres documents selon les exigences spécifiques de votre situation. Il est conseillé de vérifier auprès du service de scolarité pour toute information complémentaire ou document requis.",,,,,,
+35,instituts_ecoles,True,Qu'est-ce que l'IRSH de l'UAM ?,"L'IRSH (Institut de Recherches en Sciences Humaines) est l'héritier des activités de l'IFAN (Institut Français d'Afrique Noire). Il conduit des recherches en sciences humaines et sociales sur le Niger et l'Afrique. Il est situé sur le campus de l'UAM, BP 318, Niamey.","L'Institut de Recherches en Sciences Humaines (IRSH) de l'UAM est un institut dédié à la recherche et à la formation dans le domaine des sciences humaines et sociales. Il a pour mission de promouvoir la recherche fondamentale et appliquée, ainsi que de former des enseignants et des cadres dans divers domaines d'activités. L'IRSH collabore avec la Faculté de Lettres et Sciences Humaines (FLSH) et l'École Normale Supérieure (ENS) pour encadrer des étudiants et chercheurs, tout en accueillant des chercheurs nationaux et internationaux. Les thématiques de recherche incluent l'islam, l'aménagement urbain, le développement rural, et l'archéologie.",,,,,,
+45,instituts_ecoles,True,Quelles sont les conditions d'accès aux écoles doctorales de l'UAM ?,"L'accès aux écoles doctorales de l'UAM requiert un Master 2 (ou diplôme équivalent), un directeur de thèse accepté, un projet de recherche solide et l'avis favorable de la commission d'admission de l'école doctorale concernée.","Les conditions d'accès aux écoles doctorales de l'UAM sont les suivantes :
+
+- Être titulaire d'un Master 2 dans une discipline pertinente.
+- Présenter un projet de thèse.
+- Obtenir l'accord d'un directeur de recherche.
+
+Les écoles doctorales disponibles sont :
+- **ED-SVT** : Sciences de la Vie et de la Terre
+- **ED-LASHS** : Lettres, Arts, Sciences Humaines et Sociales
+- **ED-SET** : Sciences Exactes et Techniques
+
+Le dossier d'inscription doit inclure une demande manuscrite, un extrait d'acte de naissance, un certificat de nationalité, une copie légalisée du diplôme requis, un relevé de notes, deux photos d'identité, et un certificat médical si nécessaire.",,,,,,
+42,instituts_ecoles,True,Comment s'inscrire à l'École Doctorale des Sciences de la Vie et de la Terre ?,"Pour s'inscrire à l'ED-SVT (Sciences de la Vie et de la Terre), vous devez avoir un Master 2 en agronomie, biologie, santé ou sciences de la terre, trouver un directeur de thèse dans les facultés rattachées (FA, FAST, FSS, IRI) et soumettre votre dossier à l'ED-SVT.","Pour s'inscrire à l'École Doctorale des Sciences de la Vie et de la Terre (ED-SVT) à l'UAM, il faut :
+
+1. **Préparer un dossier de candidature** comprenant un projet de recherche.
+2. **Trouver un directeur de thèse** en contactant un enseignant-chercheur de l'ED-SVT.
+3. **Soumettre le dossier** à la commission de sélection de l'école doctorale.
+
+Les spécialités incluent l'agronomie, la biologie, les sciences de la santé, et l'écologie. Pour plus d'informations, il est conseillé de consulter le site de l'UAM ou de contacter directement l'ED-SVT.",,,,,,
+46,instituts_ecoles,True,Quelle école doctorale correspond aux sciences exactes à l'UAM ?,"L'ED-SET (École Doctorale Sciences Exactes et Techniques) couvre les mathématiques, la physique, la chimie, l'informatique, les sciences de l'ingénieur ainsi que les sciences économiques, le droit et la gestion. Elle est principalement rattachée à la FAST.","L'école doctorale correspondant aux sciences exactes à l'UAM est l'École Doctorale des Sciences Exactes et Techniques (ED-SET). Elle couvre des disciplines telles que les sciences chimiques, les sciences de l'ingénieur, les sciences physiques, la biochimie, les mathématiques et l'informatique. Les écoles doctorales, dont l'ED-SET, sont situées au niveau de l'amphithéâtre de 1000 places de la FSS et gèrent la scolarité des doctorants ainsi que l'organisation de la formation doctorale.",,,,,,
+13,formations_facultes,True,Quelles sont les facultés disponibles à l'UAM ?,"L'UAM compte 6 facultés : FAST (Sciences et Techniques), FA (Agronomie), FSS (Sciences de la Santé), FSEG (Sciences Économiques et de Gestion), FSJP (Sciences Juridiques et Politiques) et FLSH (Lettres et Sciences Humaines). S'y ajoute l'ENS (École Normale Supérieure).","Les facultés disponibles à l'Université Abdou Moumouni de Niamey (UAM) sont :
+
+- Faculté d'Agronomie (FA)
+- Faculté des Sciences et Techniques (FAST)
+- Faculté des Sciences de la Santé (FSS)
+- Faculté des Sciences Économiques et de Gestion (FSEG)
+- Faculté des Sciences Juridiques et Politiques (FSJP)
+- Faculté des Lettres et Sciences Humaines (FLSH)",,,,,,
+72,conversation_simple,True,Bonjour,"Bonjour ! Je suis l'assistant virtuel de l'Université Abdou Moumouni de Niamey (UAM). Je peux vous renseigner sur les inscriptions, les formations, les facultés et les procédures administratives. Comment puis-je vous aider ?",Cette information précise n'apparaît pas dans ma base de connaissances. Contactez [service compétent] pour la confirmer.,,,,,,
+2,inscription_premiere,True,Quels documents faut-il pour s'inscrire en première année ?,"Les documents requis pour une première inscription en L1 à l'UAM sont : l'acte de naissance, le diplôme du baccalauréat, des photos d'identité, un certificat médical et la fiche de vœux remplie. Certaines facultés peuvent exiger des pièces complémentaires selon les filières.","Pour s'inscrire en première année à l'UAM, il faut fournir les documents suivants :
+
+- Demande manuscrite adressée au Recteur, précisant trois filières par ordre de préférence
+- 1 extrait d'acte de naissance ou document équivalent
+- 1 certificat de nationalité
+- 1 copie légalisée du diplôme requis ou équivalent
+- 1 copie du relevé des notes obtenues
+- 2 photos d'identité
+- 1 certificat médical (pour les études médicales)
+- 1 copie de l'attestation de travail (pour les professionnels)
+
+Les dossiers sont à déposer au Service Central de la Scolarité à l'ENS.",,,,,,
+39,instituts_ecoles,True,Comment s'inscrire à l'École Normale Supérieure de l'UAM ?,L'ENS (École Normale Supérieure) forme les professeurs de l'enseignement secondaire (préparation au CAPES). Les modalités d'admission et d'inscription sont disponibles au secrétariat de l'ENS sur le campus de l'UAM à Niamey.,"Pour s'inscrire à l'École Normale Supérieure (ENS) de l'UAM, il faut :
+
+### Conditions d'admission :
+- Être titulaire du Baccalauréat ou d'un diplôme équivalent.
+- Réussir un examen spécial ou un concours d'entrée pour certaines filières.
+
+### Dossier d'inscription :
+- Demande manuscrite adressée au Recteur.
+- Extrait d'acte de naissance.
+- Certificat de nationalité.
+- Copie légalisée du diplôme requis.
+- Relevé de notes.
+- Deux photos d'identité.
+- Certificat médical (pour certaines filières).
+
+### Procédure :
+Le dossier est déposé au Service Central de la Scolarité à l'ENS. La sélection est effectuée par la faculté, et la liste des retenus est transmise au service de scolarité.",,,,,,
+33,consultation_bdd,True,Quels sont mes résultats du semestre ? Matricule UAM030006,,"Les résultats du semestre pour le matricule UAM030006 ne sont pas disponibles dans ma base de données. Pour toute contestation ou information complémentaire, contactez le service de scolarité de votre faculté ou la Scolarité Centrale au +227 20 74 06 61.",,,,,,
+74,conversation_simple,True,Merci pour votre aide,"Je vous en prie ! N'hésitez pas si vous avez d'autres questions sur l'UAM — inscriptions, formations, facultés ou procédures. Bonne continuation !","Avec plaisir ! Je suis toujours disponible pour vous aider.
+
+Si vous avez d'autres questions sur l'UAM — formations, inscription, procédures ou services — n'hésitez pas à me les poser.",,,,,,
+68,multi_etape,True,Quelles sont les différences entre les formations de la FSEG et de la FSJP ?,"La FSEG (Sciences Économiques et de Gestion) forme aux métiers de l'économie, de la finance et de la gestion d'entreprise. La FSJP (Sciences Juridiques et Politiques) forme aux métiers du droit et de la science politique. Les deux coexistent depuis leur séparation en 2016.","Les formations de la FSEG (Faculté des Sciences Économiques et de Gestion) et de la FSJP (Faculté des Sciences Juridiques et Politiques) diffèrent principalement par leur domaine d'étude :
+
+**FSEG :**
+- Formations en économie, gestion, finance et comptabilité.
+- Diplômes : L1, L2, L3, M1, M2 en Finance, Gestion, Économie.
+
+**FSJP :**
+- Formations en droit (privé et public) et sciences politiques.
+- Diplômes : L1, L2, L3, M1, M2 en Droit Privé, Droit Public, Sciences Politiques.
+
+Chaque faculté vise à former des professionnels adaptés aux besoins spécifiques de leur secteur respectif.",,,,,,
+6,inscription_reinscription,True,Comment renouveler mon inscription à l'UAM ?,"La réinscription se fait chaque année universitaire auprès du secrétariat de votre faculté. Vous devez fournir votre carte d'étudiant, le relevé de notes de l'année précédente, des photos d'identité et régler les frais de réinscription. Les modalités précises sont affichées en début d'année.","Pour renouveler votre inscription à l'UAM, vous devez suivre ces étapes :
+
+- **Conditions** :
+  - Être déjà inscrit à l'UAM l'année précédente.
+  - Être en règle vis-à-vis de la scolarité (pas de dettes).
+  - Ne pas avoir été exclu pour des raisons disciplinaires.
+  - Avoir sa carte d'étudiant de l'année précédente.
+  - Avoir payé tous les frais de réinscription.
+
+- **Documents requis** :
+  - Carte d'étudiant de l'année précédente.
+  - Reçu de paiement des frais de réinscription.
+
+La période de réinscription se déroule généralement en septembre-octobre.",,,,,,
+73,conversation_simple,True,Au revoir,Au revoir ! N'hésitez pas à revenir si vous avez d'autres questions concernant l'UAM. Bonne continuation dans vos démarches.,"Merci pour votre visite ! C'était un plaisir de vous accompagner.
+
+N'hésitez pas à revenir si vous avez d'autres questions sur l'UAM. Bonne continuation et à bientôt !",,,,,,
+5,inscription_premiere,True,Est-ce que j'ai besoin d'un certificat médical pour l'inscription ?,"Oui, un certificat médical de bonne santé est généralement requis pour l'inscription à l'UAM. Ce document est délivré par un médecin agréé. Il atteste de votre aptitude physique à suivre les études.","Un certificat médical est requis uniquement pour les études médicales lors de l'inscription à l'Université Abdou Moumouni. Pour les autres filières, il n'est pas nécessaire. Les documents à fournir incluent également une demande manuscrite, un extrait d'acte de naissance, un certificat de nationalité, une copie légalisée du diplôme requis, un relevé de notes, et deux photos d'identité.",,,,,,
+55,effectifs,True,Combien de composantes compte l'UAM ?,"L'UAM compte 7 composantes d'enseignement (6 facultés : FAST, FA, FSS, FSEG, FSJP, FLSH + l'ENS), 3 écoles doctorales (ED-SVT, ED-LASHS, ED-SET) et 3 instituts de recherche (IRSH, IREM, IRI).","L'Université Abdou Moumouni de Niamey (UAM) compte 10 composantes :
+
+- **Facultés** (6) :
+  - Faculté d'Agronomie (FA)
+  - Faculté des Sciences et Techniques (FAST)
+  - Faculté des Sciences de la Santé (FSS)
+  - Faculté des Sciences Économiques et de Gestion (FSEG)
+  - Faculté des Sciences Juridiques et Politiques (FSJP)
+  - Faculté des Lettres et Sciences Humaines (FLSH)
+
+- **Instituts de recherche** (3) :
+  - Institut de Recherches en Sciences Humaines (IRSH)
+  - Institut de Recherches en Enseignement des Mathématiques (IREM)
+  - Institut des Radio-Isotopes (IRI)
+
+- **Écoles** (4) :
+  - École Normale Supérieure (ENS)
+  - École Doctorale Sciences de la Vie et de la Terre (ED-SVT)
+  - École Doctorale Lettres, Arts, Sciences Humaines et Sociales (ED-LASHS)
+  - École Doctorale Sciences Exactes et Techniques (ED-SET)",,,,,,
+12,inscription_master_doctorat,True,"Je veux faire une thèse en informatique, comment procéder ?","Pour une thèse en informatique à l'UAM, rattachez-vous à l'École Doctorale Sciences Exactes et Techniques (ED-SET). Vous devez avoir un Master 2, trouver un directeur de thèse au département Mathématiques et Informatique de la FAST, soumettre un projet de recherche et être admis par l'ED-SET.","Pour faire une thèse en informatique à l'UAM, vous devez suivre ces étapes :
+
+1. **Choisir une École Doctorale** : L'informatique est gérée par l'École Doctorale des Sciences Exactes et Techniques (ED-SET).
+2. **Trouver un Directeur de Thèse** :
+   - Identifiez votre domaine de recherche.
+   - Consultez la liste des enseignants-chercheurs de l'ED-SET.
+   - Contactez-les par email ou en personne avec un pré-projet de recherche.
+3. **Formaliser la Direction** : Une fois l'accord obtenu, un document officiel doit être signé.
+
+Pour plus d'informations, vous pouvez contacter le rectorat à l'adresse suivante : rectorat@uam.edu.ne.",,,,,,
+14,formations_facultes,True,Quelles formations en informatique propose l'UAM ?,"La FAST propose des formations en informatique dans le cadre du département Mathématiques et Informatique : Licence, Master 1 et Master 2 en informatique. Des recherches doctorales en informatique sont menées via l'ED-SET.","L'Université Abdou Moumouni propose plusieurs formations en informatique au sein de la Faculté des Sciences et Techniques (FAST) :
+
+- **L1 Informatique**
+- **L2 Informatique**
+
+Ces formations sont conçues pour fournir une base solide en informatique, préparant les étudiants à des carrières dans divers domaines technologiques. Pour des informations supplémentaires sur les programmes spécifiques ou les débouchés, il est conseillé de consulter directement la FAST.",,,,,,
+18,formations_facultes,True,Quelles sont les formations disponibles à la FLSH ?,"La FLSH (Faculté des Lettres et Sciences Humaines) propose des formations en lettres modernes, langues (anglais, arabe, haoussa…), histoire, géographie, philosophie et sciences sociales, aux niveaux Licence, Master et Doctorat.","Les formations disponibles à la Faculté des Lettres et Sciences Humaines (FLSH) sont :
+
+- **L1** :
+  - Lettres Modernes
+  - Linguistique
+  - Philosophie
+
+- **L2** :
+  - Lettres Modernes
+  - Linguistique
+  - Philosophie
+
+- **L3** :
+  - Lettres Modernes
+  - Linguistique
+  - Philosophie
+
+- **M1** :
+  - Lettres Modernes
+  - Linguistique
+  - Philosophie
+
+- **M2** :
+  - Lettres Modernes
+  - Linguistique
+  - Philosophie
+
+Des programmes de doctorat en Droit et en Sciences Politiques sont également proposés.",,,,,,
+29,profils_specialises,True,"Mon fils vient d'avoir son bac, comment l'inscrire à l'université ?","Pour inscrire votre fils à l'UAM, constituez le dossier d'inscription : baccalauréat original, acte de naissance, photos d'identité, certificat médical et fiche de vœux. Déposez-le au service des inscriptions du campus universitaire de Niamey aux dates indiquées.","Je suis désolé, mais je suis spécialisé uniquement dans les questions concernant l'Université Abdou Moumouni de Niamey (UAM).
+
+Je peux vous aider avec :
+- 📋 Informations sur les facultés, écoles et instituts
+- 🎓 Formations et filières disponibles
+- 📝 Conditions d'admission et pièces d'inscription
+- 🏢 Démarches administratives (diplômes, attestations, relevés, etc.)
+- ⏰ Horaires et services
+- 📞 Contacts des différents services
+
+Avez-vous une question concernant l'UAM ? Je serai ravi de vous aider !",,,,,,
+32,consultation_bdd,True,Je voudrais savoir combien j'ai payé. Mon matricule est UAM000009.,,"Le montant payé est de 45,000 FCFA. Votre statut d'inscription est actuellement en attente. Pour toute contestation ou information complémentaire, contactez le service de scolarité de votre faculté ou la Scolarité Centrale au +227 20 74 06 61.",,,,,,
+36,instituts_ecoles,True,Quel est le rôle de l'IREM à l'UAM ?,"L'IREM (Institut de Recherches en Enseignement des Mathématiques) mène des recherches en didactique des mathématiques et forme les enseignants du primaire, secondaire et supérieur. Il accompagne l'amélioration de l'enseignement des maths à tous les niveaux au Niger.","L'Institut de Recherches en Enseignement des Mathématiques (IREM) à l'UAM a pour mission principale la formation continue des enseignants de mathématiques du second degré, ainsi que la recherche sur l'enseignement des mathématiques. Ses activités incluent :
+
+- Rénovation des programmes de mathématiques.
+- Conception de supports didactiques (annales, brochures).
+- Promotion de la culture mathématique.
+
+L'IREM organise des sessions de travail pour les enseignants de différents niveaux et propose des formations thématiques, des ateliers, et des olympiades mathématiques. Il collabore également à des programmes de Master et de Doctorat en didactique des mathématiques.",,,,,,
+4,inscription_premiere,True,"Je viens d'avoir mon bac, quelles sont les étapes pour m'inscrire ?","Les étapes sont : (1) choisir votre filière selon vos résultats au bac, (2) constituer votre dossier (bac, acte de naissance, photos, certificat médical, fiche de vœux), (3) déposer le dossier au service des inscriptions, (4) payer les frais d'inscription et (5) récupérer votre carte d'étudiant.","Pour vous inscrire à l'Université Abdou Moumouni après l'obtention de votre bac, suivez ces étapes :
+
+1. Vérifiez les conditions d'admission de la filière choisie.
+2. Préparez les pièces requises (acte de naissance, relevés de notes, etc.).
+3. Déposez votre dossier ou suivez la procédure indiquée.
+4. Payez les frais d'inscription/scolarité.
+5. Récupérez votre carte d'étudiant.
+
+Les formations disponibles incluent des licences en droit, économie, gestion, et d'autres domaines. Pour plus de détails sur les pièces à fournir ou la procédure, demandez des précisions.",,,,,,
+15,formations_facultes,True,Que propose la Faculté des Sciences Économiques et de Gestion ?,"La FSEG (Faculté des Sciences Économiques et de Gestion) propose des formations en économie, gestion et finance aux niveaux Licence et Master. Elle est issue de la scission de l'ancienne FSEJ en 2016 et accueille environ 7 200 étudiants.","La Faculté des Sciences Économiques et de Gestion (FSEG) de l'Université Abdou Moumouni forme des cadres compétents en économie, gestion, finance et comptabilité. Elle a été créée en 2016, suite à la scission de l'ancienne Faculté des Sciences Économiques et Juridiques. 
+
+La FSEG propose des formations allant du premier au troisième cycle, avec environ 7 200 étudiants et une centaine d'enseignants-chercheurs. Elle vise à répondre aux besoins du Niger et de la sous-région ouest-africaine tout en promouvant la recherche en sciences sociales.",,,,,,
