@@ -369,9 +369,19 @@ def check_question_relevance(question: str) -> str:
         if pat.search(question_lower):
             return "HORS_SUJET"
 
-    # Mots-clés directs UAM (termes spécifiques à l'établissement)
+    # Abréviations : recherche en mot entier. Testées par sous-chaîne, « fa »
+    # matcherait « fait », « ens » matcherait « pense » — voir BUG-04.
+    abreviations_uam = [
+        "uam", "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens",
+        "ed-svt", "ed-lashs", "ed-set", "irsh", "irem", "iri",
+    ]
+    for abbr in abreviations_uam:
+        if re.search(rf"\b{re.escape(abbr)}\b", question_lower):
+            return "PERTINENT"
+
+    # Mots-clés porteurs de sens : sous-chaîne, pour couvrir les formes fléchies.
     keywords_uam = [
-        "uam", "abdou moumouni",
+        "abdou moumouni",
         "faculté", "école", "institut", "formation", "filière",
         "inscription", "admission", "diplôme", "attestation", "relevé",
         "scolarité", "étudiant", "licence", "master", "doctorat", "thèse",
@@ -380,8 +390,6 @@ def check_question_relevance(question: str) -> str:
         "calendrier", "date limite",
         "carte étudiant", "bourse", "logement", "cité universitaire",
         "orientation", "restauration", "bibliothèque",
-        "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens",
-        "ed-svt", "ed-lashs", "ed-set", "irsh", "irem", "iri",
     ]
     for kw in keywords_uam:
         if kw in question_lower:
@@ -434,6 +442,10 @@ def check_question_relevance(question: str) -> str:
         "comment s'inscrire", "quelles formations", "quel diplôme",
         "pièces à fournir", "conditions d'admission", "frais d'inscription",
         "comment candidater", "dépôt de dossier",
+        # BUG-03 : « frais » seul est ambigu en français (adjectif), on cible
+        # donc les tournures où il est un nom désignant un coût.
+        "les frais", "des frais", "frais de scolarité", "frais universitaires",
+        "frais de formation", "frais de dossier",
     ]
     for phrase in education_phrases:
         if phrase in question_lower:
