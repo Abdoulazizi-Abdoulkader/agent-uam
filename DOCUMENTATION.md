@@ -163,9 +163,14 @@ python test_setup.py               # vérification de l'installation
 
 ### Initialisation de la base de données
 
+`database/scolarite_uam.db` n'est **pas versionné** (couvert par `*.db` dans `.gitignore`) : un clone du dépôt ne contient aucune base de données, il faut la générer. Deux scripts, à lancer **dans cet ordre** :
+
 ```bash
-python seed_database.py           # crée les tables et peuple database/scolarite_uam.db avec des données de test
+python database/simulation_scolarite.py   # crée le schéma (9 tables + 3 vues) et 50 étudiants simulés
+python seed_database.py                   # ajoute frais_formations / statistiques_composantes + les matricules de test connus (idempotent)
 ```
+
+`seed_database.py` seul échoue sur une base vide ou inexistante (`OperationalError: no such table: etudiants`) : il suppose que `simulation_scolarite.py` a déjà créé le schéma de base et se contente d'`INSERT OR IGNORE` dedans.
 
 ---
 
@@ -333,9 +338,14 @@ composantes (9)
 
 ### Peuplement / réinitialisation
 
+Pour repartir d'une base vide — attention, `simulation_scolarite.py` **supprime** le fichier existant avant de le recréer :
+
 ```bash
-python seed_database.py     # (ré)initialise le schéma et insère les données de test (idempotent)
+python database/simulation_scolarite.py   # (re)crée le schéma et 50 étudiants simulés — écrase database/scolarite_uam.db
+python seed_database.py                   # insère/complète les matricules de test ci-dessus (idempotent, ne supprime rien)
 ```
+
+Relancer seul `seed_database.py` sur une base déjà initialisée est sûr (idempotent) et suffit après la première initialisation.
 
 ---
 
