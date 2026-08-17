@@ -390,33 +390,26 @@ def check_question_relevance(question: str) -> str:
         if re.search(rf"\b{re.escape(abbr)}\b", question_lower):
             return "PERTINENT"
 
-    # BUG-05 (revue x3) : "relevé" (nom) ne peut être ni un mot-clé isolé,
-    # ni une phrase à déterminant comparée par sous-chaîne.
+    # BUG-05 (revue x4) : "relevé" (nom) recherché en mot entier, pluriel
+    # optionnel, sur la forme désaccentuée. Couvre tout déterminant, la
+    # forme nue et le pluriel ("les relevés", "ses relevés", "ce relevé",
+    # "relevé disponible ?") sans liste à énumérer ni à tenir à jour.
     #
-    # 1. Isolé, même en recherche de mot entier : désaccentué, "relevé"
-    #    devient "releve" — strictement identique au présent du verbe
-    #    conjugué "relève"/"relèves" (homographe exact après
-    #    désaccentuation). Aucune limite de mot ne distingue deux chaînes
-    #    identiques : \b ne sépare que "relever" (infinitif, le "r" final
-    #    bloque la frontière), pas "relève"/"relèves" ("cela relève de...",
-    #    "elle relève la tête"). Seul le déterminant qui précède le nom les
-    #    distingue — un verbe conjugué n'en a jamais.
-    # 2. Mais une tournure à déterminant ("le relevé") comparée par simple
-    #    sous-chaîne reste piégeuse : "elle relève" contient littéralement
-    #    "le relevé" une fois désaccentué ("elle releve" ⊃ "le releve",
-    #    "elle" se terminant par "le"). D'où \b en tête de motif : le "l"
-    #    de "le" à l'intérieur de "elle" n'est jamais précédé d'une
-    #    frontière de mot, donc \b l'exclut.
-    #
-    # "la relevé" est volontairement absent de la liste : "prendre la
-    # relève" (le nom féminin « relève », sens différent) doit rester hors
-    # sujet.
-    keywords_mot_entier = [
-        "un relevé", "le relevé", "mon relevé", "des relevés", "mes relevés",
-        "relevé de notes",
-    ]
+    # Ce choix est délibéré, tranché par le contrôleur après trois tours :
+    # une liste fermée de tournures à déterminant (round 3) évite les faux
+    # positifs mais rate des formulations réelles ("les relevés sont-ils
+    # disponibles ?", "relevé svp") — un faux négatif éconduit une vraie
+    # question, un faux positif ne fait au pire que répondre à côté. Le
+    # motif générique accepte donc, en connaissance de cause, de reclasser
+    # en PERTINENT des phrases sans rapport où "relevé" et le verbe
+    # conjugué "relève"/"relèves" sont des homographes exacts après
+    # désaccentuation ("releve" des deux côtés) — \b ne peut pas les
+    # séparer, ce ne sont pas deux chaînes différentes. Dette inscrite et
+    # détaillée en BUG-06 (rapport d'audit) : dernier tour sur ce mot-clé,
+    # la dette restante est acceptée telle quelle.
+    keywords_mot_entier = ["relevé"]
     for kw in keywords_mot_entier:
-        if re.search(rf"\b{re.escape(_sans_accents(kw))}\b", question_sans_accents):
+        if re.search(rf"\b{re.escape(_sans_accents(kw))}s?\b", question_sans_accents):
             return "PERTINENT"
 
     # Mots-clés porteurs de sens : sous-chaîne, pour couvrir les formes fléchies.

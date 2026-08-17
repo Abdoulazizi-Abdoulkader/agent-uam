@@ -83,7 +83,7 @@ class TestPasDeRegression:
 
 
 class TestReleveMotEntier:
-    """BUG-05, trois revues sur le même mot-clé.
+    """BUG-05, quatre revues sur le même mot-clé.
 
     Round 2 : resserrer "relevé" en "relevé de notes" / "mon relevé" a
     perdu les formulations génériques — article indéfini ("un relevé"),
@@ -95,13 +95,22 @@ class TestReleveMotEntier:
     Round 3 : le nom "relevé" et le verbe conjugué "relève"/"relèves" sont
     des homographes exacts une fois désaccentués ("releve" des deux
     côtés) — \\b ne peut pas les distinguer, ils ne diffèrent pas en tant
-    que chaînes. keywords_mot_entier (tools.py) revient donc à des
-    tournures à déterminant explicite ("un relevé", "le relevé"...), un
-    verbe conjugué n'étant jamais précédé d'un déterminant — mais
-    toujours comparées en mot entier (\\b en tête de motif) : une simple
-    sous-chaîne collisionnerait encore, "elle relève" contenant
-    littéralement "le relevé" une fois désaccentué ("elle" se terminant
-    par "le")."""
+    que chaînes. Remplacé par une liste fermée de tournures à déterminant
+    explicite ("un relevé", "le relevé"...), un verbe conjugué n'étant
+    jamais précédé d'un déterminant.
+
+    Round 4 (état actuel) : la liste fermée du round 3 s'est révélée trop
+    étroite — elle ratait « les relevés », la forme nue sans déterminant
+    ("relevé disponible ?"), et plus généralement tout déterminant non
+    énuméré. Ce sont de vrais faux négatifs (une question légitime
+    éconduite), plus graves qu'un faux positif (une réponse à côté).
+    Retour à la recherche en mot entier générique du round 2
+    ("relevé"/"relevés", \\breleves?\\b sur la forme désaccentuée), qui
+    couvre tout déterminant et la forme nue sans liste à maintenir — au
+    prix, assumé, de reclasser en `PERTINENT` les phrases où "relève"
+    (verbe conjugué) apparaît sans déterminant devant. Voir
+    TestFauxPositifsAssumes pour ces cas, et BUG-06 (rapport d'audit) pour
+    la dette."""
 
     @pytest.mark.parametrize("question", [
         "Je veux mon relevé de notes",
@@ -126,15 +135,46 @@ class TestReleveMotEntier:
     def test_relever_reste_hors_sujet(self):
         """Compagnon accentué de TestPasDeRegression::...["Il faut relever
         le defi"] : la reconnaissance en mot entier ne doit pas rouvrir la
-        collision, accents ou pas."""
+        collision avec l'infinitif, accents ou pas — le "r" final de
+        "relever" bloque toujours la frontière de mot."""
         from tools import check_question_relevance
         assert check_question_relevance.func(question="Il faut relever le défi") == "HORS_SUJET"
 
     @pytest.mark.parametrize("question", [
-        # Round 3 : "relève"/"relèves" (présent de l'indicatif) sont des
-        # homographes exacts de "relevé" une fois désaccentués — l'angle
-        # mort qui a laissé passer deux régressions successives, faute de
-        # tester une conjugaison autre que l'infinitif.
+        # Round 4 : ces six formulations, trouvées par le reviewer, sont
+        # de vrais usages d'étudiants — déterminant "les" (absent de la
+        # liste fermée du round 3), et forme nue sans déterminant du tout.
+        # Ce sont elles qui justifient l'abandon définitif de la liste
+        # fermée au profit du mot entier générique.
+        "Est-ce que les relevés sont déjà disponibles au secrétariat ?",
+        "les relevés sont-ils disponibles ?",
+        "Quand les relevés seront-ils prêts ?",
+        "Les relevés de notes sont-ils disponibles ?",
+        "Relevé disponible ?",
+        "Bonjour, relevé svp",
+    ])
+    def test_les_faux_negatifs_du_round_3_sont_desormais_pertinents(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "PERTINENT"
+
+
+class TestFauxPositifsAssumes:
+    """Ces phrases sont sciemment classées `PERTINENT`, à tort au sens
+    strict — ce ne sont pas des questions sur l'UAM. C'est le prix assumé
+    du choix du round 4 (voir TestReleveMotEntier) : la recherche en mot
+    entier générique de "relevé"/"relevés" ne peut pas distinguer le nom
+    du présent de l'indicatif "relève"/"relèves", homographe exact une
+    fois désaccentué ("releve" des deux côtés — aucune expression
+    régulière ne sépare deux chaînes identiques sans analyse
+    grammaticale). Une liste fermée de tournures à déterminant (round 3)
+    évitait ce faux positif mais ratait de vraies questions (round 3 →
+    round 4) ; le contrôleur a tranché qu'un faux négatif — une vraie
+    question éconduite — nuit davantage qu'un faux positif — une réponse
+    à côté, bénigne. Ce test ne garantit donc pas l'absence de bruit,
+    seulement que le compromis reste celui qui a été choisi. La dette est
+    tracée dans le rapport d'audit sous BUG-06."""
+
+    @pytest.mark.parametrize("question", [
         "Ce village relève de la commune de Zinder",
         "Ce village releve de la commune de Zinder",
         "Elle relève la tête après l'échec",
@@ -143,15 +183,12 @@ class TestReleveMotEntier:
         "Le proviseur releve une anomalie",
         "Tu relèves un défi chaque jour",
         "Tu releves un defi chaque jour",
-        # "relève" est aussi un nom féminin (la relève) distinct du
-        # document ; "la relevé" n'est délibérément pas dans
-        # keywords_mot_entier pour cette raison.
         "Il faut prendre la relève",
         "Il faut prendre la releve",
     ])
-    def test_les_formes_conjuguees_de_relever_restent_hors_sujet(self, question):
+    def test_les_formes_conjuguees_sont_pertinentes_a_tort_de_maniere_assumee(self, question):
         from tools import check_question_relevance
-        assert check_question_relevance.func(question=question) == "HORS_SUJET"
+        assert check_question_relevance.func(question=question) == "PERTINENT"
 
 
 class TestHelperSansAccents:
