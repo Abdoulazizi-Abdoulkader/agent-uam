@@ -73,12 +73,60 @@ class TestRoutage:
     @pytest.mark.parametrize("question,profil", [
         ("Je viens d'une autre université et je veux faire un master", "CANDIDAT_MASTER"),
         ("Je souhaite faire une thèse de doctorat à l'UAM", "CANDIDAT_DOCTORAT"),
+        ("Je viens d'un autre pays et je veux étudier à l'UAM", "ETUDIANT_ETRANGER"),
     ])
     def test_profils_speciaux_sont_memorises(self, question, profil):
         from graph_nodes import route_and_store
         resultat = route_and_store(_etat(question))
         assert resultat["user_profile"] == profil
         assert resultat["routing_hint"] == "agent"
+
+    def test_profil_etranger_a_un_chemin_de_decision_propre(self, monkeypatch):
+        """Couvre spécifiquement la ligne 221 de graph_nodes.py (le tuple
+        ("CANDIDAT_MASTER", "CANDIDAT_DOCTORAT", "ETUDIANT_ETRANGER")).
+
+        Aucune formulation en langage naturel ne peut distinguer « ETUDIANT_ETRANGER
+        dans le tuple » de « absent du tuple » : par construction du code, l'étape 4
+        (bloc profil spécial) et l'étape 5 (repli générique) retournent exactement
+        le même routing_hint sauf dans un seul cas — pertinence HORS_SUJET et
+        salutation classée BOTH — où l'étape 4 rejette (elle ignore le type de
+        salutation) alors que le repli de l'étape 5 accepterait quand même (sa
+        condition inclut `or greeting_type == "BOTH"`). Reproduire ce cas avec une
+        vraie phrase demande de faire collision avec un pattern hors-sujet
+        (ex. « université étrangère »), ce qui teste accidentellement ce pattern
+        plutôt que le tuple. On isole donc la dépendance avec des doubles sur les
+        trois détecteurs — cohérent avec la consigne du chantier « chaque fichier
+        construit ses propres doubles ».
+        """
+        import graph_nodes as gn
+        monkeypatch.setattr(gn.detect_greeting, "func", lambda message: "BOTH")
+        monkeypatch.setattr(gn.detect_frustration_or_confusion, "func", lambda message: "NORMAL")
+        monkeypatch.setattr(gn.detect_user_profile, "func", lambda message: "ETUDIANT_ETRANGER")
+        monkeypatch.setattr(gn.check_question_relevance, "func", lambda question: "HORS_SUJET")
+
+        resultat = gn.route_and_store(_etat("message neutre quelconque"))
+        assert resultat["user_profile"] == "ETUDIANT_ETRANGER"
+        assert resultat["routing_hint"] == "reject_query"
+
+    @pytest.mark.parametrize("question,sentiment", [
+        ("Ça ne marche pas", "FRUSTRATION"),
+        ("Je ne comprends pas", "CONFUSION"),
+        ("J'ai déjà demandé ça", "REPETITION"),
+    ])
+    def test_frustration_confusion_repetition_vont_en_cas_special(self, question, sentiment):
+        """Couvre la ligne « Frustration / confusion » du tableau de CLAUDE.md.
+
+        Chaque formulation est choisie pour déclencher réellement la valeur
+        attendue de detect_frustration_or_confusion (vérifié par observation
+        directe, pas par lecture des patterns seule). « Je ne comprends
+        rien » est délibérément évité : BUG-02 (rapport d'audit) montre que
+        cette formulation retourne NORMAL au lieu de CONFUSION — l'utiliser
+        ici figerait le bug plutôt que de le documenter.
+        """
+        from graph_nodes import route_and_store
+        resultat = route_and_store(_etat(question))
+        assert resultat["routing_hint"] == "handle_special_case"
+        assert resultat["routing_context"] == sentiment
 
     def test_exception_interne_retombe_sur_un_rejet(self):
         """Un message sans attribut content ne doit pas faire remonter d'exception."""
