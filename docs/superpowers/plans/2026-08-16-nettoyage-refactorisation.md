@@ -1404,7 +1404,36 @@ def get_tools():
     return outils
 ```
 
-**Attention au piège du drapeau.** `from ._db import _db_available` copie la valeur à l'import : un `patch.object(tools, "_db_available", ...)` modifierait la copie du package, pas celle de `_db`. Le test d'inventaire de la tâche 5 patche `tools._db_available` — il fonctionne donc, à condition que `get_tools()` lise bien le nom du package. Si le test échoue ici, remplacer la lecture par `from . import _db` puis `if _db._db_available:` et **adapter le test en conséquence dans la même tâche**, en le signalant au reviewer.
+**Le style d'import du drapeau est imposé, il n'est pas un détail.** Écrire
+`from ._db import _db_available` en tête de `tools/__init__.py`, et lire le nom nu
+`_db_available` dans `get_tools()`. Toute autre forme casse le garde-fou de la
+tâche 5.
+
+Pourquoi : `from ._db import _db_available` lie le nom dans le namespace du module
+importateur — or `tools/__init__.py` **est** le module `tools`, donc cette liaison
+est littéralement `tools.__dict__["_db_available"]`. Le `patch.object(tools,
+"_db_available", ...)` du test d'inventaire modifie cette entrée précise, et
+`get_tools()`, définie dans ce même module, résout le nom nu contre ce même
+namespace à l'appel. Le test continue donc de fonctionner sans modification —
+vérifié empiriquement en revue de la tâche 5, sur un paquet factice reproduisant
+cette structure : les 7 tests passent inchangés.
+
+La forme concurrente `from . import _db` avec `_db._db_available` dans `get_tools()`
+fait échouer 4 tests sur 7 avec `AttributeError: module 'tools' does not have the
+attribute '_db_available'`. L'échec est bruyant, donc impossible à manquer.
+
+**Si ce cas se produit, la correction est de changer l'import, jamais le test.**
+Le fichier `tests/test_inventaire_outils.py` ne doit pas être modifié par cette
+tâche : c'est lui qui atteste que le découpage n'a rien égaré, et un garde-fou
+qu'on ajuste pour qu'il passe ne prouve plus rien. Une modification de ce fichier
+dans cette tâche est un défaut Critical.
+
+**Ne pas affaiblir `test_seuls_les_inconditionnels_quand_la_base_est_absente`.**
+La revue de la tâche 5 a établi que ce test est le seul des sept à détecter qu'un
+outil aurait changé de lot — inconditionnel devenu conditionnel, ou l'inverse.
+Son jumeau `test_tous_les_outils_exposes_quand_la_base_est_disponible` est
+structurellement aveugle à cette erreur, puisqu'il compte 49 outils quelle que
+soit la branche qui les a fournis.
 
 - [ ] **Step 5: Supprimer `tools.py` et vérifier l'équivalence**
 
