@@ -1492,7 +1492,14 @@ Le contenu de cette tâche est déterminé par l'audit : le plan ne peut pas inv
 
 - [ ] **Step 1: Ordonner les bugs**
 
-Lire la section 5 du rapport et trier par gravité décroissante (`critique`, puis `haute`, `moyenne`, `basse`). Traiter dans cet ordre. `BUG-01` (`search_latest_news`) n'est **pas** traité ici : il l'est en tâche 14, avec les autres décisions sur les outils conditionnels.
+Lire la section 5 du rapport et trier par gravité décroissante (`critique`, puis `haute`, `moyenne`, `basse`). Traiter dans cet ordre.
+
+Deux bugs sont **exclus** de cette tâche, car traités ailleurs :
+
+- `BUG-01` (`search_latest_news` inerte sur SQLite) relève de la tâche 14, avec les autres décisions sur les outils conditionnels.
+- `BUG-03` (questions sur les frais rejetées) relève de la **tâche 17**, remontée en priorité avant le découpage de `tools.py`. Vérifier son état dans le rapport avant de commencer : s'il y est marqué `corrigé`, ne rien reprendre.
+
+Tout bug déjà marqué `corrigé` dans la section 5 est hors périmètre, quelle que soit sa gravité.
 
 - [ ] **Step 2: Pour chaque bug — écrire le test qui échoue**
 
