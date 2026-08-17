@@ -127,6 +127,16 @@ def _normalize_query(query: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
+def _sans_accents(texte: str) -> str:
+    """Retire les signes diacritiques, sans toucher à la casse.
+
+    La saisie sans accents est courante sur téléphone et sur clavier QWERTY :
+    « Ou est la faculte ? » doit être comprise comme « Où est la faculté ? ».
+    """
+    decompose = unicodedata.normalize("NFD", texte)
+    return "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+
+
 @lru_cache(maxsize=256)
 def _cached_similarity_search(query_normalized: str, k: int) -> tuple:
     """Recherche FAISS avec mise en cache LRU intra-session.
@@ -364,6 +374,7 @@ def check_question_relevance(question: str) -> str:
         "HORS_SUJET"  – question sans rapport avec l'UAM
     """
     question_lower = question.lower()
+    question_sans_accents = _sans_accents(question_lower)
 
     for pat in _OFF_TOPIC_RE:
         if pat.search(question_lower):
@@ -392,7 +403,7 @@ def check_question_relevance(question: str) -> str:
         "orientation", "restauration", "bibliothèque",
     ]
     for kw in keywords_uam:
-        if kw in question_lower:
+        if _sans_accents(kw) in question_sans_accents:
             return "PERTINENT"
 
     # "université", "niger", "niamey", "équivalence", "transfert" nécessitent
@@ -448,7 +459,7 @@ def check_question_relevance(question: str) -> str:
         "frais de formation", "frais de dossier",
     ]
     for phrase in education_phrases:
-        if phrase in question_lower:
+        if _sans_accents(phrase) in question_sans_accents:
             return "PERTINENT"
 
     return "HORS_SUJET"
