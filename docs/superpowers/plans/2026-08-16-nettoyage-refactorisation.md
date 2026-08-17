@@ -2149,6 +2149,183 @@ git commit -m "feat(metrics): collecte effective des métriques système, mémoi
 
 ---
 
+### Task 17: Correction de BUG-03 — questions sur les frais rejetées
+
+Tâche ajoutée le 2026-08-17, remontée depuis la phase 4 sur décision de l'utilisateur. `check_question_relevance` ne reconnaît que la phrase exacte « frais d'inscription » (`tools.py:435`, `education_phrases`) ; le mot « frais » est absent de `keywords_uam` (`tools.py:373-385`). Conséquence mesurée sur le routage réel :
+
+```text
+reject_query   <- Quels sont les frais ?
+reject_query   <- Quel est le montant des frais ?
+reject_query   <- Je veux connaitre les frais
+agent          <- Quels sont les frais d'inscription ?
+agent          <- Combien coûte une inscription ?
+```
+
+L'agent refuse de répondre à la question la plus courante d'un candidat, sur le canal web qui servira à la soutenance. C'est le défaut le plus visible identifié par l'audit.
+
+**Ordonnancement :** indépendante des autres tâches. Elle touche `tools.py`, qui sera déplacé en tâche 11 — l'exécuter avant évite un conflit et fait bénéficier le correctif du garde-fou d'inventaire.
+
+**Files:**
+- Modify: `tools.py` (fonction `check_question_relevance`)
+- Modify: `docs/superpowers/audit/2026-08-16-audit.md` (marquer BUG-03 corrigé)
+- Test: `tests/test_bug_03_frais.py`
+
+**Interfaces:**
+- Consumes: `tools.check_question_relevance(question) -> str` retournant `"PERTINENT"` ou `"HORS_SUJET"`
+- Produces: aucune interface nouvelle — seul le comportement de classification change
+
+**Le piège à éviter.** `keywords_uam` teste l'appartenance par sous-chaîne (`if kw in question_lower`, `tools.py:387-389`). Ajouter `"frais"` à cette liste ferait classer `PERTINENT` des phrases comme « il fait frais ce matin » ou « j'aime les produits frais » — en français, « frais » est aussi un adjectif. La correction doit donc porter sur des expressions, pas sur le mot nu.
+
+- [ ] **Step 1: Écrire les tests, qui doivent échouer**
+
+```python
+# tests/test_bug_03_frais.py
+"""BUG-03 : les questions sur les frais sont rejetées comme hors sujet.
+
+Seule la phrase exacte « frais d'inscription » était reconnue. Les formulations
+naturelles — « quels sont les frais ? », « le montant des frais » — partaient en
+reject_query, et l'agent répondait qu'il ne traite que les questions UAM.
+"""
+import os
+import sys
+
+import pytest
+from langchain_core.messages import HumanMessage
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+
+class TestQuestionsSurLesFrais:
+    """Les formulations naturelles doivent être reconnues comme pertinentes."""
+
+    @pytest.mark.parametrize("question", [
+        "Quels sont les frais ?",
+        "Quel est le montant des frais ?",
+        "Je veux connaitre les frais",
+        "Les frais sont de combien ?",
+        "Combien coûtent les frais ?",
+        "Quels sont les frais de scolarité ?",
+        "Je voudrais connaître les frais universitaires",
+    ])
+    def test_formulations_naturelles_sont_pertinentes(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "PERTINENT"
+
+    @pytest.mark.parametrize("question", [
+        "Quels sont les frais d'inscription ?",
+        "Combien coûte une inscription ?",
+    ])
+    def test_les_formulations_deja_reconnues_le_restent(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "PERTINENT"
+
+
+class TestPasDeFauxPositifs:
+    """« frais » est aussi un adjectif : ces phrases ne parlent pas de l'UAM."""
+
+    @pytest.mark.parametrize("question", [
+        "Il fait frais ce matin",
+        "J'aime les produits frais du marché",
+        "Où trouver du poisson frais à Niamey ?",
+    ])
+    def test_adjectif_frais_reste_hors_sujet(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "HORS_SUJET"
+
+
+class TestRoutageDeBoutEnBout:
+    """Le routage est ce que l'utilisateur subit réellement."""
+
+    @pytest.mark.parametrize("question", [
+        "Quels sont les frais ?",
+        "Quel est le montant des frais ?",
+        "Je veux connaitre les frais",
+    ])
+    def test_les_questions_sur_les_frais_atteignent_l_agent(self, question):
+        from graph_nodes import route_and_store
+        resultat = route_and_store({"messages": [HumanMessage(content=question)]})
+        assert resultat["routing_hint"] == "agent"
+
+    def test_une_question_hors_sujet_reste_rejetee(self):
+        from graph_nodes import route_and_store
+        resultat = route_and_store({"messages": [HumanMessage(content="Il fait frais ce matin")]})
+        assert resultat["routing_hint"] == "reject_query"
+```
+
+- [ ] **Step 2: Vérifier que les tests échouent pour la bonne raison**
+
+```bash
+venv/bin/python -m pytest tests/test_bug_03_frais.py -v
+```
+
+Attendu : les sept cas de `test_formulations_naturelles_sont_pertinentes` et les trois de `test_les_questions_sur_les_frais_atteignent_l_agent` échouent. Les classes `TestPasDeFauxPositifs` et `test_les_formulations_deja_reconnues_le_restent` doivent **passer dès maintenant** — elles décrivent le comportement à préserver. Si l'une d'elles échoue déjà, arrêter et le signaler : le diagnostic serait à revoir.
+
+- [ ] **Step 3: Corriger**
+
+Dans `tools.py`, fonction `check_question_relevance`, compléter `education_phrases` (`tools.py:433-437`) avec les expressions qui ne créent pas de faux positif :
+
+```python
+    education_phrases = [
+        "comment s'inscrire", "quelles formations", "quel diplôme",
+        "pièces à fournir", "conditions d'admission", "frais d'inscription",
+        "comment candidater", "dépôt de dossier",
+        # BUG-03 : « frais » seul est ambigu en français (adjectif), on cible
+        # donc les tournures où il est un nom désignant un coût.
+        "les frais", "des frais", "frais de scolarité", "frais universitaires",
+        "frais de formation", "frais de dossier",
+    ]
+```
+
+Ne pas ajouter `"frais"` à `keywords_uam` : cette liste teste l'appartenance par sous-chaîne et classerait « il fait frais » comme pertinent.
+
+- [ ] **Step 4: Vérifier que tout passe**
+
+```bash
+venv/bin/python -m pytest tests/test_bug_03_frais.py -v
+venv/bin/python -m pytest tests/ -q
+```
+
+Attendu : les 16 tests du fichier au vert, et la suite complète au vert sans avertissement. Si un test de caractérisation de la tâche 6 casse, c'est qu'il figeait ce bug — vérifier lequel et le signaler plutôt que de l'ajuster en silence.
+
+- [ ] **Step 5: Vérifier qu'aucune régression de classement n'apparaît**
+
+```bash
+venv/bin/python -c "
+from tools import check_question_relevance
+cas_pertinents = [
+    'Quels sont les frais ?', 'Quel est le montant des frais ?',
+    'Je veux connaitre les frais', 'Quels sont les frais de scolarité ?',
+    \"Quels sont les frais d'inscription ?\", 'Comment se réinscrire ?',
+    'Que propose la FAST ?',
+]
+cas_hors_sujet = [
+    'Il fait frais ce matin', \"J'aime les produits frais\",
+    'Quelle est la recette du couscous ?', 'Qui a gagné le match hier ?',
+]
+for q in cas_pertinents:
+    r = check_question_relevance.func(question=q)
+    print(('OK ' if r == 'PERTINENT' else 'KO '), r, '<-', q)
+for q in cas_hors_sujet:
+    r = check_question_relevance.func(question=q)
+    print(('OK ' if r == 'HORS_SUJET' else 'KO '), r, '<-', q)
+"
+```
+
+Attendu : `OK` sur les onze lignes. Tout `KO` doit être expliqué dans le rapport.
+
+- [ ] **Step 6: Marquer le bug corrigé**
+
+Dans `docs/superpowers/audit/2026-08-16-audit.md`, passer l'état de BUG-03 à `corrigé` en citant le hash du commit, sans supprimer sa description ni sa reproduction — le rapport garde la mémoire du défaut.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add tools.py tests/test_bug_03_frais.py docs/superpowers/audit/2026-08-16-audit.md
+git commit -m "fix(tools): reconnaître les questions sur les frais sans la mention inscription"
+```
+
+---
+
 ## Vérification finale
 
 À exécuter après la tâche 15, avant de clore le chantier.
