@@ -390,17 +390,22 @@ def check_question_relevance(question: str) -> str:
         if re.search(rf"\b{re.escape(abbr)}\b", question_lower):
             return "PERTINENT"
 
+    # Mots-clés recherchés en mot entier, pluriel optionnel — pas par
+    # sous-chaîne. "relevé" désaccentué ("releve") est retiré de
+    # keywords_uam ci-dessous car il serait sinon une sous-chaîne de
+    # "relever" une fois désaccentué (BUG-05, revue). Comme abreviations_uam
+    # (tâche 17), mais comparé sur la forme désaccentuée des deux côtés,
+    # puisque "relevé" porte un accent contrairement aux abréviations.
+    keywords_mot_entier = ["relevé"]
+    for kw in keywords_mot_entier:
+        if re.search(rf"\b{re.escape(_sans_accents(kw))}s?\b", question_sans_accents):
+            return "PERTINENT"
+
     # Mots-clés porteurs de sens : sous-chaîne, pour couvrir les formes fléchies.
     keywords_uam = [
         "abdou moumouni",
         "faculté", "école", "institut", "formation", "filière",
         "inscription", "admission", "diplôme", "attestation",
-        # BUG-05 (faux positif post-normalisation) : "relevé" seul est une
-        # sous-chaîne de "relever" une fois désaccentué ("releve" ⊂
-        # "relever"). On cible donc les tournures qui désignent réellement
-        # le document, en gardant "mon relevé" pour les formulations
-        # courtes ("je veux mon relevé") qui ne précisent pas "de notes".
-        "relevé de notes", "mon relevé",
         "scolarité", "étudiant", "licence", "master", "doctorat", "thèse",
         "cours", "horaire", "service", "recteur", "doyen",
         "réinscription", "réinscrire", "préinscription", "dossier", "pièces",

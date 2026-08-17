@@ -17,10 +17,10 @@ PAIRES = [
     ("Où est la faculté ?", "Ou est la faculte ?"),
     ("Quel diplôme obtient-on ?", "Quel diplome obtient-on ?"),
     ("Comment obtenir mon relevé de notes ?", "Comment obtenir mon releve de notes ?"),
-    # Formulation courte sans "de notes" : couvre le choix fait en revue de
-    # BUG-05 de garder "mon relevé" en plus de "relevé de notes" (retirer
-    # "relevé" seul de keywords_uam évite qu'il ne redevienne, une fois
-    # désaccentué, une sous-chaîne de "relever").
+    # Formulation courte sans "de notes" : "relevé" est reconnu en mot
+    # entier (pluriel optionnel), via keywords_mot_entier — voir
+    # TestReleveMotEntier pour la couverture complète des formulations
+    # génériques ("un relevé", "mes relevés de notes"...).
     ("Comment obtenir mon relevé ?", "Comment obtenir mon releve ?"),
     ("Quelle est la procédure de préinscription ?", "Quelle est la procedure de preinscription ?"),
     ("Y a-t-il une cité universitaire ?", "Y a-t-il une cite universitaire ?"),
@@ -80,6 +80,43 @@ class TestPasDeRegression:
     def test_les_acquis_des_taches_precedentes_tiennent(self, question):
         from tools import check_question_relevance
         assert check_question_relevance.func(question=question) == "PERTINENT"
+
+
+class TestReleveMotEntier:
+    """Deuxième revue de BUG-05 : resserrer "relevé" en "relevé de notes" /
+    "mon relevé" (première revue) a perdu les formulations génériques —
+    article indéfini ("un relevé"), forme nue ("relevé de notes" sans
+    "mon"), pluriel ("mes relevés de notes"). keywords_mot_entier
+    (tools.py) reconnaît désormais "relevé"/"relevés" en mot entier, sur la
+    forme désaccentuée, sans rouvrir la collision avec "relever" (un "r"
+    suit immédiatement là où le motif attend une frontière de mot)."""
+
+    @pytest.mark.parametrize("question", [
+        "Je veux mon relevé de notes",
+        "Je veux mon releve de notes",
+        "relevé de notes",
+        "releve de notes",
+        "mon releve",
+        "mon relevé",
+        "Comment obtenir un relevé ?",
+        "Comment obtenir un releve ?",
+        "Je veux un relevé",
+        "Je veux un releve",
+        "un relevé svp",
+        "un releve svp",
+        "mes relevés de notes",
+        "mes releves de notes",
+    ])
+    def test_les_formulations_generiques_sont_pertinentes(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "PERTINENT"
+
+    def test_relever_reste_hors_sujet(self):
+        """Compagnon accentué de TestPasDeRegression::...["Il faut relever
+        le defi"] : la reconnaissance en mot entier ne doit pas rouvrir la
+        collision, accents ou pas."""
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question="Il faut relever le défi") == "HORS_SUJET"
 
 
 class TestHelperSansAccents:
