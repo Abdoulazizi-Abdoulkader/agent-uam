@@ -83,13 +83,25 @@ class TestPasDeRegression:
 
 
 class TestReleveMotEntier:
-    """Deuxième revue de BUG-05 : resserrer "relevé" en "relevé de notes" /
-    "mon relevé" (première revue) a perdu les formulations génériques —
-    article indéfini ("un relevé"), forme nue ("relevé de notes" sans
-    "mon"), pluriel ("mes relevés de notes"). keywords_mot_entier
-    (tools.py) reconnaît désormais "relevé"/"relevés" en mot entier, sur la
-    forme désaccentuée, sans rouvrir la collision avec "relever" (un "r"
-    suit immédiatement là où le motif attend une frontière de mot)."""
+    """BUG-05, trois revues sur le même mot-clé.
+
+    Round 2 : resserrer "relevé" en "relevé de notes" / "mon relevé" a
+    perdu les formulations génériques — article indéfini ("un relevé"),
+    forme nue ("relevé de notes" sans "mon"), pluriel ("mes relevés de
+    notes"). Un mot entier isolé ("relevé"/"relevés", \\b...\\b) les a
+    restaurées sans rouvrir la collision avec l'infinitif "relever" (le
+    "r" final bloque la frontière de mot).
+
+    Round 3 : le nom "relevé" et le verbe conjugué "relève"/"relèves" sont
+    des homographes exacts une fois désaccentués ("releve" des deux
+    côtés) — \\b ne peut pas les distinguer, ils ne diffèrent pas en tant
+    que chaînes. keywords_mot_entier (tools.py) revient donc à des
+    tournures à déterminant explicite ("un relevé", "le relevé"...), un
+    verbe conjugué n'étant jamais précédé d'un déterminant — mais
+    toujours comparées en mot entier (\\b en tête de motif) : une simple
+    sous-chaîne collisionnerait encore, "elle relève" contenant
+    littéralement "le relevé" une fois désaccentué ("elle" se terminant
+    par "le")."""
 
     @pytest.mark.parametrize("question", [
         "Je veux mon relevé de notes",
@@ -117,6 +129,29 @@ class TestReleveMotEntier:
         collision, accents ou pas."""
         from tools import check_question_relevance
         assert check_question_relevance.func(question="Il faut relever le défi") == "HORS_SUJET"
+
+    @pytest.mark.parametrize("question", [
+        # Round 3 : "relève"/"relèves" (présent de l'indicatif) sont des
+        # homographes exacts de "relevé" une fois désaccentués — l'angle
+        # mort qui a laissé passer deux régressions successives, faute de
+        # tester une conjugaison autre que l'infinitif.
+        "Ce village relève de la commune de Zinder",
+        "Ce village releve de la commune de Zinder",
+        "Elle relève la tête après l'échec",
+        "Elle releve la tete apres l echec",
+        "Le proviseur relève une anomalie",
+        "Le proviseur releve une anomalie",
+        "Tu relèves un défi chaque jour",
+        "Tu releves un defi chaque jour",
+        # "relève" est aussi un nom féminin (la relève) distinct du
+        # document ; "la relevé" n'est délibérément pas dans
+        # keywords_mot_entier pour cette raison.
+        "Il faut prendre la relève",
+        "Il faut prendre la releve",
+    ])
+    def test_les_formes_conjuguees_de_relever_restent_hors_sujet(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "HORS_SUJET"
 
 
 class TestHelperSansAccents:
