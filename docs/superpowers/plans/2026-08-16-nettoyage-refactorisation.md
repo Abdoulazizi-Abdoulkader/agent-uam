@@ -2421,6 +2421,237 @@ git commit -m "fix(tools): reconnaître les questions sur les frais sans la ment
 
 ---
 
+### Task 18: Correction de BUG-05 — questions sans accents rejetées
+
+Tâche ajoutée le 2026-08-17, après la tâche 17. Les mots-clés de `keywords_uam` sont accentués et la comparaison est littérale : une question tapée sans accents ne les reconnaît pas.
+
+| Avec accents | Sans accents |
+|---|---|
+| « Comment se réinscrire ? » → `PERTINENT` | « Comment se reinscrire ? » → `HORS_SUJET` |
+| « Quelles sont les filières ? » → `PERTINENT` | « Quelles sont les filieres ? » → `HORS_SUJET` |
+| « Où est la faculté ? » → `PERTINENT` | « Ou est la faculte ? » → `HORS_SUJET` |
+| « Quel diplôme obtient-on ? » → `PERTINENT` | « Quel diplome obtient-on ? » → `HORS_SUJET` |
+| « Comment obtenir mon relevé ? » → `PERTINENT` | « Comment obtenir mon releve ? » → `HORS_SUJET` |
+
+Le défaut est antérieur à la tâche 17, mais il était masqué : « faculte » contient `"fa"`, donc le faux positif de BUG-04 servait de rattrapage involontaire. Le corriger l'a mis au jour.
+
+L'enjeu est réel : la saisie sans accents est courante sur téléphone et sur clavier QWERTY, répandu au Niger. Un visiteur qui écrit « Ou est la faculte ? » est aujourd'hui éconduit.
+
+**Ordonnancement :** après la tâche 17, dont elle dépend (même fonction). Avant la tâche 11, pour que `tools.py` soit stabilisé avant son découpage.
+
+**Files:**
+- Modify: `tools.py` (fonction `check_question_relevance` et un helper de module)
+- Modify: `docs/superpowers/audit/2026-08-16-audit.md`
+- Test: `tests/test_bug_05_accents.py`
+
+**Interfaces:**
+- Consumes: `tools.check_question_relevance(question) -> str`
+- Produces: `tools._sans_accents(texte: str) -> str`, helper privé de module réutilisable par d'autres détecteurs
+
+- [ ] **Step 1: Écrire les tests, qui doivent échouer**
+
+```python
+# tests/test_bug_05_accents.py
+"""BUG-05 : les questions tapées sans accents sont rejetées.
+
+Les mots-clés de keywords_uam sont accentués et la comparaison est littérale.
+La saisie sans accents est courante sur téléphone et clavier QWERTY.
+"""
+import os
+import sys
+
+import pytest
+from langchain_core.messages import HumanMessage
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+PAIRES = [
+    ("Comment se réinscrire ?", "Comment se reinscrire ?"),
+    ("Quelles sont les filières ?", "Quelles sont les filieres ?"),
+    ("Où est la faculté ?", "Ou est la faculte ?"),
+    ("Quel diplôme obtient-on ?", "Quel diplome obtient-on ?"),
+    ("Comment obtenir mon relevé de notes ?", "Comment obtenir mon releve de notes ?"),
+    ("Quelle est la procédure de préinscription ?", "Quelle est la procedure de preinscription ?"),
+    ("Y a-t-il une cité universitaire ?", "Y a-t-il une cite universitaire ?"),
+]
+
+
+class TestInsensibiliteAuxAccents:
+
+    @pytest.mark.parametrize("avec,sans", PAIRES)
+    def test_les_deux_formes_sont_classees_pareil(self, avec, sans):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=sans) == \
+               check_question_relevance.func(question=avec)
+
+    @pytest.mark.parametrize("_,sans", PAIRES)
+    def test_la_forme_sans_accents_est_pertinente(self, _, sans):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=sans) == "PERTINENT"
+
+
+class TestPasDeRegression:
+    """La normalisation ne doit pas rouvrir les faux positifs de BUG-03 et BUG-04."""
+
+    @pytest.mark.parametrize("question", [
+        "Il fait frais ce matin",
+        "Comment faire une omelette ?",
+        "Ma famille habite à Zinder",
+        "Je pense que c'est une bonne idée",
+        "Le facteur est passé",
+        "Quelle est la recette du couscous ?",
+    ])
+    def test_les_phrases_hors_sujet_le_restent(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "HORS_SUJET"
+
+    @pytest.mark.parametrize("question", [
+        "Que propose la FA ?",
+        "Comment intégrer l'ENS ?",
+        "Quels sont les frais ?",
+        "Quelles filières à la FAST ?",
+    ])
+    def test_les_acquis_des_taches_precedentes_tiennent(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "PERTINENT"
+
+
+class TestHelperSansAccents:
+
+    @pytest.mark.parametrize("entree,attendu", [
+        ("réinscrire", "reinscrire"),
+        ("filière", "filiere"),
+        ("diplôme", "diplome"),
+        ("où", "ou"),
+        ("cité universitaire", "cite universitaire"),
+        ("sans accent", "sans accent"),
+        ("", ""),
+    ])
+    def test_normalisation(self, entree, attendu):
+        from tools import _sans_accents
+        assert _sans_accents(entree) == attendu
+
+    def test_la_casse_n_est_pas_modifiee(self):
+        """Le helper normalise les accents, pas la casse : les deux
+        responsabilités restent séparées."""
+        from tools import _sans_accents
+        assert _sans_accents("FACULTÉ") == "FACULTE"
+
+
+class TestRoutage:
+
+    @pytest.mark.parametrize("question", [
+        "Ou est la faculte ?",
+        "Comment se reinscrire ?",
+        "Quelles sont les filieres ?",
+    ])
+    def test_les_questions_sans_accents_atteignent_l_agent(self, question):
+        from graph_nodes import route_and_store
+        resultat = route_and_store({"messages": [HumanMessage(content=question)]})
+        assert resultat["routing_hint"] == "agent"
+```
+
+- [ ] **Step 2: Vérifier que les tests échouent pour la bonne raison**
+
+```bash
+venv/bin/python -m pytest tests/test_bug_05_accents.py -v
+```
+
+Attendu : `TestHelperSansAccents` échoue à l'import (`_sans_accents` n'existe pas), `TestInsensibiliteAuxAccents` et `TestRoutage` échouent sur la classification. `TestPasDeRegression` doit **passer dès maintenant** : ce sont les acquis des tâches 17 et précédentes. S'il échoue déjà, s'arrêter et le signaler.
+
+- [ ] **Step 3: Ajouter le helper de normalisation**
+
+Dans `tools.py`, au niveau du module, près des autres helpers privés :
+
+```python
+def _sans_accents(texte: str) -> str:
+    """Retire les signes diacritiques, sans toucher à la casse.
+
+    La saisie sans accents est courante sur téléphone et sur clavier QWERTY :
+    « Ou est la faculte ? » doit être comprise comme « Où est la faculté ? ».
+    """
+    decompose = unicodedata.normalize("NFD", texte)
+    return "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+```
+
+Ajouter `import unicodedata` en tête de `tools.py` s'il n'y figure pas.
+
+- [ ] **Step 4: Appliquer la normalisation dans `check_question_relevance`**
+
+Normaliser **les deux côtés** de la comparaison : la question et les mots-clés. Normaliser seulement la question ne suffirait pas, puisque les mots-clés sont eux-mêmes accentués.
+
+Dans `check_question_relevance`, après le passage en minuscules, ajouter la variante normalisée, puis l'utiliser pour la boucle sur `keywords_uam` :
+
+```python
+    question_sans_accents = _sans_accents(question_lower)
+
+    # ... la boucle sur abreviations_uam reste sur question_lower : les
+    # abréviations ne portent pas d'accent.
+
+    for kw in keywords_uam:
+        if _sans_accents(kw) in question_sans_accents:
+            return "PERTINENT"
+```
+
+Appliquer le même traitement à `education_phrases`, qui contient « frais de scolarité ».
+
+Ne pas normaliser `external_patterns` : ces expressions régulières gèrent déjà leurs variantes accentuées explicitement (`capacit[eé]`), et les modifier sans nécessité risquerait de casser leur logique.
+
+- [ ] **Step 5: Vérifier**
+
+```bash
+venv/bin/python -m pytest tests/test_bug_05_accents.py -v
+venv/bin/python -m pytest tests/ -q
+```
+
+Attendu : le fichier au vert, la suite complète au vert, sans avertissement.
+
+- [ ] **Step 6: Contrôle de non-régression étendu**
+
+```bash
+venv/bin/python -c "
+from tools import check_question_relevance as c
+pertinents = [
+    'Quels sont les frais ?', 'Ou est la faculte ?', 'Comment se reinscrire ?',
+    'Quelles sont les filieres ?', 'Quel diplome obtient-on ?',
+    'Que propose la FA ?', \"Comment integrer l'ENS ?\",
+    'Quelles filieres a la FAST ?', 'Je veux des informations sur les inscriptions',
+    'Quelles formations proposez-vous ?',
+]
+hors_sujet = [
+    'Il fait frais ce matin', 'Comment faire une omelette ?',
+    'Ma famille habite a Zinder', 'Je pense que c est une bonne idee',
+    'Le facteur est passe', 'Quelle est la recette du couscous ?',
+    'Qui a gagne le match hier ?', 'Quel est le prix du carburant ?',
+]
+ko = 0
+for q in pertinents:
+    r = c.func(question=q)
+    if r != 'PERTINENT': ko += 1; print('KO', r, '<-', q)
+for q in hors_sujet:
+    r = c.func(question=q)
+    if r != 'HORS_SUJET': ko += 1; print('KO', r, '<-', q)
+print('echecs :', ko, '/', len(pertinents) + len(hors_sujet))
+"
+```
+
+Attendu : `echecs : 0 / 18`. Tout écart doit être expliqué dans le rapport.
+
+- [ ] **Step 7: Marquer le bug corrigé**
+
+Inscrire BUG-05 en section 5 du rapport d'audit, gravité **haute**, avec le tableau de comparaison ci-dessus comme reproduction, puis le marquer corrigé dans un commit distinct citant le hash du correctif.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add tools.py tests/test_bug_05_accents.py
+git commit -m "fix(tools): reconnaître les questions tapées sans accents"
+git add docs/superpowers/audit/2026-08-16-audit.md
+git commit -m "docs(audit): inscrit BUG-05 et le marque corrigé"
+```
+
+---
+
 ## Vérification finale
 
 À exécuter après la tâche 15, avant de clore le chantier.
