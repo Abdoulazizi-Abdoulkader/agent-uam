@@ -143,12 +143,6 @@ def _compress_history(messages: list, max_size: int = _MAX_HISTORY) -> list:
     return historique
 
 
-# Conservé pour compatibilité : evaluate.py et les tests importent encore ce nom.
-def _truncate_history(messages: list, max_size: int = _MAX_HISTORY) -> list:
-    """Alias historique de `_compress_history`."""
-    return _compress_history(messages, max_size)
-
-
 # ==================== NŒUDS DU GRAPHE ====================
 
 @traceable
