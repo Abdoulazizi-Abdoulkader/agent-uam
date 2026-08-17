@@ -2183,6 +2183,94 @@ L'agent refuse de répondre à la question la plus courante d'un candidat, sur l
 
 **Le piège à éviter.** `keywords_uam` teste l'appartenance par sous-chaîne (`if kw in question_lower`, `tools.py:387-389`). Ajouter `"frais"` à cette liste ferait classer `PERTINENT` des phrases comme « il fait frais ce matin » ou « j'aime les produits frais » — en français, « frais » est aussi un adjectif. La correction doit donc porter sur des expressions, pas sur le mot nu.
 
+### Périmètre élargi le 2026-08-17 — BUG-04 découvert en cours de tâche
+
+Le premier implémenteur s'est arrêté au contrôle rouge, comme le brief l'exigeait : `test_adjectif_frais_reste_hors_sujet["Il fait frais ce matin"]` échouait **avant toute correction**. Diagnostic : la même recherche par sous-chaîne fait matcher l'abréviation `"fa"` (Faculté d'Agronomie) à l'intérieur du mot « fait ».
+
+Mesure de l'ampleur :
+
+```text
+PERTINENT    <- Il fait frais ce matin
+PERTINENT    <- Il fait beau aujourd hui
+PERTINENT    <- Je suis fatigue
+PERTINENT    <- Je pense que c est une bonne idee
+PERTINENT    <- Comment fabriquer du savon ?
+PERTINENT    <- Le facteur est passe
+PERTINENT    <- Ma famille habite a Zinder
+PERTINENT    <- Comment faire une omelette ?
+PERTINENT    <- Je voudrais un renseignement
+HORS_SUJET   <- Quelle est la recette du couscous ?
+HORS_SUJET   <- Qui a gagne le match hier ?
+HORS_SUJET   <- Quel est le prix du carburant ?
+```
+
+Huit phrases hors sujet sur douze passent le filtre : `"fa"` matche dans *fait, faire, famille, fatigué, fabriquer, facteur*, et `"ens"` (École Normale Supérieure) dans *pense, renseignement*. Le nœud `reject_query` est donc largement contourné, alors que le rejet poli du hors-sujet est une fonctionnalité annoncée de l'agent.
+
+Ce défaut est inscrit comme **BUG-04**, gravité haute. Il doit être corrigé dans cette même tâche : le test de non-faux-positif de BUG-03 ne peut pas passer tant qu'il subsiste, et les deux défauts vivent dans la même fonction.
+
+**La correction ne consiste pas à appliquer `\b` à toute la liste.** Les mots-clés longs doivent continuer de matcher leurs formes fléchies : `"inscription"` doit reconnaître « inscriptions », ce qu'une limite de mot en fin empêcherait. Il faut séparer les deux familles :
+
+```python
+    # Abréviations : recherche en mot entier. Testées par sous-chaîne, « fa »
+    # matcherait « fait », « ens » matcherait « pense » — voir BUG-04.
+    abreviations_uam = [
+        "uam", "fast", "flsh", "fseg", "fsjp", "fa", "fss", "ens",
+        "ed-svt", "ed-lashs", "ed-set", "irsh", "irem", "iri",
+    ]
+    for abbr in abreviations_uam:
+        if re.search(rf"\b{re.escape(abbr)}\b", question_lower):
+            return "PERTINENT"
+
+    # Mots-clés porteurs de sens : sous-chaîne, pour couvrir les formes fléchies.
+    keywords_uam = [
+        "abdou moumouni",
+        "faculté", "école", "institut", "formation", "filière",
+        "inscription", "admission", "diplôme", "attestation", "relevé",
+        "scolarité", "étudiant", "licence", "master", "doctorat", "thèse",
+        "cours", "horaire", "service", "recteur", "doyen",
+        "réinscription", "réinscrire", "préinscription", "dossier", "pièces",
+        "calendrier", "date limite",
+        "carte étudiant", "bourse", "logement", "cité universitaire",
+        "orientation", "restauration", "bibliothèque",
+    ]
+```
+
+Vérifier que `re` est importé dans `tools.py` — il l'est déjà, `external_patterns` s'en sert.
+
+**Tests supplémentaires à ajouter** dans `tests/test_bug_03_frais.py`, classe dédiée :
+
+```python
+class TestBug04AbreviationsEnMotEntier:
+    """« fa » et « ens » ne doivent plus matcher à l'intérieur d'un mot."""
+
+    @pytest.mark.parametrize("question", [
+        "Il fait beau aujourd'hui",
+        "Je suis fatigué",
+        "Comment fabriquer du savon ?",
+        "Le facteur est passé",
+        "Ma famille habite à Zinder",
+        "Comment faire une omelette ?",
+        "Je pense que c'est une bonne idée",
+        "Je voudrais un renseignement",
+    ])
+    def test_mots_contenant_fa_ou_ens_restent_hors_sujet(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "HORS_SUJET"
+
+    @pytest.mark.parametrize("question", [
+        "Que propose la FA ?",
+        "Quelles filières à la FAST ?",
+        "Comment intégrer l'ENS ?",
+        "Je veux m'inscrire à l'UAM",
+        "Quelles formations à l'IRI ?",
+    ])
+    def test_les_abreviations_restent_reconnues(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "PERTINENT"
+```
+
+Le second groupe est le garde-fou de la correction : resserrer la reconnaissance ne doit pas faire perdre les vrais usages des abréviations. Il doit passer avant comme après.
+
 - [ ] **Step 1: Écrire les tests, qui doivent échouer**
 
 ```python
