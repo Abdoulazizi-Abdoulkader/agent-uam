@@ -17,6 +17,11 @@ PAIRES = [
     ("Où est la faculté ?", "Ou est la faculte ?"),
     ("Quel diplôme obtient-on ?", "Quel diplome obtient-on ?"),
     ("Comment obtenir mon relevé de notes ?", "Comment obtenir mon releve de notes ?"),
+    # Formulation courte sans "de notes" : couvre le choix fait en revue de
+    # BUG-05 de garder "mon relevé" en plus de "relevé de notes" (retirer
+    # "relevé" seul de keywords_uam évite qu'il ne redevienne, une fois
+    # désaccentué, une sous-chaîne de "relever").
+    ("Comment obtenir mon relevé ?", "Comment obtenir mon releve ?"),
     ("Quelle est la procédure de préinscription ?", "Quelle est la procedure de preinscription ?"),
     ("Y a-t-il une cité universitaire ?", "Y a-t-il une cite universitaire ?"),
 ]
@@ -48,6 +53,21 @@ class TestPasDeRegression:
         "Quelle est la recette du couscous ?",
     ])
     def test_les_phrases_hors_sujet_le_restent(self, question):
+        from tools import check_question_relevance
+        assert check_question_relevance.func(question=question) == "HORS_SUJET"
+
+    @pytest.mark.parametrize("question", [
+        # BUG-05 (revue) : "relevé" désaccentué ("releve") était une
+        # sous-chaîne littérale de "relever" — un faux positif entièrement
+        # nouveau, introduit par la normalisation elle-même. Ces cas
+        # gardent la garde-fou pour ce type de régression (un mot-clé
+        # accentué qui, une fois désaccentué, chevauche un mot sans
+        # rapport), pas seulement pour "relevé".
+        "Il faut relever le defi",
+        "Elle a su relever la tête après l'échec",
+        "Le comité a dû relever plusieurs incohérences dans le rapport",
+    ])
+    def test_les_mots_qui_contiennent_un_mot_cle_desaccentue_restent_hors_sujet(self, question):
         from tools import check_question_relevance
         assert check_question_relevance.func(question=question) == "HORS_SUJET"
 

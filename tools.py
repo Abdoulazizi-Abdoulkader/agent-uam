@@ -394,7 +394,13 @@ def check_question_relevance(question: str) -> str:
     keywords_uam = [
         "abdou moumouni",
         "faculté", "école", "institut", "formation", "filière",
-        "inscription", "admission", "diplôme", "attestation", "relevé",
+        "inscription", "admission", "diplôme", "attestation",
+        # BUG-05 (faux positif post-normalisation) : "relevé" seul est une
+        # sous-chaîne de "relever" une fois désaccentué ("releve" ⊂
+        # "relever"). On cible donc les tournures qui désignent réellement
+        # le document, en gardant "mon relevé" pour les formulations
+        # courtes ("je veux mon relevé") qui ne précisent pas "de notes".
+        "relevé de notes", "mon relevé",
         "scolarité", "étudiant", "licence", "master", "doctorat", "thèse",
         "cours", "horaire", "service", "recteur", "doyen",
         "réinscription", "réinscrire", "préinscription", "dossier", "pièces",
