@@ -25,23 +25,41 @@ import types
 from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import AIMessage
+from langgraph.graph.state import CompiledStateGraph
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Bouchon pour éviter de tirer transitivement sentence_transformers/torch
-# (~8-9s d'import) alors qu'aucun de nos tests n'a besoin du vrai chargeur
-# de documents : get_agent() est toujours remplacé avant d'être appelé.
-if "document_loader" not in sys.modules:
+# Bouchon temporaire pour éviter de tirer transitivement sentence_transformers/
+# torch (~8-9s d'import) le temps du seul `import api.agent_service` ci-dessous
+# — aucun de nos tests n'a besoin du vrai chargeur de documents, get_agent()
+# étant toujours remplacé avant d'être appelé. Retiré juste après : laissé en
+# place, il empoisonnerait sys.modules["document_loader"] pour le reste du
+# processus pytest (et donc pour tout futur test qui en aurait besoin), alors
+# qu'à ce stade `api/agent_service.py:25` a déjà lié
+# `load_and_index_documents` dans son propre espace de noms — le retirer de
+# sys.modules ne casse donc rien pour la suite.
+_stub_insere = "document_loader" not in sys.modules
+if _stub_insere:
     _stub = types.ModuleType("document_loader")
     _stub.load_and_index_documents = lambda *a, **k: None
     sys.modules["document_loader"] = _stub
 
 import api.agent_service as service  # noqa: E402
 
+if _stub_insere:
+    del sys.modules["document_loader"]
+
 
 def _faux_graphe(reponse: str = "Réponse de test."):
-    """Graphe LangGraph factice : invoke() retourne un état terminé."""
-    graphe = MagicMock()
+    """Graphe LangGraph factice : invoke() retourne un état terminé.
+
+    `spec=CompiledStateGraph` (le type réel renvoyé par
+    `create_agent_graph`, cf. `agent_graph.py`) fait échouer bruyamment tout
+    accès à un attribut qui n'existe pas sur le vrai graphe compilé, plutôt
+    que de laisser un MagicMock nu générer silencieusement n'importe quel
+    attribut — utile si l'API de LangGraph dérive.
+    """
+    graphe = MagicMock(spec=CompiledStateGraph)
     graphe.invoke.return_value = {
         "messages": [AIMessage(content=reponse)],
         "is_relevant": True,
@@ -130,10 +148,25 @@ class TestAnswer:
         assert isinstance(resultat, service.AnswerResult)
         assert resultat.response == "Merci de saisir une question."
 
-    def test_deux_sessions_via_get_agent_independant_par_appel(self):
-        """get_agent() est appelé (au moins) une fois par answer() — le
-        singleton patché est interrogé à chaque requête, comme le ferait
-        le vrai singleton (qui renverrait l'instance déjà construite)."""
+    def test_get_agent_est_interroge_deux_fois_par_appel_a_answer(self):
+        """Correction post-revue : la version précédente de ce test
+        s'appelait "deux sessions... indépendant par appel" mais
+        n'appelait `answer()` qu'une seule fois et n'assérait que
+        `>= 1` — elle ne vérifiait ni deux sessions, ni l'indépendance
+        des appels. Remplacée par une mesure précise du nombre réel
+        d'appels à `get_agent()`.
+
+        Observé : avec `get_agent` entièrement remplacé (donc le global
+        `_vectorstore` du module jamais peuplé), `get_agent()` est
+        interrogé DEUX fois par `answer()`, pas une seule : une fois
+        directement (`api/agent_service.py:216`), une fois via
+        `_collect_sources` -> `get_vectorstore()` (ligne 87), qui
+        retombe sur `get_agent()` faute de `_vectorstore` réel — et
+        dont l'AttributeError qui suit (`None.similarity_search`) est
+        absorbée par `_collect_sources` (cf. rapport de tâche, "effet de
+        bord inoffensif"). Pour deux appels à `answer()` avec deux
+        `session_id` différents, cela donne 4, pas 2 : chiffre vérifié
+        avant d'écrire l'assertion, pas supposé."""
         compteur = {"n": 0}
 
         def fabrique_graphe(*_a, **_k):
@@ -141,5 +174,7 @@ class TestAnswer:
             return _faux_graphe()
 
         with patch.object(service, "get_agent", side_effect=fabrique_graphe):
-            service.answer("Bonjour", session_id="s1")
-        assert compteur["n"] >= 1
+            service.answer("Bonjour", session_id="session-1")
+            service.answer("Bonjour", session_id="session-2")
+
+        assert compteur["n"] == 4
