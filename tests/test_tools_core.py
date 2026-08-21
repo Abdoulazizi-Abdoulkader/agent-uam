@@ -28,21 +28,21 @@ class TestRagResponse:
         self.tools = tools
 
     def test_vectorstore_absent(self):
-        with patch.object(self.tools, '_vectorstore', None):
+        with patch.object(self.tools._vectorstore, '_vectorstore', None):
             result = self.tools._rag_response("une requête")
         assert "non initialisée" in result.lower() or "erreur" in result.lower()
 
     def test_aucun_resultat(self):
         fake_vs = MagicMock()
         fake_vs.similarity_search.return_value = []
-        with patch.object(self.tools, '_vectorstore', fake_vs):
+        with patch.object(self.tools._vectorstore, '_vectorstore', fake_vs):
             result = self.tools._rag_response("requête sans résultat", "Rien trouvé.")
         assert result == "Rien trouvé."
 
     def test_resultat_unique(self):
         fake_vs = MagicMock()
         fake_vs.similarity_search.return_value = [_make_doc("Contenu du document A")]
-        with patch.object(self.tools, '_vectorstore', fake_vs):
+        with patch.object(self.tools._vectorstore, '_vectorstore', fake_vs):
             result = self.tools._rag_response("requête", "Rien.")
         assert "Contenu du document A" in result
 
@@ -52,7 +52,7 @@ class TestRagResponse:
             _make_doc("Doc A"),
             _make_doc("Doc B"),
         ]
-        with patch.object(self.tools, '_vectorstore', fake_vs):
+        with patch.object(self.tools._vectorstore, '_vectorstore', fake_vs):
             result = self.tools._rag_response("requête")
         assert "Doc A" in result
         assert "Doc B" in result
@@ -62,14 +62,14 @@ class TestRagResponse:
         long_content = "X" * 2000
         fake_vs = MagicMock()
         fake_vs.similarity_search.return_value = [_make_doc(long_content)]
-        with patch.object(self.tools, '_vectorstore', fake_vs):
+        with patch.object(self.tools._vectorstore, '_vectorstore', fake_vs):
             result = self.tools._rag_response("requête")
         assert len(result) <= 800
 
     def test_message_not_found_par_defaut(self):
         fake_vs = MagicMock()
         fake_vs.similarity_search.return_value = []
-        with patch.object(self.tools, '_vectorstore', fake_vs):
+        with patch.object(self.tools._vectorstore, '_vectorstore', fake_vs):
             result = self.tools._rag_response("requête")
         assert result == "Aucune information trouvée."
 
