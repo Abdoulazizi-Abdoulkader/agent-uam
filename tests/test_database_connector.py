@@ -17,7 +17,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(autouse=True)
 def _config_non_empoisonnee():
-    """Neutralise BUG-02 (candidat, non corrigé — hors périmètre de cette tâche) :
+    """Neutralise BUG-08 (candidat, non corrigé — hors périmètre de cette tâche) :
     app_config.get_config() mémoïse la config pour tout le process. memory.py
     appelle get_config() au niveau module (`_user_memory = UserMemory()`), et
     tools.py importe memory AVANT database_connector — le seul module qui
