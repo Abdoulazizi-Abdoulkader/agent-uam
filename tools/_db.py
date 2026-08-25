@@ -3,6 +3,8 @@
 `_db_available` est calculé une fois au chargement ; les outils qui interrogent
 la base le lisent pour décider s'ils peuvent le faire.
 """
+import os
+
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -42,3 +44,10 @@ except ImportError:
 except Exception as e:
     _db_available = False
     logger.error(f"Erreur lors de l'initialisation de la base de données : {e}")
+
+# La table `announcements` n'existe que sur les backends documentaires
+# (MongoDB). En SQLite, search_news_announcements_db retourne toujours [] :
+# exposer l'outil ferait perdre un tour de boucle au LLM pour rien.
+_db_backend_supporte_actualites = bool(_db_available) and (
+    (os.getenv("UAM_DB_TYPE") or "").lower() == "mongodb"
+)

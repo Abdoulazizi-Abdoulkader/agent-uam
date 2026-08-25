@@ -22,7 +22,7 @@ from langsmith import traceable
 # non motivé serait un changement gratuit dans un fichier déjà revu ligne à
 # ligne (tâche 11).
 from .preferences import get_user_preferences, save_user_preference
-from ._db import _db_available
+from ._db import _db_available, _db_backend_supporte_actualites
 
 from ._rag import _rag_response
 from ._session import set_session_user_id
@@ -137,10 +137,13 @@ def get_tools():
     # Ajouter les outils de base de données si disponible
     if _db_available:
         tools.extend([
-            search_latest_news,
             get_schedules_from_db,
             search_student_record,
             search_statistics_uam,
         ])
-    
+        # search_latest_news dépend de la table `announcements`, absente en
+        # SQLite : ne l'exposer que si le backend la supporte (BUG-01).
+        if _db_backend_supporte_actualites:
+            tools.append(search_latest_news)
+
     return tools

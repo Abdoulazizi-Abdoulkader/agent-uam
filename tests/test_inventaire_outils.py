@@ -51,8 +51,13 @@ class TestInventaireOutils:
         assert not (NOMS_OUTILS_INCONDITIONNELS & NOMS_OUTILS_BASE)
 
     def test_tous_les_outils_exposes_quand_la_base_est_disponible(self):
+        # Backend documentaire (MongoDB) simulé via les deux drapeaux : seule
+        # cette configuration expose les 49 outils, search_latest_news inclus
+        # (tâche 14 — sur SQLite, seul le backend documentaire supporte les
+        # actualités, cf. TestOutilsSqlite ci-dessous).
         import tools
-        with patch.object(tools, "_db_available", True):
+        with patch.object(tools, "_db_available", True), \
+             patch.object(tools, "_db_backend_supporte_actualites", True):
             noms = {t.name for t in tools.get_tools()}
         assert noms == NOMS_OUTILS_INCONDITIONNELS | NOMS_OUTILS_BASE
         assert len(noms) == 49
@@ -75,3 +80,40 @@ class TestInventaireOutils:
         with patch.object(tools, "_db_available", True):
             for t in tools.get_tools():
                 assert t.description and t.description.strip(), f"{t.name} sans description"
+
+
+NOMS_OUTILS_BASE_SQLITE = frozenset({
+    "get_schedules_from_db", "search_student_record", "search_statistics_uam",
+})
+
+
+class TestOutilsSqlite:
+    """search_latest_news ne peut rien retourner sur SQLite : la table
+    announcements n'existe pas (database_connector.py:534). L'exposer au LLM
+    lui fait perdre un tour de boucle pour un résultat systématiquement vide."""
+
+    def test_search_latest_news_absent_en_sqlite(self):
+        import tools
+        from unittest.mock import patch
+        with patch.object(tools, "_db_available", True), \
+             patch.object(tools, "_db_backend_supporte_actualites", False):
+            noms = {t.name for t in tools.get_tools()}
+        assert "search_latest_news" not in noms
+        assert len(noms) == 48
+
+    def test_les_trois_autres_restent_exposes(self):
+        import tools
+        from unittest.mock import patch
+        with patch.object(tools, "_db_available", True), \
+             patch.object(tools, "_db_backend_supporte_actualites", False):
+            noms = {t.name for t in tools.get_tools()}
+        assert NOMS_OUTILS_BASE_SQLITE <= noms
+
+    def test_search_latest_news_expose_si_le_backend_le_supporte(self):
+        import tools
+        from unittest.mock import patch
+        with patch.object(tools, "_db_available", True), \
+             patch.object(tools, "_db_backend_supporte_actualites", True):
+            noms = {t.name for t in tools.get_tools()}
+        assert "search_latest_news" in noms
+        assert len(noms) == 49
