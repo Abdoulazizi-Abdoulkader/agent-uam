@@ -2654,6 +2654,114 @@ git commit -m "docs(audit): inscrit BUG-05 et le marque corrigé"
 
 ---
 
+### Task 19: Correction de BUG-09 — apostrophe typographique non reconnue
+
+**Files:**
+- Modify: `tools/conversation.py`
+- Create: `tests/test_bug_09_apostrophe.py`
+- Modify: `docs/superpowers/audit/2026-08-16-audit.md`
+
+**Interfaces:**
+- Consumes: `_sans_accents` (`tools/conversation.py`), le helper de normalisation né de la tâche 18
+- Produces: aucune nouvelle interface publique
+
+Tâche née de la mesure faite en tâche 12 et inscrite en BUG-09. Les motifs de
+`tools/conversation.py` s'écrivent avec l'apostrophe droite ASCII (`'`, U+0027)
+tandis que les claviers iOS et Android insèrent par autocorrection l'apostrophe
+typographique (`’`, U+2019). Les deux caractères ne se ressemblent qu'à l'œil.
+
+Portée mesurée en tâche 12 (rapport `task-12-report.md`, section BUG-09) :
+~24 motifs concernés dans `detect_greeting`, `check_question_relevance`,
+`detect_user_profile` et `detect_frustration_or_confusion`. Le marqueur du
+correctif de BUG-07 est lui-même vulnérable — la version mobile de la phrase
+retombe dans `_OFF_TOPIC_RE` et **réintroduit BUG-07**, le rattrapage par
+`\buam\b` n'étant jamais atteint à cause du court-circuit. Les messages courts
+d'adieu, de remerciement, de confusion et de répétition basculent en
+`reject_query` sans aucun rattrapage possible. Sur le canal WhatsApp, qui vise
+des utilisateurs sur mobile, c'est le cas nominal et non le cas limite.
+
+**Le critère de conception du chantier s'applique ici aussi :** un faux négatif
+est grave, un faux positif est bénin. Normaliser l'apostrophe ne peut
+qu'élargir la reconnaissance ; le risque à surveiller est ailleurs, dans une
+normalisation qui abîmerait une comparaison littérale existante.
+
+- [ ] **Step 1: Écrire les tests qui échouent**
+
+Un fichier `tests/test_bug_09_apostrophe.py` couvrant les quatre fonctions
+mesurées, chacune avec sa paire : la phrase à apostrophe droite (qui passe
+déjà) et la même à apostrophe typographique (qui échoue). Au minimum :
+
+- `check_question_relevance` — « J’étudie dans une université étrangère, comment
+  transférer à l’UAM ? » doit retourner `PERTINENT` (c'est la réintroduction de
+  BUG-07 mesurée en tâche 12)
+- `detect_frustration_or_confusion` — un message court de confusion avec
+  apostrophe typographique
+- `detect_greeting` et `detect_user_profile` — une phrase chacune, choisie
+  parmi les bascules que la tâche 12 a mesurées
+
+Les phrases exactes sont dans `task-12-report.md`, section BUG-09 : les
+reprendre plutôt que d'en inventer, elles sont déjà mesurées.
+
+- [ ] **Step 2: Exécuter et vérifier que les tests ÉCHOUENT**
+
+```bash
+venv/bin/python -m pytest tests/test_bug_09_apostrophe.py -v
+```
+
+Attendu : `FAILED` pour chaque cas à apostrophe typographique, `PASSED` pour
+chaque cas à apostrophe droite. Conserver la sortie rouge comme preuve TDD.
+
+- [ ] **Step 3: Normaliser en amont**
+
+Étendre la normalisation existante plutôt que d'énumérer les variantes dans
+chaque motif : `_sans_accents` retire déjà les diacritiques de la question
+avant comparaison. Ajouter au même endroit le repli des apostrophes
+typographiques (`’` U+2019, et par symétrie `‘` U+2018, `` ` `` U+0060 si la
+mesure le justifie) vers l'apostrophe droite ASCII.
+
+**Contrainte :** la normalisation s'applique à la question de l'utilisateur,
+jamais aux motifs eux-mêmes — ceux-ci restent écrits en ASCII. Ne pas toucher
+aux ~24 motifs un par un : c'est précisément le travail que cette tâche évite.
+
+Vérifier que les quatre fonctions mesurées passent bien par la normalisation.
+Si l'une d'elles compare la question brute sans normaliser, l'y faire passer
+est le cœur de la correction — et ce point doit être signalé dans le rapport,
+car il vaut au-delà de l'apostrophe.
+
+- [ ] **Step 4: Vérifier les deux côtés**
+
+```bash
+venv/bin/python -m pytest tests/test_bug_09_apostrophe.py -v
+venv/bin/python -m pytest tests/ -q
+```
+
+Attendu : le fichier cible au vert, et l'intégralité de la suite au vert.
+Les quatre fichiers qui protègent `check_question_relevance`
+(`tests/test_bug_03_frais.py`, `tests/test_bug_05_accents.py`,
+`tests/test_routage.py`, `tests/test_outils_deterministes.py`) sont le
+garde-fou : aucun ne doit être modifié. Si l'un casse, la normalisation va
+trop loin.
+
+Ajouter des cas de non-régression : une phrase hors sujet contenant une
+apostrophe typographique doit rester `HORS_SUJET`, et les variantes protégées
+par `_OFF_TOPIC_RE` (université française, étrangère, européenne, canadienne,
+américaine comme **sujet** de la question) doivent le rester elles aussi.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tools/conversation.py tests/test_bug_09_apostrophe.py
+git commit -m "fix: BUG-09 — reconnaître les questions tapées avec une apostrophe typographique"
+git add docs/superpowers/audit/2026-08-16-audit.md
+git commit -m "docs(audit): BUG-09 corrigé"
+```
+
+L'entrée BUG-09 de la section 5 passe de `reporté` à `corrigé` avec le hash du
+commit. Vérifier au passage que la ligne BUG-07 n'a plus besoin de sa réserve
+sur la forme mobile.
+
+---
+
 ## Vérification finale
 
 À exécuter après la tâche 15, avant de clore le chantier.
