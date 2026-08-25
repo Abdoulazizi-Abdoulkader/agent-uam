@@ -29,6 +29,16 @@ _OFF_TOPIC_RE = [re.compile(p) for p in [
     r"bourse.{0,80}([eé]tudier|partir|aller).{0,40}([eé]tranger|abroad|hors du niger)\b",
 ]]
 
+# BUG-07 : exception à la ligne 25 ci-dessus, pour la seule variante
+# "étrangère" — un candidat qui se décrit lui-même (« je suis », « je
+# viens », « mon diplôme vient ») comme venant d'une université étrangère
+# n'est pas hors sujet, contrairement à une question où l'université
+# étrangère est le sujet impersonnel de la phrase.
+_SELF_ETUDIANT_ETRANGER_RE = re.compile(
+    r"\b(je suis|je viens|mon dipl[ôo]me (vient|est issu))\b"
+    r".{0,40}universit[eé].{0,20}[eé]trang[eè]re?\b"
+)
+
 
 def _sans_accents(texte: str) -> str:
     """Retire les signes diacritiques, sans toucher à la casse.
@@ -135,6 +145,16 @@ def check_question_relevance(question: str) -> str:
     """
     question_lower = question.lower()
     question_sans_accents = _sans_accents(question_lower)
+
+    # BUG-07 : un candidat qui se décrit lui-même comme venant d'une
+    # université étrangère (pour demander une inscription/équivalence à
+    # l'UAM) ne doit pas être intercepté par _OFF_TOPIC_RE ci-dessous, qui
+    # vise les questions où une université étrangère est le *sujet* (ex.
+    # « frais à l'université française »), pas l'origine du locuteur.
+    # Vérifié avant la boucle hors-sujet, sur la seule variante "étrangère"
+    # concernée par la collision décrite dans l'audit.
+    if _SELF_ETUDIANT_ETRANGER_RE.search(question_lower):
+        return "PERTINENT"
 
     for pat in _OFF_TOPIC_RE:
         if pat.search(question_lower):
