@@ -147,7 +147,7 @@ de leurs résultats.
 
 `detect_user_profile` classe chaque message en : `BACHELIER`, `ETUDIANT_UAM`, `ETUDIANT_EXTERNE`, `ETUDIANT_ETRANGER`, `CANDIDAT_MASTER`, `CANDIDAT_DOCTORAT`, `PROFESSIONNEL`, `PARENT`, `INCONNU`. Le profil enrichit le prompt système dans `call_model` avec les outils prioritaires à utiliser.
 
-La persistance de session est assurée par `MemorySaver` avec un `thread_id` unique par session : UUID en Streamlit et sur le web (conservé dans `localStorage`), `whatsapp:<numéro>` sur WhatsApp. `MemorySaver` étant en mémoire, redémarrer le processus efface l'historique conversationnel — à remplacer par un `SqliteSaver` pour un service durable.
+La persistance de session est assurée par le checkpointer configuré via `UAM_CHECKPOINTER` (`agent_graph.py:_build_checkpointer`), avec un `thread_id` unique par session : UUID en Streamlit et sur le web (conservé dans `localStorage`), `whatsapp:<numéro>` sur WhatsApp. Par défaut c'est un `SqliteSaver` (`./database/checkpoints.db`, configurable via `UAM_CHECKPOINT_DB`) : l'historique conversationnel survit au redémarrage du processus. `UAM_CHECKPOINTER=memory` bascule sur `MemorySaver` (en mémoire, effacé au redémarrage) si besoin.
 
 Le `user_id` de session est propagé aux outils via un `contextvars.ContextVar` (`tools.set_session_user_id`) et non un `threading.local` : le `ToolNode` exécute les outils dans un pool de threads, qui héritent du contexte mais pas du stockage par thread.
 
@@ -168,6 +168,8 @@ Le vectorstore est initialisé une fois dans `document_loader.py` et stocké com
 | `UAM_SIMILARITY_K` | `4` | Nb résultats similarité |
 | `UAM_MAX_TOOL_ITERATIONS` | `5` | Limite boucle outils |
 | `UAM_DB_TYPE` | None | Type BDD (postgresql/mysql/mongodb) |
+| `UAM_CHECKPOINTER` | `sqlite` | Persistance des sessions : `sqlite` (survit au redémarrage) ou `memory` |
+| `UAM_CHECKPOINT_DB` | `./database/checkpoints.db` | Chemin du fichier SQLite des checkpoints |
 | `WHATSAPP_VERIFY_TOKEN` | None | Vérification du webhook Meta (webhook fermé si absent) |
 | `WHATSAPP_ACCESS_TOKEN` | None | Token de l'app Meta (temporaire : 24 h) |
 | `WHATSAPP_PHONE_NUMBER_ID` | None | Identifiant du numéro expéditeur |
