@@ -5,15 +5,22 @@ appelants continuent d'écrire `from tools import get_tools, set_vectorstore`.
 """
 from langsmith import traceable
 
-# ── Ordre d'import : ces deux lignes ne sont pas commutables (BUG-08) ─────────
+# ── Ordre d'import : historiquement non commutable, désormais indifférent
+# (BUG-08, corrigé tâche 12) ───────────────────────────────────────────────
 # memory.py appelle get_config() au niveau module, ce qui mémoïse la
-# configuration pour tout le process ; database_connector charge .env à
-# l'import. L'ancien tools.py importait memory (ligne 28) avant
-# database_connector (ligne 92). Importer `_db` en premier avancerait
-# load_dotenv() avant le gel de la configuration et ferait basculer
-# `_db_available` de False à True dans un process qui n'a pas chargé .env
-# lui-même — c'est le cas de la suite pytest. `preferences` est le module qui
-# importe memory : il doit donc rester devant `_db`.
+# configuration pour tout le process ; database_connector chargeait .env à
+# l'import, seul module à le faire. L'ancien tools.py importait memory
+# (ligne 28) avant database_connector (ligne 92), donc `preferences` (qui
+# importe memory) restait devant `_db` ici pour la même raison : importer
+# `_db` en premier aurait avancé load_dotenv() avant le gel de la
+# configuration et fait basculer `_db_available` de False à True dans un
+# process qui n'avait pas chargé .env lui-même — c'était le cas de la suite
+# pytest. Depuis la correction de BUG-08, `app_config.get_config()` charge
+# .env lui-même (au tout premier appel, quel qu'il soit) : l'ordre de ces
+# deux imports n'a donc plus d'effet sur `_db_available`. Il n'est pas
+# réordonné pour autant — aucun bénéfice à le faire, et un réordonnancement
+# non motivé serait un changement gratuit dans un fichier déjà revu ligne à
+# ligne (tâche 11).
 from .preferences import get_user_preferences, save_user_preference
 from ._db import _db_available
 

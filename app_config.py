@@ -233,6 +233,17 @@ def get_config() -> AppConfig:
     if _config is None:
         with _config_lock:
             if _config is None:
+                # BUG-08 : ce module ne dépendait jusqu'ici que du chargement
+                # de .env par un AUTRE module (database_connector.py, ou les
+                # load_dotenv() de agent_uam.py/api/main.py/app_streamlit.py).
+                # Si get_config() est le tout premier appel process-wide, la
+                # config se fige sans .env. Il charge donc .env lui-même,
+                # juste avant de lire les variables d'environnement.
+                try:
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                except ImportError:
+                    pass
                 instance = AppConfig.from_env()
                 instance.setup()
                 instance.validate()
