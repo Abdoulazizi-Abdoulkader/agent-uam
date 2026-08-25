@@ -8,9 +8,12 @@ from langchain_community.vectorstores import FAISS
 from langsmith import traceable
 from agent_state import AgentState
 from app_config import get_config
+from logger_config import get_logger
 from tools import get_tools, set_vectorstore
 from graph_nodes import route_and_store, should_continue, call_model, reject_query, handle_special_case
 from tool_node import ToolNode
+
+logger = get_logger(__name__)
 
 
 def _build_checkpointer():
@@ -26,6 +29,16 @@ def _build_checkpointer():
     premier accès si nécessaire, et cette même méthode active
     `PRAGMA journal_mode=WAL` et sérialise les accès via un `threading.Lock`
     interne à l'instance.
+
+    Garde-fou : si le répertoire de checkpoints n'est pas accessible en
+    écriture (ex. démo depuis un compte/une machine différents, clé USB en
+    lecture seule), `chemin.parent.mkdir()` ou `sqlite3.connect()` peuvent
+    lever une exception. Sans filet, elle traverserait `create_agent_graph()`
+    puis `get_agent()` (`api/agent_service.py`, sans gestion d'erreur non
+    plus) et ferait échouer le tout premier message d'un utilisateur réel.
+    On replie donc sur `MemorySaver()` (persistance perdue, mais le service
+    répond) plutôt que de laisser planter — un service qui perd la
+    persistance vaut mieux qu'un service qui ne répond pas.
     """
     config = get_config()
     if config.checkpointer == "memory":
@@ -34,10 +47,22 @@ def _build_checkpointer():
     import sqlite3
     from pathlib import Path
 
-    chemin = Path(config.checkpoint_db)
-    chemin.parent.mkdir(parents=True, exist_ok=True)
-    connexion = sqlite3.connect(str(chemin), check_same_thread=False)
-    return SqliteSaver(connexion)
+    try:
+        chemin = Path(config.checkpoint_db)
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        connexion = sqlite3.connect(str(chemin), check_same_thread=False)
+        return SqliteSaver(connexion)
+    except (OSError, sqlite3.Error) as e:
+        # OSError : échec de mkdir() (ex. PermissionError sur le répertoire parent).
+        # sqlite3.Error : échec de connect() lui-même (ex. OperationalError
+        # « unable to open database file » quand le répertoire existe mais n'est
+        # pas inscriptible) — ce n'est PAS un sous-type d'OSError, vérifié
+        # empiriquement, d'où les deux familles listées séparément ici.
+        logger.warning(
+            f"Checkpointer SQLite indisponible ({config.checkpoint_db}: {e}) — "
+            "repli sur MemorySaver (l'historique ne survivra pas à un redémarrage)."
+        )
+        return MemorySaver()
 
 
 # ==================== CONSTRUCTION DU GRAPHE ====================
