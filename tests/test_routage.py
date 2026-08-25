@@ -119,9 +119,9 @@ class TestRoutage:
         Chaque formulation est choisie pour déclencher réellement la valeur
         attendue de detect_frustration_or_confusion (vérifié par observation
         directe, pas par lecture des patterns seule). « Je ne comprends
-        rien » est délibérément évité : BUG-02 (rapport d'audit) montre que
-        cette formulation retourne NORMAL au lieu de CONFUSION — l'utiliser
-        ici figerait le bug plutôt que de le documenter.
+        rien » n'est pas ajoutée ici : BUG-02 (rapport d'audit) — corrigé en
+        tâche 12 — a sa propre couverture dédiée dans
+        tests/test_bug_02_confusion.py, pas de raison de dupliquer.
         """
         from graph_nodes import route_and_store
         resultat = route_and_store(_etat(question))

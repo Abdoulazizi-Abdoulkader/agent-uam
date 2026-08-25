@@ -390,6 +390,9 @@ def detect_frustration_or_confusion(message: str) -> str:
 
     confusion_patterns = [
         r"\bje ne comprends? pas\b", r"\bje n[''']y comprends? rien\b",
+        # BUG-02 : « je ne comprends rien » (sans le « y ») était absent,
+        # alors que la formulation quasi identique avec « y » était couverte.
+        r"\bje ne comprends? rien\b",
         r"\bc[''']est confus\b", r"\bpeux.tu (expliquer|clarifier|r[eé]p[eé]ter)\b",
         r"\bpeux.vous (expliquer|clarifier|r[eé]p[eé]ter)\b",
         r"\bje suis perdu\b", r"\bje suis perdue\b",
