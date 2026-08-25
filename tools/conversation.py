@@ -31,11 +31,23 @@ _OFF_TOPIC_RE = [re.compile(p) for p in [
 
 # BUG-07 : exception à la ligne 25 ci-dessus, pour la seule variante
 # "étrangère" — un candidat qui se décrit lui-même (« je suis », « je
-# viens », « mon diplôme vient ») comme venant d'une université étrangère
-# n'est pas hors sujet, contrairement à une question où l'université
-# étrangère est le sujet impersonnel de la phrase.
+# viens », « je sors », « je proviens », « j'étudie », « mon diplôme
+# vient/est issu ») comme venant d'une université étrangère n'est pas hors
+# sujet, contrairement à une question où l'université étrangère est le
+# sujet impersonnel de la phrase. Revue round 1 (finding 2) : les trois
+# premiers marqueurs ne couvraient pas « je sors », « j'étudie », « je
+# proviens » — un candidat réel utilisant ces formulations restait éconduit,
+# ce que le critère du dépôt qualifie de faux négatif, à corriger en
+# priorité sur la précision. Faux positif assumé en contrepartie, documenté
+# dans l'entrée BUG-07 de l'audit et testé dans
+# tests/test_bug_07_etudiant_etranger.py::TestFauxPositifsAssumes : une
+# phrase à la première personne qui reste réellement centrée sur
+# l'université étrangère elle-même (pas sur une inscription/équivalence à
+# l'UAM) est aussi reclassée PERTINENT, faute de pouvoir distinguer les deux
+# sans analyse sémantique.
 _SELF_ETUDIANT_ETRANGER_RE = re.compile(
-    r"\b(je suis|je viens|mon dipl[ôo]me (vient|est issu))\b"
+    r"\b(je suis|je viens|je sors|je proviens|j[''']?[eé]tudi[eé]|"
+    r"mon dipl[ôo]me (vient|est issu))\b"
     r".{0,40}universit[eé].{0,20}[eé]trang[eè]re?\b"
 )
 
