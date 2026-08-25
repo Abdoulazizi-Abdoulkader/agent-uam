@@ -118,6 +118,10 @@ class AppConfig:
     # Interface
     streamlit_port: int = 8501
     streamlit_host: str = "localhost"
+
+    # Persistance des sessions
+    checkpointer: str = "sqlite"
+    checkpoint_db: str = "./database/checkpoints.db"
     
     def __post_init__(self):
         logger.info(f"Configuration chargée - Documents: {self.documents_directory}")
@@ -184,7 +188,9 @@ class AppConfig:
             rate_limit_per_minute=int(os.getenv("UAM_RATE_LIMIT", "60")),
             max_tool_iterations=int(os.getenv("UAM_MAX_TOOL_ITERATIONS", "5")),
             streamlit_port=int(os.getenv("UAM_STREAMLIT_PORT", "8501")),
-            streamlit_host=os.getenv("UAM_STREAMLIT_HOST", "localhost")
+            streamlit_host=os.getenv("UAM_STREAMLIT_HOST", "localhost"),
+            checkpointer=os.getenv("UAM_CHECKPOINTER", "sqlite"),
+            checkpoint_db=os.getenv("UAM_CHECKPOINT_DB", "./database/checkpoints.db")
         )
     
     def to_dict(self) -> Dict[str, Any]:
@@ -218,7 +224,9 @@ class AppConfig:
             "max_input_length": self.max_input_length,
             "max_retries": self.max_retries,
             "rate_limit_per_minute": self.rate_limit_per_minute,
-            "max_tool_iterations": self.max_tool_iterations
+            "max_tool_iterations": self.max_tool_iterations,
+            "checkpointer": self.checkpointer,
+            "checkpoint_db": self.checkpoint_db
         }
 
 

@@ -3,12 +3,42 @@ Construction du graphe LangGraph pour l'agent conversationnel UAM
 """
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_community.vectorstores import FAISS
 from langsmith import traceable
 from agent_state import AgentState
+from app_config import get_config
 from tools import get_tools, set_vectorstore
 from graph_nodes import route_and_store, should_continue, call_model, reject_query, handle_special_case
 from tool_node import ToolNode
+
+
+def _build_checkpointer():
+    """Construit le checkpointer selon la configuration.
+
+    En SQLite, la connexion doit accepter l'usage multi-thread : uvicorn sert
+    les requêtes sur plusieurs threads et le ToolNode exécute les outils dans
+    un pool de threads.
+
+    Pas d'appel explicite à `.setup()` : vérifié empiriquement sur
+    langgraph-checkpoint-sqlite 2.0.11, `SqliteSaver.cursor()` (utilisé en
+    interne par get()/put()) appelle `self.setup()` de façon paresseuse au
+    premier accès si nécessaire, et cette même méthode active
+    `PRAGMA journal_mode=WAL` et sérialise les accès via un `threading.Lock`
+    interne à l'instance.
+    """
+    config = get_config()
+    if config.checkpointer == "memory":
+        return MemorySaver()
+
+    import sqlite3
+    from pathlib import Path
+
+    chemin = Path(config.checkpoint_db)
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    connexion = sqlite3.connect(str(chemin), check_same_thread=False)
+    return SqliteSaver(connexion)
+
 
 # ==================== CONSTRUCTION DU GRAPHE ====================
 @traceable
@@ -76,10 +106,9 @@ def create_agent_graph(vectorstore: FAISS, llm):
     workflow.add_edge("reject_query", END)
     workflow.add_edge("handle_special_case", END)
 
-    # Compiler avec MemorySaver pour la persistance de l'état
-    memory = MemorySaver()
-    app = workflow.compile(checkpointer=memory)
-    
+    # Compiler avec le checkpointer configuré (sqlite par défaut, memory en repli)
+    app = workflow.compile(checkpointer=_build_checkpointer())
+
     return app
 
 
