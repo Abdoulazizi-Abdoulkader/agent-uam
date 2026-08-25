@@ -70,7 +70,9 @@ graph_nodes.py — nœuds du graphe :
     ↓
 tool_node.py (ToolNode) — exécute les outils appelés par le LLM
     ↓
-tools.py — 49 outils @tool pour recherche sémantique FAISS, infos facultés, frais, etc. (45 toujours actifs + 4 conditionnels à la base de données)
+tools/ — 49 outils @tool pour recherche sémantique FAISS, infos facultés, frais, etc.
+         (49 outils au total : 45 toujours actifs, 3 conditionnés à la base de
+         données, et search_latest_news réservé aux backends documentaires)
 ```
 
 ### Modules clés
@@ -81,7 +83,7 @@ tools.py — 49 outils @tool pour recherche sémantique FAISS, infos facultés, 
 | `agent_graph.py` | Construction du `StateGraph` LangGraph avec `MemorySaver` |
 | `agent_state.py` | `AgentState` TypedDict avec `Annotated[Sequence[BaseMessage], add]` |
 | `graph_nodes.py` | Nœuds du graphe : `route_and_store`, `call_model`, `should_continue`, `handle_special_case`, `reject_query` |
-| `tools.py` | Tous les outils `@tool` + gestion du vectorstore FAISS global |
+| `tools/` | Package : tous les outils `@tool` + gestion du vectorstore FAISS global |
 | `tool_node.py` | `ToolNode` (wrapper de `langgraph.prebuilt.ToolNode` + incrément `tool_iterations`) |
 | `llm_utils.py` | Initialisation du LLM (OpenRouter via `ChatOpenAI`) et des embeddings HuggingFace locaux |
 | `document_loader.py` | Chargement PDF/TXT + indexation FAISS |
@@ -153,7 +155,7 @@ Le `user_id` de session est propagé aux outils via un `contextvars.ContextVar` 
 
 ### Vectorstore FAISS
 
-Le vectorstore est initialisé une fois dans `document_loader.py` et stocké comme état global dans `tools.py` via `set_vectorstore()`. Les embeddings utilisent `HuggingFaceEmbeddings` (modèle `paraphrase-multilingual-MiniLM-L12-v2` ou similaire). Le vectorstore est persisté dans `./vectorstore/`.
+Le vectorstore est initialisé une fois dans `document_loader.py` et stocké comme état global dans `tools/_vectorstore.py` via `set_vectorstore()`. Les embeddings utilisent `HuggingFaceEmbeddings` (modèle `paraphrase-multilingual-MiniLM-L12-v2` ou similaire). Le vectorstore est persisté dans `./vectorstore/`.
 
 ### Variables d'environnement de configuration
 

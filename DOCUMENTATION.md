@@ -98,7 +98,7 @@ Entrée utilisateur
 | `agent_graph.py` | Construit le `StateGraph` LangGraph avec `MemorySaver` | 85 |
 | `agent_state.py` | `AgentState` TypedDict avec `Annotated[Sequence[BaseMessage], add]` | ~40 |
 | `graph_nodes.py` | Nœuds du graphe : routage, appel LLM, cas spéciaux, rejet | 399 |
-| `tools.py` | 48 outils `@tool` + vectorstore FAISS global + helpers | 2037 |
+| `tools/` | Package : 49 outils `@tool` + vectorstore FAISS global + helpers | réparti sur plusieurs fichiers |
 | `tool_node.py` | `ToolNode` personnalisé avec gestion d'erreur et fallback | ~120 |
 | `prompts.py` | Templates de prompts système (`build_tool_system_prompt`) | ~150 |
 | `app_config.py` | Configuration centralisée via variables d'env (`get_config()`) | ~180 |
@@ -247,7 +247,7 @@ Le vectorstore est chargé depuis le cache au prochain démarrage si `./vectorst
 
 ### Recherche sémantique
 
-Deux fonctions internes dans `tools.py` :
+Deux fonctions internes dans `tools/_rag.py` :
 
 - `_rag_search(query, k=5)` — retourne les `k` documents les plus proches
 - `_rag_response(query, not_found_msg, k=5)` — retourne un texte formaté
@@ -711,7 +711,7 @@ summary = get_summary()
 
 ### Ajouter un nouvel outil
 
-1. Définir la fonction avec le décorateur `@tool` dans `tools.py`
+1. Définir la fonction avec le décorateur `@tool` dans le module approprié du package `tools/` (`tools/scolarite.py`, `tools/base_donnees.py`, etc.)
 2. Ajouter une docstring claire (le LLM s'en sert pour décider quand l'appeler)
 3. La fonction est automatiquement intégrée via `get_tools()` → `agent_graph.py`
 
@@ -751,7 +751,7 @@ python -m pytest tests/       # suite de tests unitaires
 
 ```
 tests/
-├── test_tools.py             # Tests des outils @tool
+├── test_tools_core.py, test_inventaire_outils.py, test_outils_deterministes.py  # Tests des outils @tool (package tools/)
 ├── test_graph_nodes.py       # Tests du routage et des nœuds
 ├── test_database.py          # Tests du connecteur BDD
 └── test_utils.py             # Tests des utilitaires

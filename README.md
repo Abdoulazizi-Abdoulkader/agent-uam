@@ -91,7 +91,7 @@ Entrée utilisateur
 | `agent_graph.py` | Construction du `StateGraph` LangGraph |
 | `agent_state.py` | `AgentState` TypedDict |
 | `graph_nodes.py` | Nœuds du graphe (routage, appel LLM, cas spéciaux) |
-| `tools.py` | 45+ outils `@tool` + vectorstore FAISS |
+| `tools/` | Package : 49 outils `@tool` + vectorstore FAISS |
 | `tool_node.py` | `ToolNode` personnalisé (avec fallback) |
 | `prompts.py` | Templates de prompts système |
 | `config.py` / `app_config.py` | Configuration centralisée via variables d'env |
@@ -326,7 +326,7 @@ agent-uam/
 ├── agent_graph.py            # Graphe LangGraph
 ├── agent_state.py            # AgentState TypedDict
 ├── graph_nodes.py            # Nœuds du graphe
-├── tools.py                  # Outils @tool (45+)
+├── tools/                    # Package : outils @tool (49)
 ├── tool_node.py              # ToolNode personnalisé
 ├── prompts.py                # Templates de prompts
 ├── app_config.py             # Configuration centralisée
