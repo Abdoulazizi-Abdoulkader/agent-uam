@@ -62,6 +62,36 @@ def _sans_accents(texte: str) -> str:
     return "".join(c for c in decompose if unicodedata.category(c) != "Mn")
 
 
+# BUG-09 : les ~24 motifs de ce module comparent la question/le message à des
+# apostrophes droites ASCII (U+0027) écrites en dur, y compris dans la classe
+# de caractères [''']. Les claviers iOS et Android insèrent par
+# autocorrection l'apostrophe typographique (U+2019) — invisible à l'œil,
+# absente de ces motifs. Mesuré (task-12-report.md, section BUG-09) : le
+# garde-fou _SELF_ETUDIANT_ETRANGER_RE ajouté pour BUG-07 est lui-même
+# vulnérable et réintroduit BUG-07 pour toute phrase tapée sur mobile. Mesuré
+# ici même (voir task-19-report.md) que U+2018 (guillemet simple ouvrant) et
+# U+0060 (accent grave) provoquent exactement la même bascule sur les mêmes
+# phrases — repliés par symétrie, sans preuve qu'un clavier réel les émette,
+# mais au même coût et au même risque nul qu'U+2019.
+#
+# Ce repli s'applique à la question/au message de l'utilisateur, jamais aux
+# motifs eux-mêmes (qui restent écrits en ASCII) : voir _normalise_saisie.
+_APOSTROPHES_TYPOGRAPHIQUES = str.maketrans({
+    "’": "'",  # ’ apostrophe typographique (iOS/Android, mesure principale)
+    "‘": "'",  # ‘ guillemet simple ouvrant, même bascule mesurée
+    "`": "'",  # ` accent grave, même bascule mesurée
+})
+
+
+def _normalise_saisie(texte: str) -> str:
+    """Replie les apostrophes typographiques vers l'apostrophe ASCII (BUG-09).
+
+    À appliquer sur la saisie utilisateur juste après la mise en minuscules,
+    avant toute comparaison à un motif — les motifs restent écrits en ASCII.
+    """
+    return texte.translate(_APOSTROPHES_TYPOGRAPHIQUES)
+
+
 @tool
 def detect_greeting(message: str) -> str:
     """
@@ -77,7 +107,7 @@ def detect_greeting(message: str) -> str:
         "BOTH"      – salutation + question UAM
         "QUESTION"  – question ou demande d'information
     """
-    message_lower = message.lower().strip()
+    message_lower = _normalise_saisie(message.lower().strip())
 
     # --- Fins de conversation ---
     farewell_patterns = [
@@ -155,7 +185,7 @@ def check_question_relevance(question: str) -> str:
         "PERTINENT"   – question relative à l'UAM
         "HORS_SUJET"  – question sans rapport avec l'UAM
     """
-    question_lower = question.lower()
+    question_lower = _normalise_saisie(question.lower())
     question_sans_accents = _sans_accents(question_lower)
 
     # BUG-07 : un candidat qui se décrit lui-même comme venant d'une
@@ -291,7 +321,7 @@ def detect_user_profile(message: str) -> str:
         Un des profils : ETUDIANT_UAM | BACHELIER | ETUDIANT_EXTERNE | ETUDIANT_ETRANGER |
                          CANDIDAT_MASTER | CANDIDAT_DOCTORAT | PARENT | PROFESSIONNEL | INCONNU
     """
-    msg = message.lower()
+    msg = _normalise_saisie(message.lower())
 
     # Candidat doctorat / thèse
     doctorat_patterns = [
@@ -385,7 +415,7 @@ def detect_frustration_or_confusion(message: str) -> str:
     Returns:
         "FRUSTRATION" | "CONFUSION" | "REPETITION" | "NORMAL"
     """
-    msg = message.lower()
+    msg = _normalise_saisie(message.lower())
 
     frustration_patterns = [
         r"\bça ne marche pas\b", r"\bnul\b", r"\binutile\b",
