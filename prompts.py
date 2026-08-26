@@ -83,6 +83,17 @@ def build_tool_system_prompt(structures_context: str = "") -> str:
         if _tools._db_backend_supporte_actualites
         else "9. Actualités/annonces → search_uam_knowledge (documents indexés — pas de flux BD sur ce backend)\n"
     )
+    # search_student_record dépend de _db_available seul (pas d'un des deux
+    # drapeaux ci-dessus) : sans base — le cas nominal d'une installation
+    # neuve, database/scolarite_uam.db n'étant pas versionnée (*.db dans
+    # .gitignore) — get_tools() ne l'expose pas non plus.
+    ligne_dossier_etudiant = (
+        "- search_student_record   : Consulte le dossier d'un étudiant par matricule\n"
+        "  * Utilise quand : \"mon matricule est UAM…\", \"mon inscription est-elle validée ?\",\n"
+        "    \"combien j'ai payé\", \"mes résultats du semestre\", \"mes notes / crédits ECTS\"\n"
+        "  * Args : matricule (ex: UAM240001), query_type (\"inscription\"|\"paiement\"|\"resultats\"|\"general\")\n"
+        if _tools._db_available else ""
+    )
 
     tools_guide = f"""UTILISATION DES OUTILS - GUIDE COMPLET :
 
@@ -183,10 +194,7 @@ G. CORPS UNIVERSITAIRE & GOUVERNANCE
 ═══════════════════════════════════════════════════════
 H. BASE DE DONNÉES (INFORMATIONS TEMPS RÉEL)
 ═══════════════════════════════════════════════════════
-{ligne_actualites}{ligne_horaires}- search_student_record   : Consulte le dossier d'un étudiant par matricule
-  * Utilise quand : "mon matricule est UAM…", "mon inscription est-elle validée ?",
-    "combien j'ai payé", "mes résultats du semestre", "mes notes / crédits ECTS"
-  * Args : matricule (ex: UAM240001), query_type ("inscription"|"paiement"|"resultats"|"general")
+{ligne_actualites}{ligne_horaires}{ligne_dossier_etudiant}
 
 ═══════════════════════════════════════════════════════
 STRATÉGIE GLOBALE D'UTILISATION
