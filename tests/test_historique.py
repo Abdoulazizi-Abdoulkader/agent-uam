@@ -156,18 +156,82 @@ class TestCompressHistory:
         assert _compress_history([]) == []
 
 
+def _dicts_a_spread(chemin: str) -> list[tuple[int, ast.Dict]]:
+    """Renvoie (ligne, nœud) pour chaque `return {**quelque_chose, ...}` du fichier."""
+    with open(chemin, encoding="utf-8") as f:
+        arbre = ast.parse(f.read())
+    resultat = []
+    for noeud in ast.walk(arbre):
+        if isinstance(noeud, ast.Return) and isinstance(noeud.value, ast.Dict):
+            # une clé None correspond à un dépaquetage **quelque_chose
+            if any(cle is None for cle in noeud.value.keys):
+                resultat.append((noeud.lineno, noeud.value))
+    return resultat
+
+
+def _messages_ecrase_apres_spread(dict_noeud: ast.Dict) -> bool:
+    """True si une clé littérale "messages" apparaît après un `**spread`
+    dans ce dict — la forme prouvée sûre (voir docstring de la classe)."""
+    vu_spread = False
+    for cle in dict_noeud.keys:
+        if cle is None:
+            vu_spread = True
+            continue
+        if vu_spread and isinstance(cle, ast.Constant) and cle.value == "messages":
+            return True
+    return False
+
+
 class TestContratDesNoeuds:
+    """Détecte `return {**state, ...}` — la cause de l'explosion d'historique.
 
-    def test_aucun_noeud_ne_retourne_l_etat_complet(self):
-        """Détecte `return {**state, ...}` — la cause de l'explosion d'historique."""
+    Finding 4 (revue finale de branche) : les deux seules occurrences de ce
+    motif dans le dépôt sont `multi_agents.py:180,224`, pas `graph_nodes.py`
+    (vide depuis toujours) — et `multi_agents.py` construit lui aussi un
+    `StateGraph` dont `messages` porte le réducteur `add`, importé par un
+    point d'entrée vivant (`app_streamlit.py:32,230`), pas du code mort. Le
+    scan doit donc couvrir les deux fichiers.
+
+    Le motif n'est dangereux QUE si le champ à réducteur `messages` traverse
+    le spread sans être écrasé par une clé littérale plus loin dans le même
+    dict : le reducer `add` appliqué par LangGraph verrait alors passer
+    l'historique complet déjà présent dans l'état, qu'il rajouterait à
+    l'historique déjà persisté — d'où le doublement (1 → 2 → 4 → …).
+
+    `multi_agents.py:180,224` écrit `{**state, ..., "messages": [...]}` avec
+    `"messages"` en clé littérale APRÈS le spread : l'ordre d'évaluation
+    d'un dict Python fait que cette clé écrase la copie spreadée, si bien
+    que le reducer ne voit jamais que le delta (le ou les nouveaux
+    messages), jamais l'historique dupliqué. C'est la forme prouvée sûre,
+    à une permutation de clés près (démontré par l'audit) — tolérée ici
+    sans modifier `multi_agents.py`, hors périmètre de correction de ce
+    dispatch : seule la détection s'élargit jusqu'à lui.
+
+    `graph_nodes.py` reste soumis à la règle stricte de CLAUDE.md : un nœud
+    n'y retourne QUE les champs qu'il modifie, sans jamais spreader l'état
+    — même la forme prouvée sûre y serait fautive par convention. Tout
+    spread y est donc une erreur, sans avoir besoin de la distinction
+    ci-dessus.
+    """
+
+    def test_graph_nodes_n_a_aucun_spread(self):
+        """graph_nodes.py : zéro tolérance, même pour la forme prouvée sûre
+        (convention CLAUDE.md — un nœud ne retourne que ce qu'il modifie)."""
         chemin = os.path.join(os.path.dirname(__file__), "..", "graph_nodes.py")
-        with open(chemin, encoding="utf-8") as f:
-            arbre = ast.parse(f.read())
+        fautifs = [ligne for ligne, _ in _dicts_a_spread(chemin)]
+        assert not fautifs, f"Dépaquetage d'état interdit aux lignes {fautifs} (graph_nodes.py)"
 
-        fautifs = []
-        for noeud in ast.walk(arbre):
-            if isinstance(noeud, ast.Return) and isinstance(noeud.value, ast.Dict):
-                # une clé None correspond à un dépaquetage **quelque_chose
-                if any(cle is None for cle in noeud.value.keys):
-                    fautifs.append(noeud.lineno)
-        assert not fautifs, f"Dépaquetage d'état interdit aux lignes {fautifs}"
+    def test_multi_agents_ne_double_jamais_l_historique(self):
+        """multi_agents.py : le spread lui-même est toléré (forme prouvée
+        sûre en l'état actuel), mais pas la variante dangereuse où
+        "messages" ne l'écrase pas après coup — celle qui doublerait
+        l'historique exactement comme documenté en tête de ce fichier."""
+        chemin = os.path.join(os.path.dirname(__file__), "..", "multi_agents.py")
+        fautifs = [
+            ligne for ligne, noeud in _dicts_a_spread(chemin)
+            if not _messages_ecrase_apres_spread(noeud)
+        ]
+        assert not fautifs, (
+            f"Dépaquetage d'état dangereux aux lignes {fautifs} (multi_agents.py) : "
+            "\"messages\" n'écrase pas le spread, l'historique doublerait."
+        )
