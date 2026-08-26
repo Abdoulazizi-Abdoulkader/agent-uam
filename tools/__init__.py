@@ -22,7 +22,11 @@ from langsmith import traceable
 # non motivé serait un changement gratuit dans un fichier déjà revu ligne à
 # ligne (tâche 11).
 from .preferences import get_user_preferences, save_user_preference
-from ._db import _db_available, _db_backend_supporte_actualites
+from ._db import (
+    _db_available,
+    _db_backend_supporte_actualites,
+    _db_backend_supporte_horaires,
+)
 
 from ._rag import _rag_response
 from ._session import set_session_user_id
@@ -137,7 +141,6 @@ def get_tools():
     # Ajouter les outils de base de données si disponible
     if _db_available:
         tools.extend([
-            get_schedules_from_db,
             search_student_record,
             search_statistics_uam,
         ])
@@ -145,5 +148,9 @@ def get_tools():
         # SQLite : ne l'exposer que si le backend la supporte (BUG-01).
         if _db_backend_supporte_actualites:
             tools.append(search_latest_news)
+        # get_schedules_from_db dépend de la table `horaires`, absente du
+        # schéma SQL actuel : même traitement (BUG-11).
+        if _db_backend_supporte_horaires:
+            tools.append(get_schedules_from_db)
 
     return tools

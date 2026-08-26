@@ -51,13 +51,15 @@ class TestInventaireOutils:
         assert not (NOMS_OUTILS_INCONDITIONNELS & NOMS_OUTILS_BASE)
 
     def test_tous_les_outils_exposes_quand_la_base_est_disponible(self):
-        # Backend documentaire (MongoDB) simulé via les deux drapeaux : seule
-        # cette configuration expose les 49 outils, search_latest_news inclus
-        # (tâche 14 — sur SQLite, seul le backend documentaire supporte les
-        # actualités, cf. TestOutilsSqlite ci-dessous).
+        # Backend documentaire (MongoDB) simulé via les trois drapeaux : seule
+        # cette configuration expose les 49 outils, search_latest_news et
+        # get_schedules_from_db inclus (tâche 14 — sur SQLite, seul le backend
+        # documentaire supporte les actualités et les horaires, cf.
+        # TestOutilsSqlite ci-dessous).
         import tools
         with patch.object(tools, "_db_available", True), \
-             patch.object(tools, "_db_backend_supporte_actualites", True):
+             patch.object(tools, "_db_backend_supporte_actualites", True), \
+             patch.object(tools, "_db_backend_supporte_horaires", True):
             noms = {t.name for t in tools.get_tools()}
         assert noms == NOMS_OUTILS_INCONDITIONNELS | NOMS_OUTILS_BASE
         assert len(noms) == 49
@@ -83,29 +85,46 @@ class TestInventaireOutils:
 
 
 NOMS_OUTILS_BASE_SQLITE = frozenset({
-    "get_schedules_from_db", "search_student_record", "search_statistics_uam",
+    "search_student_record", "search_statistics_uam",
 })
 
 
 class TestOutilsSqlite:
-    """search_latest_news ne peut rien retourner sur SQLite : la table
-    announcements n'existe pas (database_connector.py:534). L'exposer au LLM
-    lui fait perdre un tour de boucle pour un résultat systématiquement vide."""
+    """search_latest_news (BUG-01) et get_schedules_from_db (BUG-11) ne
+    peuvent rien retourner sur SQLite : les tables `announcements` et
+    `horaires` n'existent pas dans le schéma SQL actuel
+    (database_connector.py:534 ; schema_scolarite_uam.sql /
+    simulation_scolarite.py, qui ne créent jamais `horaires`). Les exposer au
+    LLM leur fait perdre un tour de boucle pour un résultat systématiquement
+    vide — et pour get_schedules_from_db, pollue en plus les logs d'une
+    OperationalError à chaque appel."""
 
     def test_search_latest_news_absent_en_sqlite(self):
         import tools
         from unittest.mock import patch
         with patch.object(tools, "_db_available", True), \
-             patch.object(tools, "_db_backend_supporte_actualites", False):
+             patch.object(tools, "_db_backend_supporte_actualites", False), \
+             patch.object(tools, "_db_backend_supporte_horaires", False):
             noms = {t.name for t in tools.get_tools()}
         assert "search_latest_news" not in noms
-        assert len(noms) == 48
+        assert len(noms) == 47
 
-    def test_les_trois_autres_restent_exposes(self):
+    def test_get_schedules_from_db_absent_en_sqlite(self):
         import tools
         from unittest.mock import patch
         with patch.object(tools, "_db_available", True), \
-             patch.object(tools, "_db_backend_supporte_actualites", False):
+             patch.object(tools, "_db_backend_supporte_actualites", False), \
+             patch.object(tools, "_db_backend_supporte_horaires", False):
+            noms = {t.name for t in tools.get_tools()}
+        assert "get_schedules_from_db" not in noms
+        assert len(noms) == 47
+
+    def test_les_deux_autres_restent_exposes(self):
+        import tools
+        from unittest.mock import patch
+        with patch.object(tools, "_db_available", True), \
+             patch.object(tools, "_db_backend_supporte_actualites", False), \
+             patch.object(tools, "_db_backend_supporte_horaires", False):
             noms = {t.name for t in tools.get_tools()}
         assert NOMS_OUTILS_BASE_SQLITE <= noms
 
@@ -113,7 +132,31 @@ class TestOutilsSqlite:
         import tools
         from unittest.mock import patch
         with patch.object(tools, "_db_available", True), \
-             patch.object(tools, "_db_backend_supporte_actualites", True):
+             patch.object(tools, "_db_backend_supporte_actualites", True), \
+             patch.object(tools, "_db_backend_supporte_horaires", False):
             noms = {t.name for t in tools.get_tools()}
         assert "search_latest_news" in noms
+        assert "get_schedules_from_db" not in noms
+        assert len(noms) == 48
+
+    def test_get_schedules_from_db_expose_si_le_backend_le_supporte(self):
+        import tools
+        from unittest.mock import patch
+        with patch.object(tools, "_db_available", True), \
+             patch.object(tools, "_db_backend_supporte_actualites", False), \
+             patch.object(tools, "_db_backend_supporte_horaires", True):
+            noms = {t.name for t in tools.get_tools()}
+        assert "get_schedules_from_db" in noms
+        assert "search_latest_news" not in noms
+        assert len(noms) == 48
+
+    def test_tous_exposes_si_le_backend_supporte_tout(self):
+        import tools
+        from unittest.mock import patch
+        with patch.object(tools, "_db_available", True), \
+             patch.object(tools, "_db_backend_supporte_actualites", True), \
+             patch.object(tools, "_db_backend_supporte_horaires", True):
+            noms = {t.name for t in tools.get_tools()}
+        assert "search_latest_news" in noms
+        assert "get_schedules_from_db" in noms
         assert len(noms) == 49

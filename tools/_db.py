@@ -51,3 +51,18 @@ except Exception as e:
 _db_backend_supporte_actualites = bool(_db_available) and (
     (os.getenv("UAM_DB_TYPE") or "").lower() == "mongodb"
 )
+
+# La table `horaires` n'existe dans aucun schéma SQL actuel (schema_scolarite_uam.sql,
+# repris tel quel par database/simulation_scolarite.py — dont le docstring dit
+# explicitement le schéma « compatible MySQL », donc partagé par SQLite/MySQL/
+# PostgreSQL). Elle appartenait à un schéma antérieur abandonné
+# (setup_database.py, qui cible un fichier différent, uam_database.db, non
+# utilisé en production) et n'a jamais été reprise lors de la refonte du
+# schéma réel. Sur les backends SQL, search_schedules_db exécute donc
+# `SELECT * FROM horaires` contre une table absente : sqlite3.OperationalError
+# loguée en ERROR à chaque appel (database_connector.py), en plus de l'outil
+# systématiquement vide (BUG-11) — seul MongoDB interroge une collection
+# `schedules` indépendante de ce schéma SQL.
+_db_backend_supporte_horaires = bool(_db_available) and (
+    (os.getenv("UAM_DB_TYPE") or "").lower() == "mongodb"
+)

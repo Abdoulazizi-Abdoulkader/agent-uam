@@ -60,7 +60,31 @@ def build_tool_system_prompt(structures_context: str = "") -> str:
     """
     Prompt système pour l'appel LLM avec outils automatiques.
     """
-    tools_guide = """UTILISATION DES OUTILS - GUIDE COMPLET :
+    # Import local, lu à chaque appel : build_tool_system_prompt() tourne à
+    # chaque tour (graph_nodes.py:300), donc le guide doit toujours refléter
+    # get_tools(). `import tools as _tools` puis `_tools.<drapeau>` (plutôt
+    # que `from tools import <drapeau>`) pour que la lecture se fasse contre
+    # le namespace réel du module à l'instant de l'appel — un `patch.object
+    # (tools, ...)` en test doit rester efficace ici, comme pour
+    # tools.get_tools() (même raisonnement que le point de vigilance sur le
+    # style d'import du drapeau, tâche 14).
+    import tools as _tools
+
+    ligne_actualites = (
+        "- search_latest_news      : Dernières actualités et annonces UAM\n"
+        if _tools._db_backend_supporte_actualites else ""
+    )
+    ligne_horaires = (
+        "- get_schedules_from_db   : Horaires et emplois du temps à jour\n"
+        if _tools._db_backend_supporte_horaires else ""
+    )
+    ligne_strategie_actualites = (
+        "9. Actualités/annonces → search_latest_news\n"
+        if _tools._db_backend_supporte_actualites
+        else "9. Actualités/annonces → search_uam_knowledge (documents indexés — pas de flux BD sur ce backend)\n"
+    )
+
+    tools_guide = f"""UTILISATION DES OUTILS - GUIDE COMPLET :
 
 ═══════════════════════════════════════════════════════
 A. OUTILS DE DÉTECTION CONVERSATIONNELLE
@@ -159,9 +183,7 @@ G. CORPS UNIVERSITAIRE & GOUVERNANCE
 ═══════════════════════════════════════════════════════
 H. BASE DE DONNÉES (INFORMATIONS TEMPS RÉEL)
 ═══════════════════════════════════════════════════════
-- search_latest_news      : Dernières actualités et annonces UAM
-- get_schedules_from_db   : Horaires et emplois du temps à jour
-- search_student_record   : Consulte le dossier d'un étudiant par matricule
+{ligne_actualites}{ligne_horaires}- search_student_record   : Consulte le dossier d'un étudiant par matricule
   * Utilise quand : "mon matricule est UAM…", "mon inscription est-elle validée ?",
     "combien j'ai payé", "mes résultats du semestre", "mes notes / crédits ECTS"
   * Args : matricule (ex: UAM240001), query_type ("inscription"|"paiement"|"resultats"|"general")
@@ -177,8 +199,7 @@ STRATÉGIE GLOBALE D'UTILISATION
 6. Profil BACHELIER → search_formations + generate_registration_checklist(profile='nouveau')
 7. Question générale → search_uam_knowledge en premier, puis outils spécialisés si nécessaire
 8. Question sur les frais → calculate_fees (BD si disponible)
-9. Actualités/annonces → search_latest_news
-10. L'utilisateur demande ce que tu peux faire → get_agent_capabilities
+{ligne_strategie_actualites}10. L'utilisateur demande ce que tu peux faire → get_agent_capabilities
 """
 
     return _base_system_prompt() + "\n" + tools_guide + (structures_context or "")
