@@ -229,12 +229,33 @@ def check_question_relevance(question: str) -> str:
     # séparer, ce ne sont pas deux chaînes différentes. Dette inscrite et
     # détaillée en BUG-06 (rapport d'audit) : dernier tour sur ce mot-clé,
     # la dette restante est acceptée telle quelle.
-    keywords_mot_entier = ["relevé"]
+    #
+    # "bac" (finding 1, revue finale de branche) : ajouté au-delà de la
+    # liste de vocabulaire donnée par la revue, pour couvrir de vraies
+    # questions de bacheliers/parents (« après le bac », « mon fils a eu son
+    # bac ») que le mot entier des abréviations a laissées orphelines — même
+    # mécanisme, même raisonnement faux-négatif > faux-positif. En
+    # sous-chaîne, "bac" collisionnerait avec "débâcle"/"embâcle"/"bâcler"
+    # une fois désaccentués ("bacle", "debacle", "embacle" contiennent tous
+    # "bac") ; le mot entier évite cette collision.
+    keywords_mot_entier = ["relevé", "bac"]
     for kw in keywords_mot_entier:
         if re.search(rf"\b{re.escape(_sans_accents(kw))}s?\b", question_sans_accents):
             return "PERTINENT"
 
     # Mots-clés porteurs de sens : sous-chaîne, pour couvrir les formes fléchies.
+    #
+    # Finding 1 (revue finale de branche) : le passage des abréviations
+    # (ci-dessus) au mot entier était juste — « fa »/« ens » en sous-chaîne
+    # matchaient « fait »/« pense » — mais ce match accidentel était aussi le
+    # seul filet qui rattrapait de vraies questions d'étudiants au travers de
+    # cette liste-ci, trop pauvre. Mesuré par le relecteur : 18 pertes sur 20
+    # vraies questions contenant « fa »/« ens ». Les mots ci-dessous
+    # (examen, renseignement, enseignant, inscrire, note, moyenne, semestre,
+    # rentrée, campus, paiement, matière, résultat) comblent le vocabulaire
+    # manquant identifié par la revue — voir le script de différentiel
+    # (scripts/diff_relevance_f4bf621.py) pour la preuve qu'aucune des
+    # phrases du corpus ne régresse par rapport à l'état d'avant le chantier.
     keywords_uam = [
         "abdou moumouni",
         "faculté", "école", "institut", "formation", "filière",
@@ -245,6 +266,9 @@ def check_question_relevance(question: str) -> str:
         "calendrier", "date limite",
         "carte étudiant", "bourse", "logement", "cité universitaire",
         "orientation", "restauration", "bibliothèque",
+        "examen", "renseignement", "enseignant", "inscrire",
+        "note", "moyenne", "semestre", "rentrée", "campus",
+        "paiement", "matière", "résultat",
     ]
     for kw in keywords_uam:
         if _sans_accents(kw) in question_sans_accents:
