@@ -53,6 +53,10 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL
         )
     """)
+    # Colonne ajoutée après coup : les bases existantes ne l'ont pas.
+    colonnes = {row[1] for row in cursor.execute("PRAGMA table_info(metrics_system)")}
+    if "process_memory_mb" not in colonnes:
+        cursor.execute("ALTER TABLE metrics_system ADD COLUMN process_memory_mb REAL")
     conn.commit()
 
 
@@ -121,24 +125,33 @@ def get_top_questions(limit: int = 20) -> List[Dict[str, int | str]]:
 
 
 def record_system_metrics() -> None:
-    """Enregistre l'utilisation CPU et RAM"""
+    """Enregistre l'utilisation CPU et mémoire, machine et processus.
+
+    `memory_used_mb` mesure la machine entière ; `process_memory_mb` mesure la
+    mémoire résidente de ce processus — la seule grandeur qui dise ce que coûte
+    l'agent lui-même, modèle d'embeddings compris.
+    """
     try:
         import psutil
-        cpu = psutil.cpu_percent(interval=None)
-        mem = psutil.virtual_memory()
-        
-        conn = _get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO metrics_system (cpu_percent, memory_percent, memory_used_mb, created_at)
-            VALUES (?, ?, ?, ?)
-            """,
-            (cpu, mem.percent, mem.used / (1024 * 1024), datetime.now().isoformat())
-        )
-        conn.commit()
     except ImportError:
-        pass
+        return
+
+    processus = psutil.Process()
+    cpu = psutil.cpu_percent(interval=None)
+    mem = psutil.virtual_memory()
+    rss_mb = processus.memory_info().rss / (1024 * 1024)
+
+    conn = _get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO metrics_system
+        (cpu_percent, memory_percent, memory_used_mb, process_memory_mb, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (cpu, mem.percent, mem.used / (1024 * 1024), rss_mb, datetime.now().isoformat())
+    )
+    conn.commit()
 
 
 def get_latest_system_metrics() -> Optional[Dict[str, float]]:
@@ -146,13 +159,17 @@ def get_latest_system_metrics() -> Optional[Dict[str, float]]:
     conn = _get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT cpu_percent, memory_percent, memory_used_mb FROM metrics_system ORDER BY id DESC LIMIT 1")
+        cursor.execute(
+            "SELECT cpu_percent, memory_percent, memory_used_mb, process_memory_mb "
+            "FROM metrics_system ORDER BY id DESC LIMIT 1"
+        )
         row = cursor.fetchone()
         if row:
             return {
                 "cpu_percent": round(row["cpu_percent"], 1),
                 "memory_percent": round(row["memory_percent"], 1),
-                "memory_used_mb": round(row["memory_used_mb"], 1)
+                "memory_used_mb": round(row["memory_used_mb"], 1),
+                "process_memory_mb": round(row["process_memory_mb"] or 0.0, 1),
             }
     except sqlite3.OperationalError:
         pass

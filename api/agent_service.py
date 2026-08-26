@@ -26,7 +26,7 @@ from document_loader import load_and_index_documents  # noqa: E402
 from llm_utils import initialize_llm  # noqa: E402
 from logger_config import get_logger  # noqa: E402
 from memory import _user_memory  # noqa: E402
-from metrics import record_question  # noqa: E402
+from metrics import record_question, record_system_metrics  # noqa: E402
 from tools import set_session_user_id  # noqa: E402
 
 logger = get_logger(__name__)
@@ -186,6 +186,7 @@ def _record(session_id: str, question: str, response_text: str, is_relevant, ela
     """Métriques et historique — best effort, ne doit jamais casser une réponse."""
     try:
         record_question(session_id, question, is_relevant, elapsed_ms)
+        record_system_metrics()
         _user_memory.add_conversation(session_id, question, response_text)
     except Exception as exc:
         logger.warning(f"Enregistrement des métriques impossible : {exc}")

@@ -80,11 +80,20 @@ def home(request: Request):
 @app.get("/health")
 def health():
     """État du service."""
+    from metrics import get_latest_system_metrics
+
+    try:
+        systeme = get_latest_system_metrics()
+    except Exception as exc:  # la santé du service ne doit jamais dépendre des métriques
+        logger.warning(f"Lecture des métriques système impossible : {exc}")
+        systeme = None
+
     return {
         "status": "ok",
         "composantes": len(site_data.get_composantes()),
         "formations": len(site_data.get_formations()),
         "whatsapp": whatsapp_is_configured(),
+        "systeme": systeme,
     }
 
 
