@@ -635,15 +635,62 @@ def search_student_courses_db(
 
 def is_database_available() -> bool:
     """
-    Vérifie si la base de données est disponible
-    
+    Vérifie si la base de données est disponible ET que son schéma est initialisé.
+
+    Finding 3 (revue finale de branche) : tester seulement l'existence d'un
+    objet connexion ment sur une installation neuve. `sqlite3.connect()`
+    **crée** le fichier cible s'il est absent — sur un clone qui reprend
+    `.env.example` (lequel pose `UAM_DB_TYPE=sqlite`), c'est le cas nominal.
+    La connexion « réussit » donc sur une base vide sans la moindre table,
+    `is_database_available()` renvoyait `True`, `search_student_record`
+    était exposé et annoncé au LLM, et chaque requête réelle journalisait une
+    `OperationalError` en ERROR.
+
+    La disponibilité est donc mesurée par une sonde de schéma bon marché — une
+    requête qui échoue si les tables/collections attendues n'existent pas —
+    plutôt que par l'existence de la connexion. Cette fonction est appelée au
+    niveau module par `tools/_db.py` : la sonde ne doit jamais lever, une
+    erreur inattendue vaut indisponibilité, pas une exception qui remonterait
+    jusqu'à l'import du paquet `tools`.
+
     Returns:
-        True si la base de données est configurée et accessible
+        True si la base de données est configurée, accessible, et que son
+        schéma attendu (table `etudiants` en SQL, ping serveur en MongoDB)
+        est bien initialisé.
     """
-    global _db_connection
-    
+    global _db_connection, _db_type
+
     if _db_connection is None:
         _db_connection = get_db_connection()
-    
-    return _db_connection is not None
+
+    if _db_connection is None:
+        return False
+
+    try:
+        if _db_type == DatabaseType.MONGODB:
+            # `_db_connection[collection].find(...)` réussirait aussi
+            # silencieusement sur une collection absente (même piège que
+            # sqlite3.connect() sur un fichier absent) : on sonde plutôt le
+            # serveur lui-même, sans dépendre d'une collection précise.
+            _db_connection.client.admin.command("ping")
+        else:
+            cursor = _db_connection.cursor()
+            try:
+                cursor.execute("SELECT 1 FROM etudiants LIMIT 1")
+                cursor.fetchone()
+            finally:
+                cursor.close()
+        return True
+    except Exception as e:
+        # PostgreSQL laisse la transaction courante en état « aborted »
+        # après une requête en échec : sans rollback, les appels réels
+        # suivants sur cette même connexion échoueraient aussi, même si le
+        # schéma est en réalité valide (faux négatif en cascade). Sans effet
+        # sur SQLite/MySQL (autocommit), donc inconditionnel et sans risque.
+        try:
+            _db_connection.rollback()
+        except Exception:
+            pass
+        logger.debug(f"Sonde de disponibilité de la base échouée (schéma absent ou base injoignable) : {e}")
+        return False
 

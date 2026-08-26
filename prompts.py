@@ -84,9 +84,17 @@ def build_tool_system_prompt(structures_context: str = "") -> str:
         else "9. Actualités/annonces → search_uam_knowledge (documents indexés — pas de flux BD sur ce backend)\n"
     )
     # search_student_record dépend de _db_available seul (pas d'un des deux
-    # drapeaux ci-dessus) : sans base — le cas nominal d'une installation
-    # neuve, database/scolarite_uam.db n'étant pas versionnée (*.db dans
-    # .gitignore) — get_tools() ne l'expose pas non plus.
+    # drapeaux ci-dessus). Finding 3 (revue finale de branche) : _db_available
+    # (donc cette ligne) est False non pas simplement quand le fichier
+    # database/scolarite_uam.db est absent (*.db dans .gitignore — le cas
+    # nominal d'une installation neuve, avant tout `seed_database.py`), mais
+    # plus précisément dès que son schéma n'est pas initialisé —
+    # is_database_available() (database_connector.py) sonde la présence de
+    # la table `etudiants` plutôt que la simple existence d'une connexion.
+    # Avant ce correctif, sqlite3.connect() créait silencieusement un
+    # fichier vide sur un chemin absent et faisait passer _db_available à
+    # True à tort ; get_tools() ne l'expose donc désormais correctement que
+    # lorsque la base est à la fois présente et peuplée.
     ligne_dossier_etudiant = (
         "- search_student_record   : Consulte le dossier d'un étudiant par matricule\n"
         "  * Utilise quand : \"mon matricule est UAM…\", \"mon inscription est-elle validée ?\",\n"
