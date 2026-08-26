@@ -183,13 +183,27 @@ def _prepare_run(question: str, session_id: str):
 
 
 def _record(session_id: str, question: str, response_text: str, is_relevant, elapsed_ms: int):
-    """Métriques et historique — best effort, ne doit jamais casser une réponse."""
+    """Métriques et historique — best effort, ne doit jamais casser une réponse.
+
+    `record_system_metrics()` a son propre bloc protégé, séparé de celui des
+    deux appels préexistants (`record_question`, `add_conversation`) : une
+    panne de la collecte système (base verrouillée, disque plein) ne doit
+    pas faire sauter silencieusement l'enregistrement de l'historique de
+    conversation, qui n'a rien à voir avec elle. Une protection dédiée est
+    préférée à un simple déplacement en fin de bloc partagé : elle reste
+    correcte même si un futur appel s'ajoute après elle, ce qu'un
+    réordonnancement ne garantirait pas.
+    """
     try:
         record_question(session_id, question, is_relevant, elapsed_ms)
-        record_system_metrics()
         _user_memory.add_conversation(session_id, question, response_text)
     except Exception as exc:
         logger.warning(f"Enregistrement des métriques impossible : {exc}")
+
+    try:
+        record_system_metrics()
+    except Exception as exc:
+        logger.warning(f"Collecte des métriques système impossible : {exc}")
 
 
 def answer(
