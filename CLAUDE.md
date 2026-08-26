@@ -20,8 +20,8 @@ python test_setup.py
 # Reconstruire la base de données scolarité (nécessaire après un clone : database/scolarite_uam.db
 # n'est pas versionnée, *.db est dans .gitignore ; sans elle, search_student_record et
 # search_statistics_uam ne renvoient aucun résultat, faute de tables). Dans cet ordre :
-python database/simulation_scolarite.py   # crée le schéma et les données simulées (58 étudiants)
-python seed_database.py                   # ajoute frais_formations et statistiques_composantes
+python database/simulation_scolarite.py   # crée le schéma et 50 étudiants simulés
+python seed_database.py                   # ajoute frais_formations, statistiques_composantes et 8 étudiants de test (58 étudiants au total)
 
 # Installer les dépendances
 pip install -r requirements.txt

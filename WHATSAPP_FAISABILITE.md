@@ -112,7 +112,7 @@ moi de première main, mais cohérente avec le fait que `whatsapp_verify` et
 `whatsapp_webhook` (`api/main.py:146-214`) sont de simples routes FastAPI locales sans
 aucune préparation TLS ni exposition réseau dans le code : rien dans ce dépôt ne sert
 HTTPS ni n'ouvre de port public, `./run_api.sh` lance uvicorn en local (`http://localhost:8000`,
-`api/main.py:9`).
+`run_api.sh:5`).
 
 **Option tunnel, pour une démonstration.** `WHATSAPP.md` (lignes 36-45) décrit
 `cloudflared tunnel --url http://localhost:8000` ou `ngrok http 8000` comme solution
@@ -216,18 +216,20 @@ n'existe dans le code applicatif de ce dépôt (recherche textuelle sur ces term
 pertinente).
 
 **SEC-01 — une faille qui change de nature avec le canal.** `search_student_record`
-(`tools/base_donnees.py:34-70`) retourne, à partir du seul matricule et sans aucune
-authentification, le statut d'inscription, les paiements, les résultats et les crédits
-ECTS d'un étudiant (vérifié en lisant la fonction : aucun jeton, cookie ou identifiant de
-session n'est exigé — le paramètre `matricule` suffit). Tant que l'agent n'est joignable
-qu'en local, avec 58 étudiants simulés, c'est théorique. Sur un canal WhatsApp public,
+(`tools/base_donnees.py:34-177` — signature, docstring et gardes en 34-70, code qui produit
+effectivement les paiements, les résultats et les crédits ECTS en 115-169) retourne, à
+partir du seul matricule et sans aucune authentification, le statut d'inscription, les
+paiements, les résultats et les crédits ECTS d'un étudiant (vérifié en lisant la fonction
+en entier : aucun jeton, cookie ou identifiant de session n'est exigé — le paramètre
+`matricule` suffit). Tant que l'agent n'est joignable qu'en local, avec 58 étudiants
+simulés, c'est théorique. Sur un canal WhatsApp public,
 n'importe qui peut écrire au numéro de l'université : il suffit de connaître ou deviner un
 matricule au format documenté (`UAM` + 6 chiffres) pour obtenir le dossier scolaire d'un
 tiers. La même faille change donc de nature : d'un risque de laboratoire à un risque
 concret sur des données nominatives réelles, dès que de vraies données étudiantes
 remplacent la simulation. Fait aggravant, trouvé en vérifiant le texte que l'agent renvoie
 lui-même quand on lui demande ce qu'il sait faire (`get_agent_capabilities()`,
-`tools/conversation.py:433-483`) : la réponse contient explicitement, ligne 483,
+`tools/conversation.py:433-485`) : la réponse contient explicitement, ligne 483,
 « Je ne peux pas accéder à vos données personnelles (notes, inscription individuelle) » —
 une affirmation que `search_student_record` contredit directement. L'agent se présente
 donc à l'utilisateur comme n'ayant pas cet accès, alors qu'il l'a. **Avant toute mise en
