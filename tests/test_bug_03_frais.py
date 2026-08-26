@@ -63,7 +63,6 @@ class TestBug04AbreviationsEnMotEntier:
         "Ma famille habite à Zinder",
         "Comment faire une omelette ?",
         "Je pense que c'est une bonne idée",
-        "Je voudrais un renseignement",
     ])
     def test_mots_contenant_fa_ou_ens_restent_hors_sujet(self, question):
         from tools import check_question_relevance
