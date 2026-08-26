@@ -150,6 +150,15 @@ def detect_greeting(message: str) -> str:
         "qui", "quel", "quelle", "quels", "quelles", "combien",
         "est-ce que", "est-ce qu", "puis-je", "peut-on",
     ]
+    # Finding 2 (revue finale de branche, même famille que BUG-04/finding 1) :
+    # recherche en mot entier, comme pour les abréviations de
+    # check_question_relevance. En sous-chaîne, "fa" matchait dans "parfait"
+    # — has_uam_content devenait vrai en permanence dès qu'un remerciement
+    # contenait "parfait", et `is_thanks and not has_uam_content` ne pouvait
+    # plus jamais valoir vrai : "Merci beaucoup, c'est parfait" ne produisait
+    # jamais THANKS. La convention du mot entier, établie dans
+    # check_question_relevance, avait été abandonnée ici alors que les deux
+    # fonctions s'enchaînent dans le même routage (graph_nodes.py, route_and_store).
     uam_keywords = [
         "uam", "université", "faculté", "école", "institut", "formation",
         "inscription", "réinscription", "admission", "diplôme",
@@ -157,7 +166,9 @@ def detect_greeting(message: str) -> str:
         "master", "licence", "doctorat", "thèse", "bourse", "étudiant",
     ]
     is_question = any(kw in message_lower for kw in question_keywords) or "?" in message
-    has_uam_content = any(kw in message_lower for kw in uam_keywords)
+    has_uam_content = any(
+        re.search(rf"\b{re.escape(kw)}\b", message_lower) for kw in uam_keywords
+    )
 
     # --- Priorité : fin de conv > remerciement > salutation ---
     if is_farewell and not (is_question or has_uam_content):
