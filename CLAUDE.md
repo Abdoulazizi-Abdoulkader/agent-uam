@@ -71,8 +71,11 @@ graph_nodes.py — nœuds du graphe :
 tool_node.py (ToolNode) — exécute les outils appelés par le LLM
     ↓
 tools/ — 49 outils @tool pour recherche sémantique FAISS, infos facultés, frais, etc.
-         (49 outils au total : 45 toujours actifs, 3 conditionnés à la base de
-         données, et search_latest_news réservé aux backends documentaires)
+         (49 outils au total : 45 toujours actifs, 2 conditionnés à la base de
+         données (search_student_record, search_statistics_uam), et 2 réservés
+         aux backends documentaires — search_latest_news (BUG-01) et
+         get_schedules_from_db (BUG-11), tous deux inertes sur SQLite faute de
+         table. En configuration réelle (SQLite) : 47 outils exposés.)
 ```
 
 ### Modules clés
