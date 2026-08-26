@@ -103,7 +103,8 @@ voulu : Meta n'attend pas, et rejoue les webhooks qu'il croit perdus.
 
 ## Pour aller en production
 
-Le checkpointer LangGraph est en mémoire ([agent_graph.py:80](agent_graph.py#L80)) :
-redémarrer le serveur efface toutes les conversations. Un service réel demanderait un
-`SqliteSaver` ou un `PostgresSaver`, un numéro WhatsApp vérifié au nom de l'université
-et un hébergement permanent.
+Le checkpointer LangGraph persiste désormais par défaut dans SQLite
+([agent_graph.py:_build_checkpointer](agent_graph.py#L19)) : une conversation
+survit à un redémarrage du serveur. Reste à obtenir un numéro WhatsApp vérifié
+au nom de l'université et un hébergement HTTPS permanent — le tunnel décrit
+plus haut ne convient qu'à une démonstration.
