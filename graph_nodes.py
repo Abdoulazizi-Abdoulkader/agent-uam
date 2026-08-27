@@ -12,6 +12,7 @@ from tools import (
     detect_user_profile,
     detect_frustration_or_confusion,
 )
+from tools.conversation import _OFF_TOPIC_RE, _normalise_saisie
 from agent_state import AgentState
 from logger_config import get_logger
 from utils import validate_question
@@ -78,6 +79,16 @@ _LENGTH_HINTS: dict[str, str] = {
 # 12 messages ≈ 6 échanges question/réponse : assez pour les questions de suivi
 # (« et pour le Master ? ») une fois les résultats d'outils purgés par _compress_history.
 _MAX_HISTORY = 12
+
+# BUG-10 (cause 1) : seuil de longueur pour reconnaître une relance elliptique
+# après un échange déjà routé vers l'agent (« Et combien ça coûte ? », « Oui »…).
+# Calibré sur le maximum mesuré des relances qui ont réellement besoin de ce
+# mécanisme (corpus de 20 relances, audit BUG-10 / task-13-report.md) : 21
+# caractères (« Et combien ça coûte ? », « D'accord et ensuite ? »). Un seuil
+# plus large romprait le garde-fou hors-sujet — « Raconte-moi une blague » ne
+# fait que 22 caractères et doit rester rejetée même après un tour vers agent
+# (voir tests/test_routage_relances.py::TestHorsSujetApresEchangeValide).
+_RELANCE_LONGUEUR_MAX = 21
 
 
 # ── Fonctions privées de construction du contexte ─────────────────────────────
@@ -225,6 +236,22 @@ def route_and_store(state: AgentState) -> AgentState:
         if relevance == "PERTINENT" or greeting_type == "BOTH":
             logger.debug("Question pertinente → agent")
             return _result("agent", profile=profile)
+
+        # ── 6. Relance elliptique après un échange valide (BUG-10, cause 1) ───
+        # Une relance comme « Et combien ça coûte ? » ne contient par nature
+        # aucun mot-clé UAM : mesuré à 15 rejets sur 20 relances naturelles
+        # (audit BUG-10). Trois conditions cumulatives, aucune négociable :
+        #  - le tour précédent a atteint l'agent — routing_hint porte encore
+        #    cette valeur au moment où on la lit ici, _result() ne l'écrase
+        #    qu'à son retour ;
+        #  - le message est court — une relance est elliptique par nature ;
+        #  - _OFF_TOPIC_RE ne matche pas — ce garde-fou n'est jamais contourné,
+        #    même par un message court (ex. « Il pleut ? »).
+        if state.get("routing_hint") == "agent" and len(question.strip()) <= _RELANCE_LONGUEUR_MAX:
+            question_normalisee = _normalise_saisie(question.lower())
+            if not any(pat.search(question_normalisee) for pat in _OFF_TOPIC_RE):
+                logger.debug("Relance elliptique après échange valide → agent (BUG-10 cause 1)")
+                return _result("agent", profile=profile)
 
         logger.debug("Question hors sujet → reject_query")
         return _result("reject_query", profile=profile)
