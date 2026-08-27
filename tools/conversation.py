@@ -249,7 +249,17 @@ def check_question_relevance(question: str) -> str:
     # sous-chaîne, "bac" collisionnerait avec "débâcle"/"embâcle"/"bâcler"
     # une fois désaccentués ("bacle", "debacle", "embacle" contiennent tous
     # "bac") ; le mot entier évite cette collision.
-    keywords_mot_entier = ["relevé", "bac"]
+    #
+    # "internat" (re-revue post-finding-1, corpus indépendant du relecteur) :
+    # « Ma famille veut savoir si l'internat existe » restait HORS_SUJET
+    # après le finding 1 — « famille » contenait « fa », l'ancien filet
+    # accidentel de BUG-04, et aucun mot de la liste ne couvrait
+    # « internat ». Mot entier plutôt que sous-chaîne : "internat" est un
+    # préfixe strict de "international" ("interNATional"), un mot bien plus
+    # généraliste (actualité internationale, compétition sportive
+    # internationale, marché international...) qui n'a pas de rapport
+    # systématique avec l'hébergement universitaire.
+    keywords_mot_entier = ["relevé", "bac", "internat"]
     for kw in keywords_mot_entier:
         if re.search(rf"\b{re.escape(_sans_accents(kw))}s?\b", question_sans_accents):
             return "PERTINENT"
