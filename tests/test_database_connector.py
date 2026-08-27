@@ -29,6 +29,10 @@ def _config_non_empoisonnee():
     tests l'expose. Voir task-10-report.md pour la reproduction isolée."""
     import app_config
     app_config._config = None
+    # Pas de `yield` + restauration de la valeur d'origine après le test :
+    # délibéré, pas un oubli. Cette valeur d'origine est précisément l'état
+    # empoisonné (db_type=None) que cette fixture neutralise — la restaurer
+    # réintroduirait le poison pour le test suivant au lieu de l'éliminer.
 
 
 class TestDisponibilite:
@@ -48,7 +52,7 @@ class TestRequetes:
             assert isinstance(resultat[0], dict)
 
     def test_les_statistiques_officielles_sont_lisibles(self):
-        """La table statistiques_composantes n'existe que dans la base racine."""
+        """La table statistiques_composantes existe dans database/scolarite_uam.db (la base testée ici), pas dans la base racine uam_database.db."""
         from database_connector import get_official_stats_db
         resultat = get_official_stats_db()
         assert isinstance(resultat, list)

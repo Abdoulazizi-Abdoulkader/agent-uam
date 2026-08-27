@@ -13,7 +13,7 @@
 4. [Configuration](#4-configuration)
 5. [Base de connaissances RAG](#5-base-de-connaissances-rag)
 6. [Base de données scolarité](#6-base-de-données-scolarité)
-7. [Les 48 outils @tool](#7-les-48-outils-tool)
+7. [Les 49 outils @tool](#7-les-49-outils-tool)
 8. [Profils utilisateurs](#8-profils-utilisateurs)
 9. [Interface web Streamlit](#9-interface-web-streamlit)
 10. [Pipeline d'évaluation](#10-pipeline-dévaluation)
@@ -43,7 +43,7 @@ L'agent UAM est un assistant conversationnel intelligent destiné aux étudiants
 |---|---|
 | **Pattern ReAct** | Le LLM choisit et enchaîne dynamiquement jusqu'à 5 outils par requête |
 | **Routage intelligent** | 9 cas conversationnels détectés avant tout appel LLM |
-| **48 outils spécialisés** | Recherche sémantique FAISS + requêtes SQL + données statiques |
+| **49 outils spécialisés** | Recherche sémantique FAISS + requêtes SQL + données statiques (47 exposés en configuration SQLite) |
 | **Profil utilisateur** | 9 profils détectés automatiquement (bachelier, étranger, candidat master…) |
 | **Mémoire de session** | `MemorySaver` LangGraph — continuité intra-session |
 | **Mémoire long terme** | Préférences SQLite persistées entre sessions |
@@ -60,7 +60,7 @@ Entrée utilisateur
         │
   [route_and_store]           ← détecte le profil + classe le message
         │
-        ├─ "agent"            → [call_model]   ← LLM + 48 outils bindés
+        ├─ "agent"            → [call_model]   ← LLM + 47 outils bindés (config. SQLite)
         │                             │
         │                   ┌─────────┴──────────┐
         │                   ▼                    ▼
@@ -349,7 +349,7 @@ Relancer seul `seed_database.py` sur une base déjà initialisée est sûr (idem
 
 ---
 
-## 7. Les 48 outils @tool
+## 7. Les 49 outils @tool
 
 ### Catégorie : Recherche documentaire (RAG)
 
@@ -409,6 +409,7 @@ Relancer seul `seed_database.py` sur une base déjà initialisée est sûr (idem
 |---|---|
 | `search_student_record` | Dossier étudiant par matricule (`query_type`: inscription / paiement / resultats / cours / general) |
 | `get_schedules_from_db` | Emplois du temps (faculté, filière, niveau) |
+| `search_statistics_uam` | Effectifs étudiants et personnel (enseignants-chercheurs, PAT, vacataires) par composante/niveau |
 | `calculate_fees` | Calcul des frais selon le niveau et la faculté |
 
 ### Catégorie : Détection et conversation
@@ -536,7 +537,7 @@ Fichier : `dataset_evaluation.csv`
 |---|---|---|
 | **LLM seul** | `--llm-only` | Génération directe, sans retrieval ni outils |
 | **RAG séquentielle** | `--baseline` | Retrieve top-4 documents → generate, sans graphe |
-| **Agent LangGraph** | *(défaut)* | Graphe ReAct + 48 outils + routage + mémoire |
+| **Agent LangGraph** | *(défaut)* | Graphe ReAct + 47 outils (config. SQLite) + routage + mémoire |
 
 ### Commandes
 
