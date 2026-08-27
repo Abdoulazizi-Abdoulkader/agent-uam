@@ -460,7 +460,10 @@ if question:
                         "user_id": st.session_state.user_id,
                         "user_preferences": user_prefs,
                         "tool_iterations": 0,
-                        "routing_hint": "",
+                        # routing_hint volontairement absent : voir le
+                        # commentaire de _prepare_run (api/agent_service.py) —
+                        # même mécanisme, même checkpointer LangGraph, même
+                        # raisonnement (BUG-14 / tâche 20).
                         "routing_context": "",
                         "user_profile": "",
                     }

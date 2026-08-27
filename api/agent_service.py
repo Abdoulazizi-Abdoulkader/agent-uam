@@ -175,7 +175,21 @@ def _prepare_run(question: str, session_id: str):
         "user_id": session_id,
         "user_preferences": user_preferences,
         "tool_iterations": 0,
-        "routing_hint": "",
+        # routing_hint volontairement absent (BUG-14) : ce champ n'a pas de
+        # réducteur Annotated dans AgentState, donc pour LangGraph toute clé
+        # présente dans l'entrée d'invoke()/stream() écrase la valeur persistée
+        # par le checkpointer, même à "" — avant même que route_and_store ne
+        # s'exécute pour ce tour. route_and_store lit routing_hint du tour
+        # précédent (mémoire d'un tour, tâche 20/BUG-10 cause 1) : l'omettre ici
+        # laisse le checkpointer le restituer. Sans routing_hint persisté (tout
+        # premier tour d'un thread_id), state.get("routing_hint") vaut None,
+        # traité comme "pas agent" par route_and_store — sans risque.
+        # routing_context et user_profile restent réinitialisés à chaque tour :
+        # route_and_store les réécrit intégralement dans tous ses embranchements
+        # (voir _result()), donc aucun code ne lit jamais leur valeur du tour
+        # précédent avant que route_and_store ne les recalcule pour le tour en
+        # cours — contrairement à routing_hint, les persister n'aurait aucun
+        # effet observable aujourd'hui (mesuré, voir task-20-report.md).
         "routing_context": "",
         "user_profile": "",
     }
