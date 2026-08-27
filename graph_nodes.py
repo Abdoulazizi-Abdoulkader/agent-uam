@@ -2,6 +2,7 @@
 Nœuds du graphe LangGraph pour l'agent conversationnel UAM
 """
 import logging
+import re
 from langchain_core.messages import AIMessage, SystemMessage
 from typing import Literal
 from langsmith import traceable
@@ -80,15 +81,45 @@ _LENGTH_HINTS: dict[str, str] = {
 # (« et pour le Master ? ») une fois les résultats d'outils purgés par _compress_history.
 _MAX_HISTORY = 12
 
-# BUG-10 (cause 1) : seuil de longueur pour reconnaître une relance elliptique
-# après un échange déjà routé vers l'agent (« Et combien ça coûte ? », « Oui »…).
-# Calibré sur le maximum mesuré des relances qui ont réellement besoin de ce
-# mécanisme (corpus de 20 relances, audit BUG-10 / task-13-report.md) : 21
-# caractères (« Et combien ça coûte ? », « D'accord et ensuite ? »). Un seuil
-# plus large romprait le garde-fou hors-sujet — « Raconte-moi une blague » ne
-# fait que 22 caractères et doit rester rejetée même après un tour vers agent
-# (voir tests/test_routage_relances.py::TestHorsSujetApresEchangeValide).
-_RELANCE_LONGUEUR_MAX = 21
+# BUG-10 (cause 1), fix round 1 — la longueur seule est anti-corrélée avec ce
+# qu'elle doit séparer : mesuré par le contrôleur, les phrases hors sujet
+# courtes (« Une blague ? », « Ferme-la »…) sont en médiane PLUS courtes que
+# les vraies relances (« Peux-tu me détailler ça ? »). Aucun seuil de longueur
+# ne peut donc discriminer seul — à 21 caractères, la porte laissait passer la
+# quasi-totalité d'un corpus hors sujet court. La longueur seule a été
+# remplacée par une condition de FORME : un marqueur de continuation en tête
+# de message, ou un interrogatif nu (le message entier n'est que ce mot).
+# Aucune de ces deux catégories de mots n'a de sens en ouverture d'un échange
+# neuf — un vrai hors-sujet ne les emploie pas ainsi (vérifié sur un corpus
+# construit pour ce fix round, voir tests/test_routage_relances.py).
+#
+# Marqueurs en tête : la relance commence par un mot qui n'a de sens qu'en
+# continuation ("et", "oui", "non", "d'accord", "ok", "ensuite", "alors",
+# "peux-tu", "pouvez-vous", "quel est mon"). Pas de forme désaccentuée : un
+# marqueur "ou\b" désaccentué attraperait "où" ("C'est où ?") ET la
+# conjonction "ou" dans une vraie phrase hors sujet ("... riz ou mil ?") —
+# piège identifié en revue, évité en ne matchant jamais sur le texte
+# désaccentué pour cette condition.
+_FORME_TETE_RE = re.compile(
+    r"^(et|oui|non|d'accord|ok|ensuite|alors|peux-tu|pouvez-vous|quel est mon)\b"
+)
+# Interrogatifs nus : le message ENTIER (une fois dépouillé) n'est que ce mot
+# — distinct d'un marqueur en tête, qui peut être suivi de texte.
+_FORME_NUE_RE = re.compile(r"^(pourquoi|combien|comment\s*[cç]a)\s*\??\s*$")
+
+# La longueur reste une condition ADDITIONNELLE (ET, pas OU) à la forme — pas
+# un mécanisme de repli autonome : un repli fondé sur la seule longueur pour
+# les quelques relances non couvertes par la forme (« C'est où ? », 10
+# caractères) rouvrirait exactement la faille corrigée ici, puisque des
+# phrases franchement hors sujet du corpus de ce fix round sont plus courtes
+# encore (« Ferme-la », 8 caractères ; « 2 + 2 ? », 7 caractères) — aucun
+# seuil ne peut admettre l'une sans admettre l'autre. « C'est où ? » et « À
+# quelle date ? » restent donc hors de la porte : écart résiduel assumé,
+# documenté plutôt que comblé par un mécanisme non sûr. Seuil calibré sur le
+# maximum mesuré des relances qui satisfont la forme (corpus de ce fix round,
+# incluant les relances plus longues fournies en revue) : 30 caractères
+# (« Et combien ça coûte au total ? »).
+_RELANCE_LONGUEUR_MAX = 30
 
 
 # ── Fonctions privées de construction du contexte ─────────────────────────────
@@ -240,16 +271,25 @@ def route_and_store(state: AgentState) -> AgentState:
         # ── 6. Relance elliptique après un échange valide (BUG-10, cause 1) ───
         # Une relance comme « Et combien ça coûte ? » ne contient par nature
         # aucun mot-clé UAM : mesuré à 15 rejets sur 20 relances naturelles
-        # (audit BUG-10). Trois conditions cumulatives, aucune négociable :
+        # (audit BUG-10). Quatre conditions cumulatives, aucune négociable :
         #  - le tour précédent a atteint l'agent — routing_hint porte encore
         #    cette valeur au moment où on la lit ici, _result() ne l'écrase
         #    qu'à son retour ;
-        #  - le message est court — une relance est elliptique par nature ;
-        #  - _OFF_TOPIC_RE ne matche pas — ce garde-fou n'est jamais contourné,
-        #    même par un message court (ex. « Il pleut ? »).
-        if state.get("routing_hint") == "agent" and len(question.strip()) <= _RELANCE_LONGUEUR_MAX:
-            question_normalisee = _normalise_saisie(question.lower())
-            if not any(pat.search(question_normalisee) for pat in _OFF_TOPIC_RE):
+        #  - la FORME : un marqueur de continuation en tête, ou un
+        #    interrogatif nu (fix round 1 — remplace la longueur seule,
+        #    anti-corrélée avec ce qu'elle devait séparer) ;
+        #  - la longueur reste bornée, en ET avec la forme (pas en repli) ;
+        #  - _OFF_TOPIC_RE ne matche pas — ce garde-fou n'est jamais contourné.
+        if state.get("routing_hint") == "agent":
+            question_normalisee = _normalise_saisie(question.lower().strip())
+            forme_ok = bool(_FORME_TETE_RE.match(question_normalisee)) or bool(
+                _FORME_NUE_RE.match(question_normalisee)
+            )
+            if (
+                forme_ok
+                and len(question.strip()) <= _RELANCE_LONGUEUR_MAX
+                and not any(pat.search(question_normalisee) for pat in _OFF_TOPIC_RE)
+            ):
                 logger.debug("Relance elliptique après échange valide → agent (BUG-10 cause 1)")
                 return _result("agent", profile=profile)
 
