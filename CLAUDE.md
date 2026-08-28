@@ -139,6 +139,53 @@ servent qu'au tour qui les a produits, et pèsent ~1 500 tokens chacun). Les deu
 sont retirés ensemble : l'API exige qu'un message annonçant des `tool_calls` soit suivi
 de leurs résultats.
 
+### Accès au dossier étudiant : second facteur obligatoire (SEC-01)
+
+`search_student_record` **n'accepte pas le matricule seul**. `date_naissance` est
+un argument obligatoire, vérifié contre `etudiants.date_naissance` par
+`database_connector.verify_student_birthdate`, qui renvoie un booléen et jamais
+la date elle-même — elle ne circule donc pas dans les dictionnaires que les
+outils formatent.
+
+Trois invariants à ne pas casser en modifiant cet outil :
+
+- **Pas d'oracle d'énumération** : un matricule inconnu et une date incorrecte
+  renvoient le *même* message, au caractère près, sans écho du matricule. Le
+  format des matricules est prévisible (`UAM` + 6 chiffres) : un message qui
+  distinguerait les deux cas permettrait de découvrir par balayage quels
+  dossiers existent.
+- **Fail-closed** : erreur de base, date illisible, dossier sans date de
+  naissance → refus, jamais accès.
+- **Non-divulgation** : la date de naissance n'apparaît dans aucune réponse.
+
+Ce n'est **pas** une authentification (pas de session étudiant dans cette
+application) : c'est la barrière que le schéma permet de poser pour la
+démonstration sur base simulée. La mise en production avec les vraies données
+de scolarité demande une authentification réelle. Preuve :
+`tests/test_sec_01_dossier_etudiant.py`.
+
+### Routage hors sujet : deux étages de mots-clés
+
+`check_question_relevance` (`tools/conversation.py`) sépare `keywords_forts`
+(mots sans autre sens courant — « faculté », « inscription », « semestre »… —
+qui déclenchent `PERTINENT` seuls) de `keywords_faibles` (mots génériques du
+français — « cours », « service », « dossier », « note », « moyenne »,
+« résultat », « bac »… — qui ne déclenchent `PERTINENT` que si la phrase ne
+porte aucun marqueur de `_DOMAINE_CONCURRENT_RE`).
+
+Deux points de vigilance :
+
+- Le garde-fou de domaine **désarme l'étage faible, il ne rejette pas** : les
+  mécanismes en aval (`uam_geo_patterns`, `external_patterns`,
+  `education_phrases`) peuvent toujours rattraper la phrase. Ne jamais le
+  transformer en rejet direct, ni déplacer ces marqueurs dans `_OFF_TOPIC_RE`,
+  qui court-circuite en tête de fonction (c'est ce court-circuit qui a causé
+  BUG-07).
+- `tests/test_routage_hors_sujet.py` (précision) et
+  `tests/test_keywords_uam_corpus.py` (rappel, 55 vraies questions) doivent
+  rester verts **ensemble** : c'est la seule preuve qu'un resserrement
+  n'éconduit pas de vraies questions.
+
 ### Cas conversationnels gérés par `route_and_store`
 
 | Cas détecté | Destination | Outils utilisés |
