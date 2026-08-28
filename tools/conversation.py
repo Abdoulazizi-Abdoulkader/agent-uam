@@ -4,20 +4,27 @@ import unicodedata
 
 from langchain_core.tools import tool
 
-# Patterns hors-sujet compilés une seule fois au chargement du module
+# Patterns hors-sujet compilés une seule fois au chargement du module.
+#
+# Le `s?` final de chaque groupe est un correctif du 2026-08-28, mesuré et non
+# supposé : les groupes étaient écrits au singulier seul, si bien que
+# « Quel est le résultat des élections au Sénégal ? » et « Quelle est la
+# moyenne des températures à Niamey ? » n'étaient interceptées par aucun
+# motif (`\belection\b` ne matche pas « elections »). Le `s?` porte sur le
+# groupe entier, donc sur chacune de ses alternatives.
 _OFF_TOPIC_RE = [re.compile(p) for p in [
-    r"\b(m[eé]t[eé]o|temp[eé]rature|clima[t]?|pluie|vent|soleil|nuage|pr[eé]vision)\b",
+    r"\b(m[eé]t[eé]o|temp[eé]rature|clima[t]?|pluie|vent|soleil|nuage|pr[eé]vision)s?\b",
     r"quel temps fait[-\s]?il",
-    r"\b(po[eè]me?|chanson|musique|film|cin[eé]ma|roman|litt[eé]rature)\b",
+    r"\b(po[eè]me?|chanson|musique|film|cin[eé]ma|roman|litt[eé]rature)s?\b",
     r"\b(pirater?|hack|mot de passe|compte facebook|instagram|r[eé]seau social)\b",
-    r"\b(recette|cuisine|plat|ingr[eé]dient)\b",
-    r"\b(sport|football|basket|championnat|score|r[eé]sultat sportif)\b",
-    r"\b(bourse[s]? (de|du|des) valeur|action|crypto|bitcoin|investissement financier)\b",
+    r"\b(recette|cuisine|plat|ingr[eé]dient)s?\b",
+    r"\b(sport|football|basket|championnat|score|r[eé]sultat sportif)s?\b",
+    r"\b(bourse[s]? (de|du|des) valeur|action|crypto|bitcoin|investissement financier)s?\b",
     # Politique et gouvernance — sans rapport avec l'UAM
-    r"\b([eé]lection|gouvernement|premier ministre|s[eé]nat|assembl[eé]e nationale)\b",
+    r"\b([eé]lection|gouvernement|premier ministre|s[eé]nat|assembl[eé]e nationale)s?\b",
     r"\bpr[eé]sident.{0,30}(du\s+niger|de la r[eé]publique)\b",
     # Hébergement commercial / restauration non universitaire
-    r"\b(h[ôo]tel|auberge|pension).{0,40}(niamey|niger)\b",
+    r"\b(h[ôo]tel|auberge|pension)s?.{0,40}(niamey|niger)\b",
     # Prix du marché
     r"\bprix.{0,20}(du\s+)?(mil|riz|sucre|kilogramme|kg).{0,20}march[eé]\b",
     r"\bkilogramme.{0,20}(mil|riz|sucre)\b",
@@ -50,6 +57,64 @@ _SELF_ETUDIANT_ETRANGER_RE = re.compile(
     r"mon dipl[ôo]me (vient|est issu))\b"
     r".{0,40}universit[eé].{0,20}[eé]trang[eè]re?\b"
 )
+
+# Marqueurs de domaine concurrent — arbitrage du 2026-08-28 (précision du
+# rejet hors sujet). Ils ne rejettent rien par eux-mêmes : ils **désarment
+# l'étage faible** de `check_question_relevance` (les mots génériques du
+# français courant : « cours », « service », « dossier », « note »,
+# « moyenne », « résultat », « matière », « pièces », « bac »…), qui à eux
+# seuls classaient PERTINENT n'importe quelle phrase du quotidien.
+#
+# Deux propriétés voulues, à ne pas perdre en modifiant cette liste :
+#
+# 1. **Désarmer, pas rejeter.** Les mécanismes en aval (`uam_geo_patterns`,
+#    `external_patterns`, `education_phrases`) rattrapent toujours la phrase
+#    — « payer les frais à la banque » reste PERTINENT via « les frais ».
+#    C'est ce qui distingue cette liste de `_OFF_TOPIC_RE`, qui, lui,
+#    court-circuite tout en tête de fonction (et dont le court-circuit avait
+#    précisément causé BUG-07).
+# 2. **Sans effet sur les mots forts.** « faculté », « inscription »,
+#    « licence », « semestre »… déclenchent PERTINENT avant ce garde-fou :
+#    « Où est la faculté de médecine près de l'hôpital ? » reste PERTINENT.
+#
+# Les motifs sont écrits **sans accents** : ils sont appliqués à la forme
+# désaccentuée de la question (`_sans_accents`), comme les mots-clés.
+_DOMAINE_CONCURRENT_RE = [re.compile(p) for p in [
+    # Sport (complète `_OFF_TOPIC_RE`, où « match » manquait — c'est ce trou
+    # qui laissait passer « le résultat du match »)
+    r"\bmatchs?\b",
+    r"\b(foot|football|basket|championnat|joueurs?|arbitre|stade)\b",
+    # Santé — « medecin » en mot entier ne matche pas « medecine » (la
+    # faculté de médecine doit rester une vraie question)
+    r"\bmedicale?s?\b",
+    r"\b(hopital|clinique|ordonnance|pharmacie|malade|medecin)\b",
+    # Justice et police
+    r"\b(tribunal|avocat|juge|proces|police|gendarmerie|plainte)\b",
+    # Commerce, télécoms, banque
+    r"\bservices? client\b",
+    r"\bapres[-\s]?vente\b",
+    r"\b(airtel|moov|zamani|orange money|niger telecom)\b",
+    r"\bbanques?\b",
+    r"\bpieces? detachees?\b",
+    r"\bmatieres? premieres?\b",
+    r"\b(a louer|location|bail|loyer)\b",
+    # Transport fluvial — le « bac » du fleuve Niger, pas le baccalauréat
+    r"\b(fleuve|pirogue|traversee|rive|gaya|embarcadere)\b",
+    # Énergie et matières premières
+    r"\b(petrole|essence|gasoil|baril|uranium|charbon)\b",
+    # Patrimoine et culte (« la restauration de la mosquée »)
+    r"\b(mosquee|eglise|monument)\b",
+    # Services de renseignement de l'État (≠ « je voudrais des renseignements »)
+    r"\bservices? de renseignement\b",
+    # Finance et change (« le cours du dollar »)
+    r"\b(dollars?|euros?|devises?|taux de change)\b",
+    # Panne matérielle (« le bac de Farié est en panne » — le bac-ferry)
+    r"\bpannes?\b",
+    # Collocations où le mot générique n'a pas son sens universitaire
+    r"\bmoyenne d'?age\b",
+    r"\bde ses fonctions\b",
+    r"\bc'est note\b",
+]]
 
 
 def _sans_accents(texte: str) -> str:
@@ -259,41 +324,149 @@ def check_question_relevance(question: str) -> str:
     # généraliste (actualité internationale, compétition sportive
     # internationale, marché international...) qui n'a pas de rapport
     # systématique avec l'hébergement universitaire.
-    keywords_mot_entier = ["relevé", "bac", "internat"]
-    for kw in keywords_mot_entier:
+    # Arbitrage du 2026-08-28 — deux étages au lieu d'un.
+    #
+    # La revue finale de branche avait signalé « sept tournures » où ce
+    # vocabulaire attrape une question hors sujet, et les avait laissées
+    # comme faux positifs bénins (« un faux négatif éconduit une vraie
+    # question, un faux positif ne fait au pire que répondre à côté »).
+    # L'auteur a tranché l'inverse pour la soutenance : devant un jury qui
+    # teste les limites, un agent qui accepte tout paraît moins maîtrisé.
+    #
+    # Remesuré avant correction sur `route_and_store` (le chemin réel, pas
+    # l'outil isolé qu'avait mesuré la revue), le défaut est plus large que
+    # sept tournures : **21/21** messages hors sujet portant un seul mot
+    # générique atteignaient l'agent — « Le cours du pétrole a monté », « le
+    # service client de Airtel », « Le dossier de l'affaire est classé »,
+    # « la moyenne d'âge au Niger »… Ce n'est pas une liste de cas à
+    # rustiner, c'est le mécanisme : un mot du français courant cherché en
+    # sous-chaîne suffisait à ouvrir la porte.
+    #
+    # D'où la séparation ci-dessous. Elle ne retire aucun mot du
+    # vocabulaire : elle distingue ceux qui suffisent seuls de ceux qui
+    # exigent que la phrase ne parle pas manifestement d'autre chose
+    # (`_DOMAINE_CONCURRENT_RE`). Preuve dans
+    # `tests/test_routage_hors_sujet.py` (précision) et
+    # `tests/test_keywords_uam_corpus.py` (rappel) — les deux doivent rester
+    # verts ensemble.
+    domaine_concurrent = any(
+        motif.search(question_sans_accents) for motif in _DOMAINE_CONCURRENT_RE
+    )
+
+    # --- Étage fort, mot entier ---
+    #
+    # "internat" (re-revue post-finding-1, corpus indépendant du relecteur) :
+    # « Ma famille veut savoir si l'internat existe » restait HORS_SUJET
+    # après le finding 1 — « famille » contenait « fa », l'ancien filet
+    # accidentel de BUG-04, et aucun mot de la liste ne couvrait
+    # « internat ». Mot entier plutôt que sous-chaîne : "internat" est un
+    # préfixe strict de "international" ("interNATional"), un mot bien plus
+    # généraliste (actualité internationale, compétition sportive
+    # internationale, marché international...) qui n'a pas de rapport
+    # systématique avec l'hébergement universitaire.
+    #
+    # "thèse" : **déplacé ici depuis la recherche en sous-chaîne — corrige
+    # BUG-06.** En sous-chaîne, "thèse" est littéralement contenu dans
+    # « hypothèse », « synthèse », « antithèse », « parenthèse » : « Quelle
+    # est ton hypothèse ? » était classée PERTINENT. Le mot entier sépare
+    # les deux (aucune frontière de mot avant "these" dans "hypothese")
+    # sans rien perdre — « faire une thèse », « ma thèse », « les thèses »
+    # matchent toujours, pluriel compris.
+    # "formation", "institut", "recteur" : mot entier pour la même raison que
+    # "internat" ci-dessus — mesuré, pas supposé. En sous-chaîne, "formation"
+    # est contenu dans « information » (« le service de renseignement a
+    # démenti l'information » était classée PERTINENT), « transformation »,
+    # « déformation » ; "recteur" dans « directeur » (« Qui est le directeur
+    # de la banque ? ») ; "institut" dans « institution ». Le pluriel
+    # optionnel conserve toutes les formes réellement utilisées, ces mots
+    # n'ayant pas d'autre flexion.
+    keywords_mot_entier_forts = ["internat", "thèse", "formation", "institut", "recteur"]
+    for kw in keywords_mot_entier_forts:
         if re.search(rf"\b{re.escape(_sans_accents(kw))}s?\b", question_sans_accents):
             return "PERTINENT"
 
-    # Mots-clés porteurs de sens : sous-chaîne, pour couvrir les formes fléchies.
+    # --- Étage faible, mot entier ---
+    #
+    # BUG-05 (revue x4) : "relevé" (nom) recherché en mot entier, pluriel
+    # optionnel, sur la forme désaccentuée. Couvre tout déterminant, la
+    # forme nue et le pluriel ("les relevés", "ses relevés", "ce relevé",
+    # "relevé disponible ?") sans liste à énumérer ni à tenir à jour.
+    #
+    # Ce choix est délibéré, tranché par le contrôleur après trois tours :
+    # une liste fermée de tournures à déterminant (round 3) évite les faux
+    # positifs mais rate des formulations réelles ("les relevés sont-ils
+    # disponibles ?", "relevé svp") — un faux négatif éconduit une vraie
+    # question, un faux positif ne fait au pire que répondre à côté. Le
+    # motif générique accepte donc, en connaissance de cause, de reclasser
+    # en PERTINENT des phrases sans rapport où "relevé" et le verbe
+    # conjugué "relève"/"relèves" sont des homographes exacts après
+    # désaccentuation ("releve" des deux côtés) — \b ne peut pas les
+    # séparer, ce ne sont pas deux chaînes différentes. Le garde-fou de
+    # domaine ci-dessus ferme la collocation la plus courante de cet
+    # homographe (« relevé **de ses fonctions** ») ; le reste de la dette
+    # BUG-06 demeure.
+    #
+    # "bac" (finding 1, revue finale de branche) : ajouté au-delà de la
+    # liste de vocabulaire donnée par la revue, pour couvrir de vraies
+    # questions de bacheliers/parents (« après le bac », « mon fils a eu son
+    # bac ») que le mot entier des abréviations a laissées orphelines. En
+    # sous-chaîne, "bac" collisionnerait avec "débâcle"/"embâcle"/"bâcler"
+    # une fois désaccentués ; le mot entier évite cette collision. Il ne
+    # sépare en revanche pas le baccalauréat du **bac-ferry du fleuve
+    # Niger** — homonyme parfait et usage quotidien au Niger : c'est le
+    # garde-fou de domaine (fleuve, traversée, pirogue, Gaya…) qui s'en
+    # charge.
+    keywords_mot_entier_faibles = ["relevé", "bac"]
+    if not domaine_concurrent:
+        for kw in keywords_mot_entier_faibles:
+            if re.search(rf"\b{re.escape(_sans_accents(kw))}s?\b", question_sans_accents):
+                return "PERTINENT"
+
+    # --- Étage fort, sous-chaîne (pour couvrir les formes fléchies) ---
     #
     # Finding 1 (revue finale de branche) : le passage des abréviations
     # (ci-dessus) au mot entier était juste — « fa »/« ens » en sous-chaîne
     # matchaient « fait »/« pense » — mais ce match accidentel était aussi le
     # seul filet qui rattrapait de vraies questions d'étudiants au travers de
     # cette liste-ci, trop pauvre. Mesuré par le relecteur : 18 pertes sur 20
-    # vraies questions contenant « fa »/« ens ». Les mots ci-dessous
-    # (examen, renseignement, enseignant, inscrire, note, moyenne, semestre,
-    # rentrée, campus, paiement, matière, résultat) comblent le vocabulaire
-    # manquant identifié par la revue — voir le script de différentiel
-    # (scripts/diff_relevance_f4bf621.py) pour la preuve qu'aucune des
-    # phrases du corpus ne régresse par rapport à l'état d'avant le chantier.
-    keywords_uam = [
+    # vraies questions contenant « fa »/« ens ». Le vocabulaire ajouté alors
+    # est conservé intégralement — il est seulement réparti entre les deux
+    # étages selon qu'il a, ou non, un autre sens courant en français.
+    keywords_forts = [
         "abdou moumouni",
-        "faculté", "école", "institut", "formation", "filière",
+        "faculté", "école", "filière",
         "inscription", "admission", "diplôme", "attestation",
-        "scolarité", "étudiant", "licence", "master", "doctorat", "thèse",
-        "cours", "horaire", "service", "recteur", "doyen",
-        "réinscription", "réinscrire", "préinscription", "dossier", "pièces",
-        "calendrier", "date limite",
-        "carte étudiant", "bourse", "logement", "cité universitaire",
-        "orientation", "restauration", "bibliothèque",
-        "examen", "renseignement", "enseignant", "inscrire",
-        "note", "moyenne", "semestre", "rentrée", "campus",
-        "paiement", "matière", "résultat",
+        "scolarité", "étudiant", "licence", "master", "doctorat",
+        "doyen",
+        "réinscription", "réinscrire", "préinscription",
+        "carte étudiant", "bourse", "cité universitaire", "bibliothèque",
+        "enseignant", "inscrire", "semestre", "rentrée", "campus",
     ]
-    for kw in keywords_uam:
+    for kw in keywords_forts:
         if _sans_accents(kw) in question_sans_accents:
             return "PERTINENT"
+
+    # --- Étage faible, sous-chaîne ---
+    #
+    # Tous ces mots ont un sens courant hors de l'université : le cours du
+    # pétrole, le service client, le dossier d'une affaire, la note laissée
+    # sur une porte, la moyenne d'âge, le résultat d'un match, les matières
+    # premières, les pièces détachées, l'horaire de la banque, la
+    # restauration d'un monument, les services de renseignement, le
+    # logement à louer, l'examen médical. Ils restent des signaux UAM utiles
+    # — « Quand sont les examens ? », « Comment consulter mes notes ? »,
+    # « Je voudrais des renseignements » n'ont rien d'autre — mais ils ne
+    # tranchent que si la phrase ne parle pas manifestement d'autre chose.
+    keywords_faibles = [
+        "cours", "horaire", "service", "dossier", "pièces",
+        "calendrier", "date limite", "logement", "orientation",
+        "restauration", "examen", "renseignement",
+        "note", "moyenne", "paiement", "matière", "résultat",
+    ]
+    if not domaine_concurrent:
+        for kw in keywords_faibles:
+            if _sans_accents(kw) in question_sans_accents:
+                return "PERTINENT"
 
     # "université", "niger", "niamey", "équivalence", "transfert" nécessitent
     # un contexte UAM explicite (trop larges seuls : hôtels, élections, ministère…)
