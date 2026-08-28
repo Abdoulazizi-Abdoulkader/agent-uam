@@ -81,3 +81,21 @@ Thumbs.db
 
 # Espace de travail des plans superpowers (scratch, non versionné)
 .superpowers/
+
+# ── Secrets : clés SSH, certificats, jetons ───────────────────────────────────
+# Ajouté le 2026-08-28 après qu'une clé privée (id_ed25519) s'est retrouvée
+# indexée par un `git add` large. Les règles couvrent les noms usuels ET les
+# extensions, pour qu'une clé renommée ne repasse pas au travers.
+id_ed25519
+id_ed25519.pub
+id_rsa
+id_rsa.pub
+id_ecdsa
+id_ecdsa.pub
+id_dsa
+id_dsa.pub
+*.pem
+*.key
+*.p12
+*.pfx
+known_hosts
