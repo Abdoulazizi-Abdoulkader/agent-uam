@@ -9,7 +9,7 @@ from logger_config import get_logger
 
 logger = get_logger(__name__)
 
-# Repli des neuf fonctions de database_connector. Les modules d'outils les
+# Repli des dix fonctions de database_connector. Les modules d'outils les
 # importent au chargement du paquet, là où tools.py les résolvait paresseusement
 # dans ses globales : sans ces liaisons, un database_connector absent ou cassé
 # rendrait `import tools` impossible alors que tools.py se contentait de
@@ -24,6 +24,7 @@ search_news_announcements_db = None
 get_statistics_db = None
 get_official_stats_db = None
 search_student_courses_db = None
+verify_student_birthdate = None
 
 try:
     from database_connector import (
@@ -36,6 +37,7 @@ try:
         get_statistics_db,
         get_official_stats_db,
         search_student_courses_db,
+        verify_student_birthdate,
     )
     _db_available = is_database_available()
 except ImportError:

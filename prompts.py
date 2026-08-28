@@ -96,10 +96,14 @@ def build_tool_system_prompt(structures_context: str = "") -> str:
     # True à tort ; get_tools() ne l'expose donc désormais correctement que
     # lorsque la base est à la fois présente et peuplée.
     ligne_dossier_etudiant = (
-        "- search_student_record   : Consulte le dossier d'un étudiant par matricule\n"
+        "- search_student_record   : Consulte le dossier d'un étudiant (ACCÈS PROTÉGÉ)\n"
         "  * Utilise quand : \"mon matricule est UAM…\", \"mon inscription est-elle validée ?\",\n"
         "    \"combien j'ai payé\", \"mes résultats du semestre\", \"mes notes / crédits ECTS\"\n"
-        "  * Args : matricule (ex: UAM240001), query_type (\"inscription\"|\"paiement\"|\"resultats\"|\"general\")\n"
+        "  * Args : matricule (ex: UAM240001), date_naissance (OBLIGATOIRE, ex: 05/05/2003),\n"
+        "    query_type (\"inscription\"|\"paiement\"|\"resultats\"|\"general\")\n"
+        "  * SEC-01 — le matricule seul ne donne aucun accès. Si l'utilisateur n'a pas\n"
+        "    donné sa date de naissance, DEMANDE-LA avant d'appeler l'outil. N'invente\n"
+        "    jamais de date et ne propose jamais d'essayer plusieurs dates.\n"
         if _tools._db_available else ""
     )
 

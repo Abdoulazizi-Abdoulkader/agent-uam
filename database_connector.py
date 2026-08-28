@@ -360,6 +360,103 @@ def search_students_db(student_id: Optional[str] = None,
         return query_database(query, params)
 
 
+_MOIS_FR = {
+    "janvier": 1, "fevrier": 2, "février": 2, "mars": 3, "avril": 4,
+    "mai": 5, "juin": 6, "juillet": 7, "aout": 8, "août": 8,
+    "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12, "décembre": 12,
+}
+
+
+def _normaliser_date(valeur: Any) -> Optional[tuple]:
+    """Ramène une date écrite de plusieurs façons à un triplet (année, mois, jour).
+
+    L'utilisateur tape sa date de naissance comme il la dit — « 05/05/2003 »,
+    « 5 mai 2003 » — pas au format de la base (« 2003-05-05 »). Refuser ces
+    formes rendrait le second facteur de `verify_student_birthdate`
+    inutilisable en pratique, donc pousserait tôt ou tard à le retirer.
+
+    Retourne None si la saisie n'est reconnue par aucune forme : l'appelant
+    traite ce cas comme un échec de vérification, jamais comme un succès.
+    """
+    if valeur is None:
+        return None
+
+    texte = str(valeur).strip().lower()
+    if not texte:
+        return None
+
+    # Format de la base : AAAA-MM-JJ (éventuellement suivi d'une heure)
+    m = re.match(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})", texte)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+    # Formats usuels : JJ/MM/AAAA, JJ-MM-AAAA, JJ.MM.AAAA (zéro initial facultatif)
+    m = re.match(r"^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$", texte)
+    if m:
+        return (int(m.group(3)), int(m.group(2)), int(m.group(1)))
+
+    # Mois en toutes lettres : « 5 mai 2003 », « 05 mai 2003 »
+    m = re.match(r"^(\d{1,2})\s+([a-zéûôà]+)\s+(\d{4})$", texte)
+    if m and m.group(2) in _MOIS_FR:
+        return (int(m.group(3)), _MOIS_FR[m.group(2)], int(m.group(1)))
+
+    return None
+
+
+def verify_student_birthdate(student_id: str, date_saisie: str) -> bool:
+    """Vérifie la date de naissance d'un étudiant — SEC-01, second facteur.
+
+    Renvoie un **booléen**, jamais la date : c'est délibéré. La valeur ne
+    circule donc pas dans les dictionnaires que les outils formatent, et
+    aucun outil futur ne peut l'imprimer par inadvertance. Pour la même
+    raison, `search_students_db` ne la rapatrie pas.
+
+    Renvoie False dans tous les cas d'échec — matricule inconnu, date
+    absente, date illisible, date qui ne correspond pas — sans les
+    distinguer : l'appelant ne doit pas pouvoir s'en servir comme oracle
+    d'énumération des matricules.
+
+    Args:
+        student_id: matricule de l'étudiant
+        date_saisie: date de naissance telle que saisie par l'utilisateur
+
+    Returns:
+        True si et seulement si la date correspond au dossier
+    """
+    global _db_type
+
+    attendue_saisie = _normaliser_date(date_saisie)
+    if attendue_saisie is None or not student_id:
+        return False
+
+    try:
+        if _db_type == DatabaseType.MONGODB:
+            lignes = query_database({
+                "collection": "students",
+                "filter": {"student_id": student_id},
+                "limit": 1,
+            })
+            valeur = lignes[0].get("date_naissance") if lignes else None
+        else:
+            lignes = query_database(
+                "SELECT date_naissance FROM etudiants WHERE matricule = :m LIMIT 1",
+                {"m": student_id},
+            )
+            valeur = lignes[0].get("date_naissance") if lignes else None
+    except Exception as e:
+        # Fail-closed : une erreur de base ne doit pas ouvrir le dossier.
+        logger.error(f"Erreur lors de la vérification du second facteur : {e}")
+        return False
+
+    enregistree = _normaliser_date(valeur)
+    if enregistree is None:
+        # Dossier sans date de naissance : pas de second facteur possible,
+        # donc pas d'accès. Fail-closed, là encore.
+        return False
+
+    return enregistree == attendue_saisie
+
+
 def search_schedules_db(faculty: Optional[str] = None,
                         filiere: Optional[str] = None,
                         level: Optional[str] = None) -> List[Dict[str, Any]]:

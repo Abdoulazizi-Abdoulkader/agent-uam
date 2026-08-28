@@ -17,6 +17,7 @@ from ._db import (
     search_schedules_db,
     search_student_courses_db,
     search_students_db,
+    verify_student_birthdate,
 )
 
 logger = get_logger(__name__)
@@ -30,14 +31,50 @@ _STATUTS_INSCRIPTION_VALIDES: frozenset = frozenset({
 })
 
 
+# SEC-01 — messages du second facteur, définis une fois pour être
+# rigoureusement identiques d'un cas de refus à l'autre.
+#
+# Le refus ne distingue **pas** « matricule inconnu » de « date incorrecte »,
+# et ne renvoie pas le matricule en écho. C'est la moitié la moins visible de
+# la faille : un message qui différencie les deux cas fait de l'outil un
+# oracle d'énumération — le format du matricule étant prévisible (UAM +
+# 6 chiffres), il suffirait de balayer pour savoir quels dossiers existent,
+# avant même de chercher une date. Sur les 58 étudiants simulés c'est
+# anecdotique ; sur la base réelle de la scolarité, ce ne l'est plus.
+_MSG_SECOND_FACTEUR_REQUIS = (
+    "Pour des raisons de confidentialité, la consultation d'un dossier étudiant "
+    "demande une seconde vérification.\n"
+    "Merci d'indiquer la **date de naissance** de l'étudiant (par exemple "
+    "05/05/2003) en plus du matricule."
+)
+
+_MSG_SECOND_FACTEUR_REFUSE = (
+    "Impossible de consulter ce dossier : le matricule et la date de naissance "
+    "ne correspondent à aucun dossier.\n"
+    "Vérifiez les informations saisies, ou présentez-vous au service de scolarité "
+    "de votre faculté muni d'une pièce d'identité.\n"
+    "Scolarité Centrale UAM : +227 20 74 06 61 — Lun–Ven 7h30–15h30."
+)
+
+
 @tool
-def search_student_record(matricule: str, query_type: str = "inscription") -> str:
+def search_student_record(
+    matricule: str,
+    date_naissance: str = "",
+    query_type: str = "inscription",
+) -> str:
     """
-    Consulte le dossier d'un étudiant par son matricule dans la base de données UAM.
+    Consulte le dossier d'un étudiant dans la base de données UAM.
     Permet de vérifier le statut d'inscription, les paiements, les résultats et les cours inscrits.
+
+    ACCÈS PROTÉGÉ : le matricule seul ne suffit pas. La date de naissance de
+    l'étudiant est obligatoire. Si l'utilisateur ne l'a pas fournie, demandez-la
+    lui avant d'appeler cet outil ; n'inventez jamais de date.
 
     Args:
         matricule: Numéro de matricule de l'étudiant (ex: UAM240001)
+        date_naissance: Date de naissance de l'étudiant, telle qu'il l'a donnée
+            (ex: "05/05/2003", "2003-05-05" ou "5 mai 2003"). Obligatoire.
         query_type: Type de consultation —
             "inscription" : statut d'inscription uniquement
             "paiement"    : montants payés et frais
@@ -53,12 +90,48 @@ def search_student_record(matricule: str, query_type: str = "inscription") -> st
 
     matricule = matricule.strip().upper()
 
+    # SEC-01 — second facteur, vérifié avant toute consultation.
+    #
+    # L'audit avait reporté SEC-01 en jugeant le risque « actuellement nul »
+    # (58 étudiants simulés) avec un avertissement écrit pour la suite.
+    # L'auteur a tranché le 2026-08-28 : la base portera en production les
+    # vraies données de scolarité de l'UAM. La faille se transportant avec
+    # le code, l'avertissement ne suffit plus.
+    #
+    # Ce contrôle n'est pas une authentification — cette application n'a pas
+    # de session étudiant, et en écrire une dépasse ce chantier. C'est la
+    # barrière que le schéma existant permet de poser : la date de naissance
+    # est déjà dans la table `etudiants`, elle n'est pas déductible du
+    # matricule, et elle suffit à fermer l'accès en masse par balayage des
+    # matricules. Le passage en production demandera l'authentification
+    # complète — voir l'entrée SEC-01 de l'audit.
+    #
+    # Placé avant le contrôle de disponibilité de la base : sans date, la
+    # réponse est la même que la base soit là ou non, et l'appelant n'y
+    # apprend donc rien sur l'installation.
+    if not date_naissance or not str(date_naissance).strip():
+        return _MSG_SECOND_FACTEUR_REQUIS
+
     if not _db_available:
         return (
             f"La base de données n'est pas disponible pour consulter le matricule {matricule}.\n"
             "Veuillez contacter directement le service de scolarité de votre faculté.\n"
             "Scolarité Centrale UAM : +227 20 74 06 61 — Lun–Ven 7h30–15h30."
         )
+
+    # La vérification renvoie un booléen : la date enregistrée ne quitte
+    # jamais la couche base de données (voir verify_student_birthdate).
+    try:
+        acces_autorise = verify_student_birthdate(matricule, date_naissance)
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification du second facteur : {e}")
+        acces_autorise = False
+
+    if not acces_autorise:
+        # Volontairement identique au cas « matricule inconnu » ci-dessous,
+        # et sans écho du matricule : pas d'oracle d'énumération.
+        logger.warning("Consultation de dossier refusée : second facteur invalide.")
+        return _MSG_SECOND_FACTEUR_REFUSE
 
     try:
         students = search_students_db(student_id=matricule)
@@ -70,10 +143,9 @@ def search_student_record(matricule: str, query_type: str = "inscription") -> st
         )
 
     if not students:
-        return (
-            f"Aucun étudiant trouvé avec le matricule {matricule}.\n"
-            "Vérifiez le numéro saisi ou contactez le service des inscriptions de l'UAM."
-        )
+        # Même message que le refus de second facteur : les deux cas ne
+        # doivent pas être distinguables de l'extérieur.
+        return _MSG_SECOND_FACTEUR_REFUSE
 
     def _first_not_none(d: dict, *keys):
         """Retourne la première valeur non-None parmi les clés données (gère 0 correctement)."""
