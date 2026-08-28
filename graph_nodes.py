@@ -87,36 +87,46 @@ _MAX_HISTORY = 12
 # les vraies relances (« Peux-tu me détailler ça ? »). Aucun seuil de longueur
 # ne peut donc discriminer seul — à 21 caractères, la porte laissait passer la
 # quasi-totalité d'un corpus hors sujet court. La longueur seule a été
-# remplacée par une condition de FORME : un marqueur de continuation en tête
-# de message, ou un interrogatif nu (le message entier n'est que ce mot).
-# Aucune de ces deux catégories de mots n'a de sens en ouverture d'un échange
-# neuf — un vrai hors-sujet ne les emploie pas ainsi (vérifié sur un corpus
-# construit pour ce fix round, voir tests/test_routage_relances.py).
+# remplacée par une condition de FORME : un marqueur de continuation ou un
+# interrogatif, en tête de message. Aucun de ces mots n'a de sens en
+# ouverture d'un échange neuf — un vrai hors-sujet ne les emploie pas ainsi en
+# tête (vérifié sur un corpus construit pour ce fix round, voir
+# tests/test_routage_relances.py).
 #
-# Marqueurs en tête : la relance commence par un mot qui n'a de sens qu'en
-# continuation ("et", "oui", "non", "d'accord", "ok", "ensuite", "alors",
-# "peux-tu", "pouvez-vous", "quel est mon"). Pas de forme désaccentuée : un
-# marqueur "ou\b" désaccentué attraperait "où" ("C'est où ?") ET la
-# conjonction "ou" dans une vraie phrase hors sujet ("... riz ou mil ?") —
-# piège identifié en revue, évité en ne matchant jamais sur le texte
-# désaccentué pour cette condition.
-_FORME_TETE_RE = re.compile(
-    r"^(et|oui|non|d'accord|ok|ensuite|alors|peux-tu|pouvez-vous|quel est mon)\b"
+# fix round 2 — élargi (revue) : le motif d'origine exigeait que
+# l'interrogatif soit le message ENTIER ("Combien ?" mais pas "Combien ça
+# coûte ?"), perdant 6 relances naturelles sur 8 mesurées par la revue
+# ("Quand ?", "Qui ?", "Lequel ?", "Laquelle ?", "Quand exactement ?",
+# "Combien ça coûte ?"). Les deux motifs (marqueur de continuation, mot
+# interrogatif) sont désormais fusionnés dans une seule expression, chacun
+# ancré en tête de message et pouvant être suivi de texte — un marqueur
+# n'a de sens qu'en ouverture, jamais ailleurs dans la phrase, donc l'ancrage
+# `^` reste la seule protection nécessaire pour tous. Écart résiduel encore
+# assumé : la forme postposée ("Ça coûte combien ?", "C'est combien ?",
+# "C'est où ?", "À quelle date ?"), où l'interrogatif n'est pas en tête,
+# reste hors de la porte — mesuré et documenté dans l'entrée BUG-10 de
+# l'audit plutôt que couvert par un motif non ancré (risque de collision :
+# "qui"/"où" comme pronom ou adverbe relatif dans une vraie phrase hors
+# sujet, ex. "Le chat qui dort", "La ville où je suis né" — vérifié qu'aucun
+# des deux ne matche avec l'ancrage `^` conservé).
+#
+# Pas de forme désaccentuée : un marqueur "ou\b" désaccentué attraperait à
+# la fois "où" (interrogatif) et la conjonction "ou" d'une vraie phrase hors
+# sujet ("... riz ou mil ?") — piège identifié en revue (round 1), toujours
+# évité ici en ne désaccentuant jamais le texte pour cette condition.
+_FORME_RELANCE_RE = re.compile(
+    r"^(et|oui|non|d'accord|ok|ensuite|alors|peux-tu|pouvez-vous|quel est mon"
+    r"|pourquoi|combien|quand|qui|quoi|lequel|laquelle|où|comment\s*[cç]a)\b"
 )
-# Interrogatifs nus : le message ENTIER (une fois dépouillé) n'est que ce mot
-# — distinct d'un marqueur en tête, qui peut être suivi de texte.
-_FORME_NUE_RE = re.compile(r"^(pourquoi|combien|comment\s*[cç]a)\s*\??\s*$")
 
 # La longueur reste une condition ADDITIONNELLE (ET, pas OU) à la forme — pas
 # un mécanisme de repli autonome : un repli fondé sur la seule longueur pour
-# les quelques relances non couvertes par la forme (« C'est où ? », 10
-# caractères) rouvrirait exactement la faille corrigée ici, puisque des
-# phrases franchement hors sujet du corpus de ce fix round sont plus courtes
+# les relances non couvertes par la forme (« C'est où ? », 10 caractères)
+# rouvrirait exactement la faille corrigée en fix round 1, puisque des
+# phrases franchement hors sujet du corpus de ce chantier sont plus courtes
 # encore (« Ferme-la », 8 caractères ; « 2 + 2 ? », 7 caractères) — aucun
-# seuil ne peut admettre l'une sans admettre l'autre. « C'est où ? » et « À
-# quelle date ? » restent donc hors de la porte : écart résiduel assumé,
-# documenté plutôt que comblé par un mécanisme non sûr. Seuil calibré sur le
-# maximum mesuré des relances qui satisfont la forme (corpus de ce fix round,
+# seuil ne peut admettre l'une sans admettre l'autre. Seuil calibré sur le
+# maximum mesuré des relances qui satisfont la forme (corpus de fix round 1,
 # incluant les relances plus longues fournies en revue) : 30 caractères
 # (« Et combien ça coûte au total ? »).
 _RELANCE_LONGUEUR_MAX = 30
@@ -275,16 +285,26 @@ def route_and_store(state: AgentState) -> AgentState:
         #  - le tour précédent a atteint l'agent — routing_hint porte encore
         #    cette valeur au moment où on la lit ici, _result() ne l'écrase
         #    qu'à son retour ;
-        #  - la FORME : un marqueur de continuation en tête, ou un
-        #    interrogatif nu (fix round 1 — remplace la longueur seule,
-        #    anti-corrélée avec ce qu'elle devait séparer) ;
+        #  - la FORME : un marqueur de continuation ou un interrogatif, en
+        #    tête de message, éventuellement suivi de texte (fix round 1 —
+        #    remplace la longueur seule, anti-corrélée avec ce qu'elle
+        #    devait séparer ; fix round 2 — élargi aux interrogatifs suivis
+        #    de texte, pas seulement au mot nu) ;
         #  - la longueur reste bornée, en ET avec la forme (pas en repli) ;
         #  - _OFF_TOPIC_RE ne matche pas — ce garde-fou n'est jamais contourné.
+        #
+        # Compromis assumé (Finding 2, revue fix round 2) : la forme ne
+        # distingue pas ce qui SUIT un marqueur de continuation — « Et
+        # raconte-moi une blague ? » la satisfait autant qu'« Et combien ça
+        # coûte ? ». Comprendre le contenu après le marqueur demanderait une
+        # analyse sémantique, hors de portée d'une règle regex. Assumé au
+        # sens du critère du dépôt (faux négatif grave, faux positif bénin) :
+        # ces phrases partent au LLM, cadré par le garde-fou anti-hallucination
+        # de prompts.py, plutôt que d'être éconduites à tort — voir
+        # tests/test_routage_relances.py::TestFauxPositifsAssumes.
         if state.get("routing_hint") == "agent":
             question_normalisee = _normalise_saisie(question.lower().strip())
-            forme_ok = bool(_FORME_TETE_RE.match(question_normalisee)) or bool(
-                _FORME_NUE_RE.match(question_normalisee)
-            )
+            forme_ok = bool(_FORME_RELANCE_RE.match(question_normalisee))
             if (
                 forme_ok
                 and len(question.strip()) <= _RELANCE_LONGUEUR_MAX
