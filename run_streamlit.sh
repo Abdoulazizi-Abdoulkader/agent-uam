@@ -17,12 +17,13 @@ if [ "$CURRENT_WATCHES" -lt 100000 ]; then
     echo "⚠️  Attention: La limite inotify est faible ($CURRENT_WATCHES watches)"
     echo "   Cela peut causer des erreurs 'inotify watch limit reached'"
     echo ""
-    echo "💡 Pour corriger ce problème, exécutez:"
-    echo "   sudo ./fix_inotify_limit.sh"
-    echo ""
-    echo "   Ou manuellement:"
+    echo "💡 Pour corriger ce problème (le temps de la session):"
     echo "   sudo sysctl fs.inotify.max_user_watches=524288"
     echo "   sudo sysctl fs.inotify.max_user_instances=512"
+    echo ""
+    echo "   Pour le rendre permanent:"
+    echo "   echo 'fs.inotify.max_user_watches=524288' | sudo tee /etc/sysctl.d/99-inotify.conf"
+    echo "   sudo sysctl --system"
     echo ""
     read -p "Continuer quand même? (o/N) " -n 1 -r
     echo

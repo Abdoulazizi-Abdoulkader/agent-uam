@@ -115,6 +115,11 @@ def chat_stream(payload: ChatRequest):
     def evenements():
         try:
             for evenement in answer_stream(payload.question, session_id=payload.session_id):
+                # Maintien de connexion : un commentaire SSE, que le navigateur
+                # ignore nativement, sans passer par le rendu du fil de discussion.
+                if evenement.get("type") == "ping":
+                    yield ": ping\n\n"
+                    continue
                 yield f"data: {json.dumps(evenement, ensure_ascii=False)}\n\n"
         except Exception as exc:
             logger.error(f"Flux interrompu : {exc}", exc_info=True)

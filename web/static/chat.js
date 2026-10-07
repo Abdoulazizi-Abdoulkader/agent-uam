@@ -193,6 +193,22 @@
   const ERREUR_RESEAU =
     "Connexion au serveur impossible. Vérifiez que le service est démarré, puis réessayez.";
 
+  /* Plafonds de patience. Sans eux, un fetch() qui n'obtient jamais de réponse
+     n'est ni résolu ni rejeté : la page attend indéfiniment et le repli ci-dessous
+     n'est jamais atteint. Le serveur borne déjà un tour à UAM_REPONSE_TIMEOUT
+     (90 s par défaut) — on lui laisse une marge avant de couper. */
+  const CHRONO_FLUX = 130000;
+  const CHRONO_CLASSIQUE = 130000;
+
+  /* Plafond de temps couvrant TOUT l'échange, en-têtes ET lecture du flux.
+     L'appelant doit appeler annuler() quand il a fini de lire : nettoyer le
+     minuteur dès la réception des en-têtes laisserait la lecture sans plafond. */
+  function chrono(delai) {
+    const controleur = new AbortController();
+    const minuteur = setTimeout(() => controleur.abort(), delai);
+    return { signal: controleur.signal, annuler: () => clearTimeout(minuteur) };
+  }
+
   async function envoyer(question) {
     question = (question || "").trim();
     if (!question || enCours) return;
@@ -225,14 +241,35 @@
   /* Streaming (SSE) : la réponse s'affiche au fil de sa génération. Le temps total
      est le même, mais les premiers mots arrivent en quelques secondes. */
   async function envoyerEnFlux(question, attente) {
-    const reponse = await fetch("/api/chat/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question, session_id: sessionId }),
-    });
+    const limite = chrono(CHRONO_FLUX);
+    let reponse;
+    try {
+      reponse = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question, session_id: sessionId }),
+        signal: limite.signal,
+      });
+    } catch (err) {
+      limite.annuler();
+      throw err;  // le repli classique prend le relais
+    }
 
-    if (!reponse.ok || !reponse.body) throw new Error("flux indisponible");
+    if (!reponse.ok || !reponse.body) {
+      limite.annuler();
+      throw new Error("flux indisponible");
+    }
 
+    try {
+      return await lireFlux(reponse, attente);
+    } finally {
+      limite.annuler();
+    }
+  }
+
+  /* Lecture du flux SSE proprement dite, séparée pour que le plafond de temps
+     ci-dessus couvre aussi cette phase. */
+  async function lireFlux(reponse, attente) {
     const lecteur = reponse.body.getReader();
     const decodeur = new TextDecoder();
     let tampon = "";
@@ -290,11 +327,18 @@
 
   /* Mode classique : une seule réponse JSON, sans affichage progressif. */
   async function envoyerClassique(question, attente) {
-    const reponse = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question, session_id: sessionId }),
-    });
+    const limite = chrono(CHRONO_CLASSIQUE);
+    let reponse;
+    try {
+      reponse = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question, session_id: sessionId }),
+        signal: limite.signal,
+      });
+    } finally {
+      limite.annuler();
+    }
 
     attente.remove();
 

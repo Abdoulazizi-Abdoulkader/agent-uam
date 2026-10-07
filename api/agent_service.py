@@ -8,6 +8,7 @@ L'agent (LLM + vectorstore + graphe) est construit une seule fois par processus 
 le modèle d'embeddings HuggingFace pèse ~1 Go en mémoire et met 5 à 12 s à charger.
 """
 import os
+import queue
 import sys
 import threading
 import time
@@ -35,6 +36,14 @@ logger = get_logger(__name__)
 # pour ne pas saturer le pool de threads ni le quota OpenRouter.
 _MAX_CONCURRENT_RUNS = 4
 _run_semaphore = threading.Semaphore(_MAX_CONCURRENT_RUNS)
+
+# Intervalle des commentaires SSE de maintien, pendant les phases sans token.
+# Sans octet émis, rien ne distingue une attente longue d'une connexion morte :
+# ni le navigateur, ni un proxy intermédiaire ne peuvent faire la différence.
+_PING_INTERVAL = 10
+
+# Sentinelle de fin de file entre le thread d'exécution et le générateur SSE.
+_FIN_DU_FLUX = object()
 
 _agent = None
 _vectorstore = None
@@ -246,16 +255,34 @@ def answer(
     start = time.perf_counter()
     question, state, run_config = _prepare_run(question, session_id)
 
-    with _run_semaphore:
-        try:
-            set_session_user_id(session_id)
-            result = agent.invoke(state, run_config)
-        except Exception as exc:
-            return AnswerResult(
-                response=_humanize_error(exc),
-                elapsed_ms=int((time.perf_counter() - start) * 1000),
-                error=str(exc),
-            )
+    # Acquisition bornée, jamais `with` : si les places sont toutes prises, mieux
+    # vaut un refus explicite en quelques secondes qu'une requête qui ne répond
+    # jamais — c'est ce chemin qui sert de repli quand le flux SSE échoue.
+    if not _run_semaphore.acquire(timeout=config.attente_file_timeout):
+        logger.warning(
+            f"File d'attente saturée ({_MAX_CONCURRENT_RUNS} exécutions simultanées) "
+            f"— question refusée pour la session {session_id}."
+        )
+        return AnswerResult(
+            response=(
+                "Le service traite déjà plusieurs demandes. "
+                "Merci de réessayer dans quelques instants."
+            ),
+            elapsed_ms=int((time.perf_counter() - start) * 1000),
+            error="file_attente_saturee",
+        )
+
+    try:
+        set_session_user_id(session_id)
+        result = agent.invoke(state, run_config)
+    except Exception as exc:
+        return AnswerResult(
+            response=_humanize_error(exc),
+            elapsed_ms=int((time.perf_counter() - start) * 1000),
+            error=str(exc),
+        )
+    finally:
+        _run_semaphore.release()
 
     elapsed_ms = int((time.perf_counter() - start) * 1000)
     response_text = _extract_response(result) or (
@@ -295,6 +322,10 @@ def answer_stream(question: str, session_id: str):
 
     Générateur **synchrone** : le graphe est bloquant, l'appelant doit l'itérer
     hors de la boucle d'événements (FastAPI le fait via son pool de threads).
+
+    Le graphe tourne dans un thread dédié qui pousse ses événements dans une file ;
+    le générateur ne fait que vider cette file. Ce découplage n'est pas une
+    élégance : il corrige la panne où le site restait muet (voir `_executer_run`).
     """
     config = get_config()
 
@@ -307,67 +338,144 @@ def answer_stream(question: str, session_id: str):
     start = time.perf_counter()
     question, state, run_config = _prepare_run(question, session_id)
 
-    morceaux: List[str] = []
-    is_relevant = True
+    evenements: "queue.Queue" = queue.Queue()
 
-    with _run_semaphore:
+    def _executer_run() -> None:
+        """Déroule le graphe et pousse chaque événement dans la file.
+
+        Tourne dans son propre thread, et **jamais** dans le générateur SSE.
+        Un générateur suspendu sur un `yield` que plus personne ne consomme
+        (l'utilisateur a rechargé la page) n'est ni repris ni fermé : s'il
+        détenait le sémaphore, il le garderait pour toujours. Mesuré avant
+        correction : 4 rechargements suffisaient à figer `/api/chat/stream`
+        définitivement — plus un seul octet émis, alors que `/health`
+        répondait en 2 ms et que le CPU était à 10 %.
+
+        Ici le thread va toujours au bout de son exécution, donc le `finally`
+        rend toujours sa place, que le client soit encore là ou non.
+        """
+        morceaux: List[str] = []
+        is_relevant = True
+
         try:
-            set_session_user_id(session_id)
-            for mode, payload in agent.stream(
-                state, run_config, stream_mode=["updates", "messages"]
-            ):
-                if mode == "updates":
-                    for noeud, maj in (payload or {}).items():
-                        libelle = _LIBELLES_ETAPES.get(noeud)
-                        if libelle:
-                            yield {"type": "etape", "libelle": libelle}
-                        # Les nœuds sans LLM (reject_query, handle_special_case)
-                        # posent directement leur texte : il ne passera pas en tokens.
-                        if isinstance(maj, dict) and maj.get("response"):
-                            morceaux.append(maj["response"])
-                            is_relevant = maj.get("is_relevant", is_relevant)
-                            yield {"type": "token", "texte": maj["response"]}
+            if not _run_semaphore.acquire(timeout=config.attente_file_timeout):
+                logger.warning(
+                    f"File d'attente saturée ({_MAX_CONCURRENT_RUNS} exécutions "
+                    f"simultanées) — question refusée pour la session {session_id}."
+                )
+                evenements.put({
+                    "type": "erreur",
+                    "message": (
+                        "Le service traite déjà plusieurs demandes. "
+                        "Merci de réessayer dans quelques instants."
+                    ),
+                })
+                return
 
-                elif mode == "messages":
-                    chunk, meta = payload if isinstance(payload, tuple) else (payload, {})
+            try:
+                set_session_user_id(session_id)
+                debut_tour = time.perf_counter()
 
-                    # Ne diffuser que ce que le nœud « agent » rédige pour l'utilisateur.
-                    # Sans ce filtre, les ToolMessage (résultats bruts de recherche
-                    # documentaire) seraient envoyés tels quels au navigateur.
-                    if (meta or {}).get("langgraph_node") != "agent":
-                        continue
-                    if not isinstance(chunk, (AIMessage, AIMessageChunk)):
-                        continue
-                    if getattr(chunk, "tool_calls", None) or getattr(
-                        chunk, "tool_call_chunks", None
-                    ):
-                        continue
-
-                    texte = chunk.content
-                    if isinstance(texte, list):  # certains modèles renvoient des blocs
-                        texte = "".join(
-                            b.get("text", "") for b in texte if isinstance(b, dict)
+                for mode, payload in agent.stream(
+                    state, run_config, stream_mode=["updates", "messages"]
+                ):
+                    # Garde-fou de durée : llm.timeout ne borne qu'un appel HTTP,
+                    # or un tour ReAct en enchaîne plusieurs. Sans ce plafond, un
+                    # tour pathologique monopolise une place de la file sans fin.
+                    if time.perf_counter() - debut_tour > config.reponse_timeout:
+                        logger.warning(
+                            f"Tour interrompu après {config.reponse_timeout}s "
+                            f"(session {session_id})."
                         )
-                    if texte:
-                        morceaux.append(texte)
-                        yield {"type": "token", "texte": texte}
+                        evenements.put({
+                            "type": "erreur",
+                            "message": (
+                                "La réponse a mis trop de temps à arriver. "
+                                "Merci de reformuler votre question."
+                            ),
+                        })
+                        return
+
+                    if mode == "updates":
+                        for noeud, maj in (payload or {}).items():
+                            libelle = _LIBELLES_ETAPES.get(noeud)
+                            if libelle:
+                                evenements.put({"type": "etape", "libelle": libelle})
+                            # Les nœuds sans LLM (reject_query, handle_special_case)
+                            # posent directement leur texte : il ne passera pas en tokens.
+                            if isinstance(maj, dict) and maj.get("response"):
+                                morceaux.append(maj["response"])
+                                is_relevant = maj.get("is_relevant", is_relevant)
+                                evenements.put({"type": "token", "texte": maj["response"]})
+
+                    elif mode == "messages":
+                        chunk, meta = payload if isinstance(payload, tuple) else (payload, {})
+
+                        # Ne diffuser que ce que le nœud « agent » rédige pour l'utilisateur.
+                        # Sans ce filtre, les ToolMessage (résultats bruts de recherche
+                        # documentaire) seraient envoyés tels quels au navigateur.
+                        if (meta or {}).get("langgraph_node") != "agent":
+                            continue
+                        if not isinstance(chunk, (AIMessage, AIMessageChunk)):
+                            continue
+                        if getattr(chunk, "tool_calls", None) or getattr(
+                            chunk, "tool_call_chunks", None
+                        ):
+                            continue
+
+                        texte = chunk.content
+                        if isinstance(texte, list):  # certains modèles renvoient des blocs
+                            texte = "".join(
+                                b.get("text", "") for b in texte if isinstance(b, dict)
+                            )
+                        if texte:
+                            morceaux.append(texte)
+                            evenements.put({"type": "token", "texte": texte})
+            finally:
+                _run_semaphore.release()
+
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            response_text = "".join(morceaux).strip() or (
+                "Je n'ai pas trouvé d'information sur ce point. "
+                "Pouvez-vous reformuler votre question ?"
+            )
+
+            evenements.put({
+                "type": "fin",
+                "response": response_text,
+                "sources": _collect_sources(
+                    question, config.vectorstore.similarity_search_k
+                ),
+                "elapsed_ms": elapsed_ms,
+            })
+
+            _record(session_id, question, response_text, is_relevant, elapsed_ms)
 
         except Exception as exc:
             logger.error(f"answer_stream — échec : {exc}", exc_info=True)
-            yield {"type": "erreur", "message": _humanize_error(exc)}
+            evenements.put({"type": "erreur", "message": _humanize_error(exc)})
+        finally:
+            evenements.put(_FIN_DU_FLUX)
+
+    threading.Thread(
+        target=_executer_run,
+        name=f"uam-run-{session_id[:12]}",
+        daemon=True,
+    ).start()
+
+    # Premier octet immédiat : force FastAPI à envoyer les en-têtes HTTP tout de
+    # suite. Sans lui, une file saturée laisserait le navigateur sans réponse —
+    # `fetch()` ne se résout pas, donc le repli classique de chat.js ne se
+    # déclenche jamais et la page attend sans fin.
+    yield {"type": "ping"}
+
+    while True:
+        try:
+            evenement = evenements.get(timeout=_PING_INTERVAL)
+        except queue.Empty:
+            yield {"type": "ping"}  # maintien de la connexion pendant les silences
+            continue
+
+        if evenement is _FIN_DU_FLUX:
             return
-
-    elapsed_ms = int((time.perf_counter() - start) * 1000)
-    response_text = "".join(morceaux).strip() or (
-        "Je n'ai pas trouvé d'information sur ce point. "
-        "Pouvez-vous reformuler votre question ?"
-    )
-
-    yield {
-        "type": "fin",
-        "response": response_text,
-        "sources": _collect_sources(question, config.vectorstore.similarity_search_k),
-        "elapsed_ms": elapsed_ms,
-    }
-
-    _record(session_id, question, response_text, is_relevant, elapsed_ms)
+        yield evenement

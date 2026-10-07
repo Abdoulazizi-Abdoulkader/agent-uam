@@ -139,6 +139,39 @@ servent qu'au tour qui les a produits, et pèsent ~1 500 tokens chacun). Les deu
 sont retirés ensemble : l'API exige qu'un message annonçant des `tool_calls` soit suivi
 de leurs résultats.
 
+### ⚠️ Streaming SSE : le graphe tourne dans un thread, jamais dans le générateur
+
+`answer_stream` ([api/agent_service.py](api/agent_service.py)) exécute le graphe dans
+un **thread dédié** qui pousse ses événements dans une `queue.Queue` ; le générateur
+SSE ne fait que vider cette file. Ce découplage corrige une panne où le site restait
+muet.
+
+Le piège : un générateur synchrone suspendu sur un `yield` que plus personne ne
+consomme — l'utilisateur a rechargé la page — n'est **ni repris ni fermé**. Starlette
+l'itère via `iterate_in_threadpool`, et anyio ne peut pas annuler un thread en cours.
+Tant que le sémaphore d'exécutions simultanées (`_run_semaphore`, 4 places) était pris
+*à l'intérieur* du générateur, chaque rechargement en confisquait une place **pour
+toujours**. Mesuré : 4 abandons suffisaient à figer `/api/chat/stream` définitivement
+— plus un seul octet émis, alors que `/health` répondait en 2 ms et que le CPU était
+à 10 %.
+
+Trois règles à ne pas casser :
+
+- **Le sémaphore ne doit jamais être détenu par du code qui `yield`.** Il est pris et
+  rendu dans le thread d'exécution, qui va toujours au bout. Un `with _run_semaphore:`
+  autour d'une boucle contenant un `yield` réintroduit exactement la panne.
+- **Acquisition bornée, jamais bloquante** (`acquire(timeout=…)`) dans `answer()` comme
+  dans `answer_stream()` : file pleine → refus lisible, jamais une requête sans réponse.
+  `answer()` sert de repli au flux ; le laisser bloquer annulerait le filet de sécurité.
+- **Émettre un premier octet avant toute attente.** Le `{"type": "ping"}` initial (rendu
+  en commentaire SSE `: ping` par [api/main.py](api/main.py)) force l'envoi des en-têtes
+  HTTP. Sans lui, `fetch()` côté navigateur ne se résout ni ne rejette : le repli
+  `envoyerClassique` de [web/static/chat.js](web/static/chat.js) n'est jamais atteint et
+  la page attend sans fin.
+
+`UAM_LLM_TIMEOUT` ne borne qu'un appel HTTP unitaire ; c'est `UAM_REPONSE_TIMEOUT` qui
+borne le tour complet, et `chat.js` coupe de son côté à 130 s.
+
 ### Accès au dossier étudiant : second facteur obligatoire (SEC-01)
 
 `search_student_record` **n'accepte pas le matricule seul**. `date_naissance` est
@@ -228,6 +261,8 @@ Le vectorstore est initialisé une fois dans `document_loader.py` et stocké com
 | `UAM_DB_TYPE` | None | Type BDD (postgresql/mysql/mongodb) |
 | `UAM_CHECKPOINTER` | `sqlite` | Persistance des sessions : `sqlite` (survit au redémarrage) ou `memory` |
 | `UAM_CHECKPOINT_DB` | `./database/checkpoints.db` | Chemin du fichier SQLite des checkpoints |
+| `UAM_REPONSE_TIMEOUT` | `90` | Durée maximale d'un tour complet (plusieurs appels LLM) |
+| `UAM_ATTENTE_FILE_TIMEOUT` | `20` | Attente maximale d'une place dans la file d'exécution |
 | `WHATSAPP_VERIFY_TOKEN` | None | Vérification du webhook Meta (webhook fermé si absent) |
 | `WHATSAPP_ACCESS_TOKEN` | None | Token de l'app Meta (temporaire : 24 h) |
 | `WHATSAPP_PHONE_NUMBER_ID` | None | Identifiant du numéro expéditeur |

@@ -122,6 +122,12 @@ class AppConfig:
     # Persistance des sessions
     checkpointer: str = "sqlite"
     checkpoint_db: str = "./database/checkpoints.db"
+
+    # Service de réponse (site web + WhatsApp)
+    # reponse_timeout borne un tour COMPLET (plusieurs appels LLM possibles),
+    # là où llm.timeout ne borne qu'un seul appel HTTP.
+    reponse_timeout: int = 90
+    attente_file_timeout: int = 20
     
     def __post_init__(self):
         logger.info(f"Configuration chargée - Documents: {self.documents_directory}")
@@ -190,7 +196,9 @@ class AppConfig:
             streamlit_port=int(os.getenv("UAM_STREAMLIT_PORT", "8501")),
             streamlit_host=os.getenv("UAM_STREAMLIT_HOST", "localhost"),
             checkpointer=os.getenv("UAM_CHECKPOINTER", "sqlite"),
-            checkpoint_db=os.getenv("UAM_CHECKPOINT_DB", "./database/checkpoints.db")
+            checkpoint_db=os.getenv("UAM_CHECKPOINT_DB", "./database/checkpoints.db"),
+            reponse_timeout=int(os.getenv("UAM_REPONSE_TIMEOUT", "90")),
+            attente_file_timeout=int(os.getenv("UAM_ATTENTE_FILE_TIMEOUT", "20"))
         )
     
     def to_dict(self) -> Dict[str, Any]:
